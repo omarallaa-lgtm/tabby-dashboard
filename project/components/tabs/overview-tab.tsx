@@ -178,7 +178,7 @@ export function OverviewTab() {
         team: 'Customer Care',
         csatCount: agent.csatCount,
         kscatCount: agent.kscatCount,
-        dsat: agent.dsatCount,
+        dsat: (agent as any).dsatCount || 0,
         totalTickets: agent.totalTickets,
         totalWOKarma: agent.totalWOKarma,
         kscatPercent: agent.kscatPercent,
