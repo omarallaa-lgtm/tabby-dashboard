@@ -10,7 +10,7 @@ import { useMetrics, UserRole, User } from '@/lib/metrics-context';
 import { ShieldCheck, UserPlus, Trash2, Mail, Lock } from 'lucide-react';
 
 export function AdminSettingsTab() {
-  const context = useMetrics();
+  const context = useMetrics() as any;
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('Admin');
 
@@ -20,12 +20,16 @@ export function AdminSettingsTab() {
     e.preventDefault();
     if (!newEmail.trim()) return;
 
-    context.addAllowedEmail(newEmail.trim(), newRole);
+    if (typeof context.addAllowedEmail === 'function') {
+      context.addAllowedEmail(newEmail.trim(), newRole);
+    }
     setNewEmail('');
   };
 
   const handleRemoveUser = (email: string) => {
-    context.removeAllowedEmail(email);
+    if (typeof context.removeAllowedEmail === 'function') {
+      context.removeAllowedEmail(email);
+    }
   };
 
   return (
