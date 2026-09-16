@@ -9,17 +9,40 @@ import { useMetrics } from '@/lib/metrics-context';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
-const supabase = supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export function AgentDataTab() {
   const metricsContext = useMetrics() as any;
   const [saving, setSaving] = useState(false);
-  const [parsedData, setParsedData] = useState<any[]>([]);
+  const [parsedMap, setParsedMap] = useState<Record<string, any>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const cleanNum = (val: any) => {
+    if (val === undefined || val === null || val === '') return 0;
+    const str = String(val).replace(/[%$,]/g, '').trim();
+    const num = parseFloat(str);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const getAgentKey = (raw: string) => {
+    let cleaned = raw.toLowerCase().trim();
+    if (cleaned.includes('@')) {
+      cleaned = cleaned.split('@')[0];
+    }
+    return cleaned.replace(/[^a-z0-9]/g, '');
+  };
+
+  const formatAgentName = (raw: string) => {
+    if (raw.includes('@')) {
+      const part = raw.split('@')[0];
+      return part.split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    return raw;
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,50 +60,139 @@ export function AgentDataTab() {
         return;
       }
 
-      const headerKeys = Object.keys(rows[0]);
-      const findKey = (candidates: string[]): string | undefined => {
-        return headerKeys.find((k) =>
-          candidates.some((c) => k.toLowerCase().replace(/[\s_]/g, '').includes(c.toLowerCase().replace(/[\s_]/g, '')))
-        );
-      };
+      const updatedMap = { ...parsedMap };
 
-      const nameKey = findKey(['Agent Name', 'AgentName', 'Name', 'Agent']);
-      const csatKey = findKey(['CSAT']);
-      const dsatKey = findKey(['DSAT']);
-      const ahtKey = findKey(['AHT', 'AverageHandleTime', 'HandleTime']);
-      const adherenceKey = findKey(['Adherence']);
-      const dateKey = findKey(['Date']);
+      // Case 1: KSCAT Calc.csv
+      if (rows[0]['resolver'] !== undefined || rows[0]['csat'] !== undefined) {
+        rows.forEach((row) => {
+          const rawName = String(row['resolver'] || row['assignee'] || '').trim();
+          if (!rawName || rawName.toLowerCase() === 'total') return;
 
-      const parsed = rows
-        .map((row, i) => {
-          const name = nameKey ? String(row[nameKey] || '').trim() : `Agent ${i + 1}`;
-          const csat = csatKey ? parseFloat(String(row[csatKey])) || 0 : 0;
-          const dsat = dsatKey ? parseInt(String(row[dsatKey]), 10) || 0 : 0;
-          const aht = ahtKey ? String(row[ahtKey] || '0:00') : '0:00';
-          const adherence = adherenceKey ? parseFloat(String(row[adherenceKey])) || 0 : 0;
-          const date = dateKey ? String(row[dateKey] || '').trim() : new Date().toISOString().split('T')[0];
+          const key = getAgentKey(rawName);
+          const csatVal = String(row['csat'] || '').toLowerCase();
 
-          return {
-            id: `agent-${Date.now()}-${i}`,
-            name,
-            csat,
-            dsat,
-            aht,
-            aht_seconds: 0,
-            adherence,
-            date,
-          };
-        })
-        .filter((r) => r.name.length > 0);
+          if (!updatedMap[key]) {
+            updatedMap[key] = {
+              id: `agent-${key}`,
+              name: formatAgentName(rawName),
+              csat: 0,
+              kscat: 0,
+              dsat: 0,
+              total_count: 0,
+              total_wo_karma: 0,
+              kscat_percent: 0,
+              csat_percent: 0,
+              variance: 0,
+              abt: 0,
+              productivity_8hrs: 0,
+              productivity_online_8hrs: 0,
+              escalation_rate: 0,
+              deescalation_rate: 0,
+              adherence: 0,
+              agbt: 0,
+              aht: '0:00',
+              closed_after_res_percent: 0,
+              closed_tickets_percent: 0,
+              fcr_percent: 0,
+              tardy_minutes: 0,
+              idle_time: 0,
+              date: new Date().toISOString().split('T')[0],
+            };
+          }
 
-      setParsedData((prev) => [...prev, ...parsed]);
+          if (csatVal === 'good') {
+            updatedMap[key].csat += 1;
+            updatedMap[key].kscat += 1;
+          } else if (csatVal === 'bad') {
+            updatedMap[key].dsat += 1;
+          }
+          updatedMap[key].total_count = updatedMap[key].csat + updatedMap[key].dsat;
+          updatedMap[key].kscat_percent = updatedMap[key].total_count > 0 
+            ? Math.round((updatedMap[key].csat / updatedMap[key].total_count) * 1000) / 10 
+            : 0;
+        });
+      }
+      // Case 2: Metrics.csv
+      else if (rows[0]['Agent'] !== undefined || rows[0]['Unnamed: 3'] !== undefined) {
+        rows.forEach((row) => {
+          const rawName = String(row['Agent'] || '').trim();
+          if (!rawName || rawName.toLowerCase() === 'total') return;
+
+          const key = getAgentKey(rawName);
+          const metricName = String(row['Unnamed: 3'] || '').trim().toLowerCase();
+          const valStr = row['1/9/2026'] || row[Object.keys(row)[4]] || '';
+
+          if (!updatedMap[key]) {
+            updatedMap[key] = {
+              id: `agent-${key}`,
+              name: formatAgentName(rawName),
+              csat: 0, kscat: 0, dsat: 0, total_count: 0, total_wo_karma: 0,
+              kscat_percent: 0, csat_percent: 0, variance: 0, abt: 0,
+              productivity_8hrs: 0, productivity_online_8hrs: 0, escalation_rate: 0,
+              deescalation_rate: 0, adherence: 0, agbt: 0, aht: '0:00',
+              closed_after_res_percent: 0, closed_tickets_percent: 0, fcr_percent: 0,
+              tardy_minutes: 0, idle_time: 0, date: new Date().toISOString().split('T')[0],
+            };
+          }
+
+          const num = cleanNum(valStr);
+          if (metricName.includes('average basket time')) updatedMap[key].abt = num;
+          if (metricName.includes('productivity 8-hrs')) updatedMap[key].productivity_8hrs = num;
+          if (metricName.includes('productivity online 8-hrs')) updatedMap[key].productivity_online_8hrs = num;
+          if (metricName.includes('escalation rate')) updatedMap[key].escalation_rate = num;
+          if (metricName.includes('deescalation rate')) updatedMap[key].deescalation_rate = num;
+          if (metricName.includes('adherence')) updatedMap[key].adherence = num;
+          if (metricName.includes('average group basket time')) updatedMap[key].agbt = num;
+          if (metricName.includes('average handling time')) updatedMap[key].aht = String(valStr || '0:00');
+          if (metricName.includes('csat adjusted - total scores')) updatedMap[key].total_wo_karma = num;
+          if (metricName.includes('csat adjusted with calls')) updatedMap[key].csat_percent = num;
+          if (metricName.includes('closed after resolution')) updatedMap[key].closed_after_res_percent = num;
+          if (metricName.includes('closed tickets, %')) updatedMap[key].closed_tickets_percent = num;
+          if (metricName.includes('fcr')) updatedMap[key].fcr_percent = num;
+        });
+      }
+      // Case 3: PVF.csv
+      else if (rows[0]['agent_email (clickable)'] !== undefined) {
+        rows.forEach((row) => {
+          const rawName = String(row['agent_email (clickable)'] || '').trim();
+          if (!rawName) return;
+
+          const key = getAgentKey(rawName);
+          if (!updatedMap[key]) {
+            updatedMap[key] = {
+              id: `agent-${key}`,
+              name: formatAgentName(rawName),
+              csat: 0, kscat: 0, dsat: 0, total_count: 0, total_wo_karma: 0,
+              kscat_percent: 0, csat_percent: 0, variance: 0, abt: 0,
+              productivity_8hrs: 0, productivity_online_8hrs: 0, escalation_rate: 0,
+              deescalation_rate: 0, adherence: 0, agbt: 0, aht: '0:00',
+              closed_after_res_percent: 0, closed_tickets_percent: 0, fcr_percent: 0,
+              tardy_minutes: 0, idle_time: 0, date: new Date().toISOString().split('T')[0],
+            };
+          }
+
+          const notWorkingH = cleanNum(row['time_not_working_h']);
+          const idleH = cleanNum(row['time_without_tickets_h']);
+          updatedMap[key].tardy_minutes += Math.round(notWorkingH * 60);
+          updatedMap[key].idle_time += Math.round(idleH * 10) / 10;
+        });
+      }
+
+      // Compute variance for all agents
+      Object.keys(updatedMap).forEach((k) => {
+        const item = updatedMap[k];
+        item.variance = Math.round((item.csat_percent - item.kscat_percent) * 100) / 100;
+      });
+
+      setParsedMap(updatedMap);
+      const agentArray = Object.values(updatedMap);
 
       if (typeof metricsContext?.setAgents === 'function') {
-        metricsContext.setAgents((prev: any[]) => [...(prev || []), ...parsed]);
+        metricsContext.setAgents(agentArray);
       }
 
       setStatusType('success');
-      setStatusMessage(`Parsed ${parsed.length} rows from ${file.name}. Ready to save.`);
+      setStatusMessage(`Successfully processed ${file.name}. Total active agents merged: ${agentArray.length}.`);
     } catch (err) {
       console.error(err);
       setStatusType('error');
@@ -91,11 +203,11 @@ export function AgentDataTab() {
   };
 
   const handleSaveUnifiedBackup = async () => {
-    const dataToSave = parsedData.length > 0 ? parsedData : metricsContext?.agents || [];
+    const payload = Object.values(parsedMap);
 
-    if (!dataToSave || dataToSave.length === 0) {
+    if (payload.length === 0) {
       setStatusType('error');
-      setStatusMessage('No agent data found. Click an upload slot above to pick your CSV file first.');
+      setStatusMessage('No parsed data available. Please upload your CSV files first.');
       return;
     }
 
@@ -103,37 +215,20 @@ export function AgentDataTab() {
     setStatusMessage(null);
 
     try {
-      const dbPayload = dataToSave.map((agent: any, index: number) => ({
-        id: String(agent.id || `agent-${Date.now()}-${index}`),
-        name: String(agent.name || 'Unknown Agent'),
-        csat: Number(agent.csat) || 0,
-        dsat: Number(agent.dsat) || 0,
-        aht: String(agent.aht || '0:00'),
-        aht_seconds: Number(agent.aht_seconds || agent.ahtSeconds) || 0,
-        adherence: Number(agent.adherence) || 0,
-        date: String(agent.date || new Date().toISOString().split('T')[0]),
-      }));
-
-      if (!supabase) {
-        setStatusType('success');
-        setStatusMessage(`Saved ${dbPayload.length} records locally in memory. Configure Supabase to persist them.`);
-        return;
-      }
-
-      const { error } = await supabase.from('agent_metrics').upsert(dbPayload);
+      const { error } = await supabase.from('agent_metrics').upsert(payload);
 
       if (error) {
         console.error('Supabase error:', error);
         setStatusType('error');
-        setStatusMessage(`Supabase error: ${error.message}`);
+        setStatusMessage(`Supabase insert error: ${error.message}`);
       } else {
         setStatusType('success');
-        setStatusMessage(`Successfully saved ${dbPayload.length} records to Supabase!`);
+        setStatusMessage(`Successfully saved ${payload.length} unique agent profiles to Supabase!`);
       }
     } catch (err: any) {
       console.error('Backup error:', err);
       setStatusType('error');
-      setStatusMessage('An error occurred while saving.');
+      setStatusMessage('An unexpected error occurred while saving.');
     } finally {
       setSaving(false);
     }
@@ -141,13 +236,7 @@ export function AgentDataTab() {
 
   return (
     <div className="space-y-6">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv,.xlsx,.xls"
-        className="hidden"
-        onChange={handleFileSelect}
-      />
+      <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
 
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Agent Data</h2>
