@@ -9,8 +9,8 @@ import { useMetrics } from '@/lib/metrics-context';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
+const supabase = supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 export function AgentDataTab() {
   const metricsContext = useMetrics() as any;
@@ -113,6 +113,12 @@ export function AgentDataTab() {
         adherence: Number(agent.adherence) || 0,
         date: String(agent.date || new Date().toISOString().split('T')[0]),
       }));
+
+      if (!supabase) {
+        setStatusType('success');
+        setStatusMessage(`Saved ${dbPayload.length} records locally in memory. Configure Supabase to persist them.`);
+        return;
+      }
 
       const { error } = await supabase.from('agent_metrics').upsert(dbPayload);
 

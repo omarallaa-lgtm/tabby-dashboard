@@ -8,8 +8,8 @@ import { useMetrics } from '@/lib/metrics-context';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
+const supabase = supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 export interface UploadedAgentRow {
   id: string;
@@ -111,21 +111,23 @@ export function UploadButton() {
       }
 
       // 1. Save rows to Supabase database
-      const dbPayload = parsed.map((item) => ({
-        id: item.id,
-        name: item.name,
-        csat: item.csat,
-        dsat: item.dsat,
-        aht: item.aht,
-        aht_seconds: item.ahtSeconds,
-        adherence: item.adherence,
-        date: item.date,
-      }));
+      if (supabase) {
+        const dbPayload = parsed.map((item) => ({
+          id: item.id,
+          name: item.name,
+          csat: item.csat,
+          dsat: item.dsat,
+          aht: item.aht,
+          aht_seconds: item.ahtSeconds,
+          adherence: item.adherence,
+          date: item.date,
+        }));
 
-      const { error } = await supabase.from('agent_metrics').upsert(dbPayload);
+        const { error } = await supabase.from('agent_metrics').upsert(dbPayload);
 
-      if (error) {
-        console.error('Supabase save error:', error);
+        if (error) {
+          console.error('Supabase save error:', error);
+        }
       }
 
       // 2. Update active local UI state

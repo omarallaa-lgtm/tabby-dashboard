@@ -29,21 +29,21 @@ export function MetricsTab() {
 
   const agents = (agentMetrics && agentMetrics.length > 0)
     ? agentMetrics.map((a, i) => {
-        const csat = parseFloat(a.csatPercent) || 0;
-        const kscat = parseFloat(a.kscatPercent) || 0;
+        const csat = Number.parseFloat(String(a.csatPercent ?? '0')) || 0;
+        const kscat = Number.parseFloat(String(a.kscatPercent ?? '0')) || 0;
         const beatsFloor = csat >= csatFloor;
         const meetsTarget = csat >= 85;
 
         return {
           rank: i + 1,
-          email: a.agentEmail,
+          email: a.agentEmail || a.name || 'Unknown Agent',
           // CSAT Group
-          csat: a.csatPercent,
+          csat: a.csatPercent ?? '0%',
           csatNum: csat,
-          kscat: a.kscatPercent,
+          kscat: a.kscatPercent ?? '0%',
           dsat: a.dsat,
-          totalCount: a.totalTickets,
-          totalWOKarma: a.totalWOKarma,
+          totalCount: a.totalTickets ?? 0,
+          totalWOKarma: a.totalWOKarma ?? 0,
           variance: `${(csat - kscat).toFixed(2)}%`,
           // Chat Metrics Group
           abt: a.abt || '14.5',
