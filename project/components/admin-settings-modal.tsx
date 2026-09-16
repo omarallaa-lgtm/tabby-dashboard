@@ -6,38 +6,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { useMetrics } from '@/lib/metrics-context';
+import { useMetrics, UserRole, User } from '@/lib/metrics-context';
 import { ShieldCheck, UserPlus, Trash2, Mail, Lock } from 'lucide-react';
 
 export function AdminSettingsTab() {
-  const context = useMetrics() as any;
+  const context = useMetrics();
   const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState('Admin');
+  const [newRole, setNewRole] = useState<UserRole>('Admin');
 
-  const allowedEmails: string[] = context?.allowedEmails || ['omar.allaa@tabby.ai', 'admin@tabby.ai'];
-  
-  const userAccounts: Record<string, any> = allowedEmails.reduce((acc: any, email: string) => {
-    acc[email] = {
-      email,
-      role: email === 'omar.allaa@tabby.ai' ? 'Admin' : 'Manager',
-    };
-    return acc;
-  }, {});
+  const allowedUsers: User[] = context.allowedUsers || [];
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmail.trim()) return;
 
-    if (typeof context?.addAllowedEmail === 'function') {
-      context.addAllowedEmail(newEmail.trim(), newRole);
-    }
+    context.addAllowedEmail(newEmail.trim(), newRole);
     setNewEmail('');
   };
 
   const handleRemoveUser = (email: string) => {
-    if (typeof context?.removeAllowedEmail === 'function') {
-      context.removeAllowedEmail(email);
-    }
+    context.removeAllowedEmail(email);
   };
 
   return (
@@ -79,7 +67,7 @@ export function AdminSettingsTab() {
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <select
                     value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
+                    onChange={(e) => setNewRole(e.target.value as UserRole)}
                     className="w-full h-10 pl-9 pr-3 rounded-md border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="Admin">Admin</option>
@@ -116,20 +104,20 @@ export function AdminSettingsTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y">
-                  {Object.values(userAccounts).map((acc: any) => (
-                    <TableRow key={acc.email} className="hover:bg-gray-50">
-                      <TableCell className="font-medium text-gray-900">{acc.email}</TableCell>
+                  {allowedUsers.map((user: User) => (
+                    <TableRow key={user.email} className="hover:bg-gray-50">
+                      <TableCell className="font-medium text-gray-900">{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant={acc.role === 'Admin' ? 'default' : 'outline'}>
-                          {acc.role}
+                        <Badge variant={user.role === 'Admin' ? 'default' : 'outline'}>
+                          {user.role}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {acc.email !== 'omar.allaa@tabby.ai' && (
+                        {user.email !== 'omar.allaa@tabby.ai' && (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleRemoveUser(acc.email)}
+                            onClick={() => handleRemoveUser(user.email)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="h-4 w-4" />
