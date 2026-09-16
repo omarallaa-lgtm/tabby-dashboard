@@ -75,7 +75,7 @@ export function OverviewTab() {
 
   const csatPctStr = teamMetrics?.csatPercent || '60.53%';
   const kscatPctStr = teamMetrics?.kscatPercent || '40.35%';
-  const totalDsatVal = teamMetrics?.dsatCount ?? 90;
+  const totalDsatVal = (teamMetrics as any)?.dsatCount ?? 90;
   const adherenceStr = teamMetrics?.adherencePercent || '77.50%';
   const ahtStr = teamMetrics?.aht || '6.1';
 
@@ -162,41 +162,41 @@ export function OverviewTab() {
   const leaderboardList: any[] = [];
   if (agentMetrics && agentMetrics.length > 0) {
     const sorted = [...agentMetrics].sort(
-      (a, b) => (parseFloat(b.csatPercent) || 0) - (parseFloat(a.csatPercent) || 0)
+      (a, b) => (parseFloat((b as any).csatPercent) || 0) - (parseFloat((a as any).csatPercent) || 0)
     );
     for (let i = 0; i < sorted.length; i += 1) {
-      const agent = sorted[i];
+      const agent = sorted[i] as any;
       const csatNum = parseFloat(agent.csatPercent) || 0;
       const kscatNum = parseFloat(agent.kscatPercent) || 0;
-      const emailParts = agent.agentEmail.split('@')[0].split('.');
-      const initials = emailParts.map((n) => n[0]?.toUpperCase()).join('');
+      const emailParts = (agent.agentEmail || '').split('@')[0].split('.');
+      const initials = emailParts.map((n: string) => n[0]?.toUpperCase()).join('');
 
       leaderboardList.push({
         rank: i + 1,
         avatar: initials || 'AG',
-        name: agent.agentEmail,
+        name: agent.agentEmail || 'Agent',
         team: 'Customer Care',
-        csatCount: agent.csatCount,
-        kscatCount: agent.kscatCount,
-        dsat: (agent as any).dsatCount || 0,
-        totalTickets: agent.totalTickets,
-        totalWOKarma: agent.totalWOKarma,
-        kscatPercent: agent.kscatPercent,
-        csatPercent: agent.csatPercent,
+        csatCount: agent.csatCount || 0,
+        kscatCount: agent.kscatCount || 0,
+        dsat: agent.dsatCount || agent.dsat || 0,
+        totalTickets: agent.totalTickets || 0,
+        totalWOKarma: agent.totalWOKarma || 0,
+        kscatPercent: agent.kscatPercent || '0%',
+        csatPercent: agent.csatPercent || '0%',
         variance: `${(csatNum - kscatNum).toFixed(2)}%`,
-        abt: agent.abt,
-        productivity8h: agent.productivity8h,
-        productivityOnline8h: agent.productivityOnline8h,
-        escalationRate: agent.escalationRate,
-        deescalationRate: agent.deescalationRate,
-        adherence: agent.adherencePercent,
-        agbt: agent.agbt,
-        aht: agent.aht,
-        closedAfterResolution: agent.closedAfterResolution,
-        closedTicketsPercent: agent.closedTicketsPercent,
-        fcrPercent: agent.fcrPercent,
-        tardyMinutes: agent.tardyMinutes,
-        idleTime: agent.idleTime,
+        abt: agent.abt || '0',
+        productivity8h: agent.productivity8h || '0',
+        productivityOnline8h: agent.productivityOnline8h || '0',
+        escalationRate: agent.escalationRate || '0%',
+        deescalationRate: agent.deescalationRate || '0%',
+        adherence: agent.adherencePercent || '0%',
+        agbt: agent.agbt || '0',
+        aht: agent.aht || '0',
+        closedAfterResolution: agent.closedAfterResolution || '0%',
+        closedTicketsPercent: agent.closedTicketsPercent || '0%',
+        fcrPercent: agent.fcrPercent || '0%',
+        tardyMinutes: agent.tardyMinutes || '0:00:00',
+        idleTime: agent.idleTime || '0',
       });
     }
   } else {
