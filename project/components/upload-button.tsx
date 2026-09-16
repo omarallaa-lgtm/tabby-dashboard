@@ -4,11 +4,40 @@ import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { UploadCloud, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useMetrics, parseAhtString, type UploadedAgentRow } from '@/lib/metrics-context';
+import { useMetrics } from '@/lib/metrics-context';
+
+export interface UploadedAgentRow {
+  id: string;
+  name: string;
+  csat: number;
+  dsat: number;
+  aht: string;
+  ahtSeconds: number;
+  adherence: number;
+  date: string;
+}
+
+function parseAhtString(ahtRaw: string): { minutes: number; seconds: number; totalSeconds: number } {
+  if (!ahtRaw) return { minutes: 0, seconds: 0, totalSeconds: 0 };
+  const str = String(ahtRaw).trim();
+  if (str.includes(':')) {
+    const parts = str.split(':').map((p) => parseInt(p, 10) || 0);
+    if (parts.length === 3) {
+      const totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      return { minutes: Math.floor(totalSeconds / 60), seconds: totalSeconds % 60, totalSeconds };
+    }
+    const totalSeconds = parts[0] * 60 + parts[1];
+    return { minutes: parts[0], seconds: parts[1], totalSeconds };
+  }
+  const val = parseFloat(str) || 0;
+  const minutes = Math.floor(val);
+  const seconds = Math.round((val - minutes) * 60);
+  return { minutes, seconds, totalSeconds: Math.round(val * 60) };
+}
 
 export function UploadButton() {
   const fileRef = useRef<HTMLInputElement>(null);
-  const { setAgents } = useMetrics();
+  const metricsContext = useMetrics() as any;
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -72,7 +101,12 @@ export function UploadButton() {
         return;
       }
 
-      setAgents(parsed);
+      if (typeof metricsContext.setAgents === 'function') {
+        metricsContext.setAgents(parsed);
+      } else if (typeof metricsContext.setAgentMetrics === 'function') {
+        metricsContext.setAgentMetrics(parsed);
+      }
+
       setStatus('success');
       setMessage(`Parsed ${parsed.length} agent rows. KPIs recalculated.`);
     } catch {
