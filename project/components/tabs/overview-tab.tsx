@@ -295,13 +295,13 @@ export function OverviewTab() {
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] font-medium text-muted-foreground truncate">{m.label}</p>
                     {beatsFloor && (
-                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500 inline" title="Beats Floor Average" />
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500 inline" />
                     )}
                   </div>
                   <div className="flex items-center gap-1">
                     <p className={`text-lg font-bold ${m.color}`}>{m.val}</p>
                     {meetsTarget && (
-                      <Check className="h-4 w-4 text-emerald-600 stroke-[3]" title="Meets Target" />
+                      <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
                     )}
                   </div>
                   {targetVal !== undefined && targetVal > 0 && (
