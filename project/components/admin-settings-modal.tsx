@@ -9,13 +9,6 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { useMetrics } from '@/lib/metrics-context';
 import { ShieldCheck, UserPlus, Trash2, Mail, Lock } from 'lucide-react';
 
-interface UserAccount {
-  email: string;
-  role: string;
-  addedAt?: string;
-  [key: string]: any;
-}
-
 export function AdminSettingsTab() {
   const context = useMetrics() as any;
   const [newEmail, setNewEmail] = useState('');
@@ -23,14 +16,13 @@ export function AdminSettingsTab() {
 
   const allowedEmails: string[] = context?.allowedEmails || ['omar.allaa@tabby.ai', 'admin@tabby.ai'];
   
-  // Explicitly type userAccounts map to prevent TS 'unknown' errors
-  const userAccounts: Record<string, UserAccount> = allowedEmails.reduce((acc, email) => {
+  const userAccounts: Record<string, any> = allowedEmails.reduce((acc: any, email: string) => {
     acc[email] = {
       email,
       role: email === 'omar.allaa@tabby.ai' ? 'Admin' : 'Manager',
     };
     return acc;
-  }, {} as Record<string, UserAccount>);
+  }, {});
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +116,7 @@ export function AdminSettingsTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y">
-                  {Object.values(userAccounts).map((acc: UserAccount) => (
+                  {Object.values(userAccounts).map((acc: any) => (
                     <TableRow key={acc.email} className="hover:bg-gray-50">
                       <TableCell className="font-medium text-gray-900">{acc.email}</TableCell>
                       <TableCell>
