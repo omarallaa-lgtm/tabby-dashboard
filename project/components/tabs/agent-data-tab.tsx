@@ -13,14 +13,13 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export function AgentDataTab() {
-  const { agents, setAgents } = useMetrics() as any;
+  const metricsContext = useMetrics() as any;
   const [saving, setSaving] = useState(false);
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | null>(null);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeUploadSlot, setActiveUploadSlot] = useState<string>('');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -30,7 +29,7 @@ export function AgentDataTab() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
       if (rows.length === 0) {
         setStatusType('error');
@@ -52,34 +51,37 @@ export function AgentDataTab() {
       const adherenceKey = findKey(['Adherence']);
       const dateKey = findKey(['Date']);
 
-      const parsed = rows.map((row, i) => {
-        const name = nameKey ? String(row[nameKey] || '').trim() : `Agent ${i + 1}`;
-        const csat = csatKey ? parseFloat(String(row[csatKey])) || 0 : 0;
-        const dsat = dsatKey ? parseInt(String(row[dsatKey])) || 0 : 0;
-        const aht = ahtKey ? String(row[ahtKey] || '0:00') : '0:00';
-        const adherence = adherenceKey ? parseFloat(String(row[adherenceKey])) || 0 : 0;
-        const date = dateKey ? String(row[dateKey] || '').trim() : new Date().toISOString().split('T')[0];
+      const parsed = rows
+        .map((row, i) => {
+          const name = nameKey ? String(row[nameKey] || '').trim() : `Agent ${i + 1}`;
+          const csat = csatKey ? parseFloat(String(row[csatKey])) || 0 : 0;
+          const dsat = dsatKey ? parseInt(String(row[dsatKey]), 10) || 0 : 0;
+          const aht = ahtKey ? String(row[ahtKey] || '0:00') : '0:00';
+          const adherence = adherenceKey ? parseFloat(String(row[adherenceKey])) || 0 : 0;
+          const date = dateKey ? String(row[dateKey] || '').trim() : new Date().toISOString().split('T')[0];
 
-        return {
-          id: `agent-${Date.now()}-${i}`,
-          name,
-          csat,
-          dsat,
-          aht,
-          aht_seconds: 0,
-          adherence,
-          date,
-        };
-      }).filter(r => r.name.length > 0);
+          return {
+            id: `agent-${Date.now()}-${i}`,
+            name,
+            csat,
+            dsat,
+            aht,
+            aht_seconds: 0,
+            adherence,
+            date,
+          };
+        })
+        .filter((r) => r.name.length > 0);
 
       setParsedData((prev) => [...prev, ...parsed]);
-      if (typeof setAgents === 'function') {
-        setAgents((prev: any[]) => [...(prev || []), ...parsed]);
+
+      if (typeof metricsContext?.setAgents === 'function') {
+        metricsContext.setAgents((prev: any[]) => [...(prev || []), ...parsed]);
       }
 
       setStatusType('success');
-      setStatusMessage(`Parsed ${parsed.length} rows from ${file.name}. Click "Save Unified Backup" to upload to Supabase.`);
-    } catch (err: any) {
+      setStatusMessage(`Parsed ${parsed.length} rows from ${file.name}. Ready to save.`);
+    } catch (err) {
       console.error(err);
       setStatusType('error');
       setStatusMessage(`Failed to process ${file.name}`);
@@ -88,17 +90,12 @@ export function AgentDataTab() {
     }
   };
 
-  const triggerUpload = (slotName: string) => {
-    setActiveUploadSlot(slotName);
-    fileInputRef.current?.click();
-  };
-
   const handleSaveUnifiedBackup = async () => {
-    const dataToSave = parsedData.length > 0 ? parsedData : agents;
+    const dataToSave = parsedData.length > 0 ? parsedData : metricsContext?.agents || [];
 
     if (!dataToSave || dataToSave.length === 0) {
       setStatusType('error');
-      setStatusMessage('No agent data available. Please click one of the upload boxes above to select a CSV/Excel file first.');
+      setStatusMessage('No agent data found. Click an upload slot above to pick your CSV file first.');
       return;
     }
 
@@ -112,7 +109,7 @@ export function AgentDataTab() {
         csat: Number(agent.csat) || 0,
         dsat: Number(agent.dsat) || 0,
         aht: String(agent.aht || '0:00'),
-        aht_seconds: Number(agent.ahtSeconds || agent.aht_seconds) || 0,
+        aht_seconds: Number(agent.aht_seconds || agent.ahtSeconds) || 0,
         adherence: Number(agent.adherence) || 0,
         date: String(agent.date || new Date().toISOString().split('T')[0]),
       }));
@@ -120,17 +117,17 @@ export function AgentDataTab() {
       const { error } = await supabase.from('agent_metrics').upsert(dbPayload);
 
       if (error) {
-        console.error('Supabase error details:', error);
+        console.error('Supabase error:', error);
         setStatusType('error');
         setStatusMessage(`Supabase error: ${error.message}`);
       } else {
         setStatusType('success');
-        setStatusMessage(`Successfully saved ${dbPayload.length} records into Supabase agent_metrics table!`);
+        setStatusMessage(`Successfully saved ${dbPayload.length} records to Supabase!`);
       }
     } catch (err: any) {
-      console.error('Unexpected backup error:', err);
+      console.error('Backup error:', err);
       setStatusType('error');
-      setStatusMessage('An unexpected error occurred while saving.');
+      setStatusMessage('An error occurred while saving.');
     } finally {
       setSaving(false);
     }
@@ -160,7 +157,7 @@ export function AgentDataTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
               type="button"
-              onClick={() => triggerUpload('KSCAT')}
+              onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-600 rounded-lg p-6 flex flex-col items-center justify-center gap-2 bg-emerald-50/10 hover:bg-emerald-50/20 transition-all cursor-pointer"
             >
               <UploadCloud className="h-8 w-8 text-emerald-600" />
@@ -168,7 +165,7 @@ export function AgentDataTab() {
             </button>
             <button
               type="button"
-              onClick={() => triggerUpload('PVF')}
+              onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-600 rounded-lg p-6 flex flex-col items-center justify-center gap-2 bg-emerald-50/10 hover:bg-emerald-50/20 transition-all cursor-pointer"
             >
               <UploadCloud className="h-8 w-8 text-emerald-600" />
@@ -176,7 +173,7 @@ export function AgentDataTab() {
             </button>
             <button
               type="button"
-              onClick={() => triggerUpload('Metrics')}
+              onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-600 rounded-lg p-6 flex flex-col items-center justify-center gap-2 bg-emerald-50/10 hover:bg-emerald-50/20 transition-all cursor-pointer"
             >
               <UploadCloud className="h-8 w-8 text-emerald-600" />
