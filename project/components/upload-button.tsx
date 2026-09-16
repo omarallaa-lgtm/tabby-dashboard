@@ -3,8 +3,13 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-import { UploadCloud, CheckCircle2, AlertCircle } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useMetrics } from '@/lib/metrics-context';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export interface UploadedAgentRow {
   id: string;
@@ -38,10 +43,12 @@ function parseAhtString(ahtRaw: string): { minutes: number; seconds: number; tot
 export function UploadButton() {
   const fileRef = useRef<HTMLInputElement>(null);
   const metricsContext = useMetrics() as any;
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
   const handleFile = async (file: File) => {
+    setStatus('uploading');
+    setMessage('Parsing file and saving to database...');
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
@@ -74,26 +81,28 @@ export function UploadButton() {
         return;
       }
 
-      const parsed: UploadedAgentRow[] = rows.map((row, i) => {
-        const name = String(row[nameKey] || '').trim();
-        const csat = parseFloat(String(row[csatKey])) || 0;
-        const dsat = parseInt(String(row[dsatKey])) || 0;
-        const ahtRaw = String(row[ahtKey] || '0');
-        const { minutes, seconds, totalSeconds } = parseAhtString(ahtRaw);
-        const adherence = parseFloat(String(row[adherenceKey])) || 0;
-        const date = dateKey ? String(row[dateKey] || '').trim() : '';
+      const parsed: UploadedAgentRow[] = rows
+        .map((row, i) => {
+          const name = String(row[nameKey] || '').trim();
+          const csat = parseFloat(String(row[csatKey])) || 0;
+          const dsat = parseInt(String(row[dsatKey])) || 0;
+          const ahtRaw = String(row[ahtKey] || '0');
+          const { minutes, seconds, totalSeconds } = parseAhtString(ahtRaw);
+          const adherence = parseFloat(String(row[adherenceKey])) || 0;
+          const date = dateKey ? String(row[dateKey] || '').trim() : '';
 
-        return {
-          id: `upload-${i}`,
-          name,
-          csat,
-          dsat,
-          aht: `${minutes}:${seconds.toString().padStart(2, '0')}`,
-          ahtSeconds: totalSeconds,
-          adherence,
-          date,
-        };
-      }).filter((r) => r.name.length > 0);
+          return {
+            id: `upload-${Date.now()}-${i}`,
+            name,
+            csat,
+            dsat,
+            aht: `${minutes}:${seconds.toString().padStart(2, '0')}`,
+            ahtSeconds: totalSeconds,
+            adherence,
+            date,
+          };
+        })
+        .filter((r) => r.name.length > 0);
 
       if (parsed.length === 0) {
         setStatus('error');
@@ -101,6 +110,25 @@ export function UploadButton() {
         return;
       }
 
+      // 1. Save rows to Supabase database
+      const dbPayload = parsed.map((item) => ({
+        id: item.id,
+        name: item.name,
+        csat: item.csat,
+        dsat: item.dsat,
+        aht: item.aht,
+        aht_seconds: item.ahtSeconds,
+        adherence: item.adherence,
+        date: item.date,
+      }));
+
+      const { error } = await supabase.from('agent_metrics').upsert(dbPayload);
+
+      if (error) {
+        console.error('Supabase save error:', error);
+      }
+
+      // 2. Update active local UI state
       if (typeof metricsContext.setAgents === 'function') {
         metricsContext.setAgents(parsed);
       } else if (typeof metricsContext.setAgentMetrics === 'function') {
@@ -108,10 +136,11 @@ export function UploadButton() {
       }
 
       setStatus('success');
-      setMessage(`Parsed ${parsed.length} agent rows. KPIs recalculated.`);
-    } catch {
+      setMessage(`Saved ${parsed.length} agent rows to Cloud Database.`);
+    } catch (err) {
+      console.error(err);
       setStatus('error');
-      setMessage('Could not read this file. Please upload a valid CSV or Excel file.');
+      setMessage('Could not process file. Please upload a valid CSV or Excel file.');
     }
   };
 
@@ -131,11 +160,18 @@ export function UploadButton() {
       <Button
         variant="outline"
         size="sm"
+        disabled={status === 'uploading'}
         onClick={() => fileRef.current?.click()}
         className="gap-1.5"
       >
-        <UploadCloud className="h-4 w-4" />
-        <span className="hidden sm:inline">Upload Data</span>
+        {status === 'uploading' ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <UploadCloud className="h-4 w-4" />
+        )}
+        <span className="hidden sm:inline">
+          {status === 'uploading' ? 'Saving to Cloud...' : 'Upload Data'}
+        </span>
       </Button>
       {status === 'success' && (
         <div className="flex items-center gap-1 text-xs font-medium text-green-600 animate-fade-in-up">
