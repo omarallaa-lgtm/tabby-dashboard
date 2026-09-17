@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut } from 'lucide-react';
+import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, User } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
@@ -12,45 +12,61 @@ import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
-import { useMetrics, UserRole } from '@/lib/metrics-context';
+import { useMetrics } from '@/lib/metrics-context';
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ email: string; role: UserRole }>({ email: '', role: 'Agent' });
-  const [activeTab, setActiveTab] = useState('overview');
+  const { currentUser, setCurrentUser, refreshMetrics, logAuditAction } = useMetrics();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const context = useMetrics() as any;
-  const allowedUsers = context?.allowedUsers || [
-    { email: 'omar.allaa@tabby.ai', role: 'Admin' },
-    { email: 'mohamed.gabry@tabby.ai', role: 'Team Leader' },
-  ];
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
     const cleanEmail = email.trim().toLowerCase();
-    const foundUser = allowedUsers.find((u: any) => u.email.toLowerCase() === cleanEmail);
-    const userRole: UserRole = foundUser ? foundUser.role : cleanEmail.includes('lead') ? 'Team Leader' : 'Agent';
 
-    if ((foundUser || cleanEmail.endsWith('@tabby.ai')) && password === 'Boyka@1322') {
-      setCurrentUser({ email: cleanEmail, role: userRole });
-      setIsAuthenticated(true);
-    } else {
+    // Verification against password specification
+    if (password !== 'Boyka@1322') {
       setErrorMessage("😼 Not so fast, human! That login didn't quite match. Check your credentials and try again.");
+      return;
     }
+
+    // Derive Role & Access
+    let role = 'Agent';
+    let allowedTabs = ['overview', 'my_performance', 'requests', 'announcements'];
+
+    if (cleanEmail === 'omar.allaa@tabby.ai' || cleanEmail === 'admin@tabby.ai') {
+      role = 'Admin';
+      allowedTabs = ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data', 'admin'];
+    } else if (cleanEmail.includes('lead') || cleanEmail === 'mohamed.gabry@tabby.ai') {
+      role = 'Team Leader';
+      allowedTabs = ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data'];
+    }
+
+    const userObj = {
+      user_email: cleanEmail,
+      username: cleanEmail.split('@')[0],
+      role: role as any,
+      team_name: 'Support Tier 1',
+      floor_name: 'Floor 1',
+      account_status: 'Active' as const,
+      allowed_tabs: allowedTabs,
+    };
+
+    setCurrentUser(userObj);
+    refreshMetrics(userObj);
+    logAuditAction('USER_LOGIN', cleanEmail);
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    setCurrentUser(null);
     setEmail('');
     setPassword('');
   };
 
-  if (!isAuthenticated) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <Card className="w-full max-w-md shadow-lg border-gray-200">
@@ -110,6 +126,8 @@ export default function Home() {
     );
   }
 
+  const isTabAllowed = (tabKey: string) => currentUser.allowed_tabs.includes(tabKey);
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar Navigation */}
@@ -126,74 +144,100 @@ export default function Home() {
           </div>
 
           <nav className="space-y-1 text-xs">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                activeTab === 'overview' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <LayoutDashboard className="h-4 w-4" /> Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('metrics')}
-              className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                activeTab === 'metrics' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <BarChart3 className="h-4 w-4" /> Metrics Sheet
-            </button>
-            <button
-              onClick={() => setActiveTab('team')}
-              className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                activeTab === 'team' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Users2 className="h-4 w-4" /> Team & Floor
-            </button>
-            <button
-              onClick={() => setActiveTab('requests')}
-              className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                activeTab === 'requests' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <MessageSquarePlus className="h-4 w-4" /> Requests
-            </button>
-            <button
-              onClick={() => setActiveTab('announcements')}
-              className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                activeTab === 'announcements' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Megaphone className="h-4 w-4" /> Announcements
-            </button>
+            {isTabAllowed('overview') && (
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'overview' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <LayoutDashboard className="h-4 w-4" /> Overview
+              </button>
+            )}
 
-            {currentUser.role !== 'Agent' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('agent-data')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                    activeTab === 'agent-data' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <Database className="h-4 w-4" /> Agent Data & History
-                </button>
-                <button
-                  onClick={() => setActiveTab('admin')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
-                    activeTab === 'admin' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <ShieldCheck className="h-4 w-4" /> Admin Settings
-                </button>
-              </>
+            {isTabAllowed('metrics') && (
+              <button
+                onClick={() => setActiveTab('metrics')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'metrics' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <BarChart3 className="h-4 w-4" /> Performance Analytics
+              </button>
+            )}
+
+            {isTabAllowed('team') && (
+              <button
+                onClick={() => setActiveTab('team')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'team' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Users2 className="h-4 w-4" /> Team & Floor Insights
+              </button>
+            )}
+
+            {isTabAllowed('my_performance') && (
+              <button
+                onClick={() => setActiveTab('my-performance')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'my-performance' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <User className="h-4 w-4" /> My Performance
+              </button>
+            )}
+
+            {isTabAllowed('requests') && (
+              <button
+                onClick={() => setActiveTab('requests')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'requests' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <MessageSquarePlus className="h-4 w-4" /> Requests
+              </button>
+            )}
+
+            {isTabAllowed('announcements') && (
+              <button
+                onClick={() => setActiveTab('announcements')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'announcements' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Megaphone className="h-4 w-4" /> Announcements
+              </button>
+            )}
+
+            {isTabAllowed('agent-data') && (
+              <button
+                onClick={() => setActiveTab('agent-data')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'agent-data' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Database className="h-4 w-4" /> Data & Import
+              </button>
+            )}
+
+            {isTabAllowed('admin') && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`w-full flex items-center gap-3 px-3 py-2 font-medium rounded-md ${
+                  activeTab === 'admin' ? 'bg-emerald-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <ShieldCheck className="h-4 w-4" /> Admin Settings
+              </button>
             )}
           </nav>
         </div>
 
         <div className="space-y-3">
           <div className="p-2 bg-gray-50 rounded-md border text-xs">
-            <div className="font-semibold truncate">{currentUser.email}</div>
-            <div className="text-[10px] text-muted-foreground">{currentUser.role}</div>
+            <div className="font-semibold truncate">{currentUser.user_email}</div>
+            <div className="text-[10px] text-emerald-700 font-bold uppercase">{currentUser.role}</div>
           </div>
           <button
             onClick={handleLogout}
@@ -206,13 +250,14 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex-1 p-8 overflow-y-auto">
-        {activeTab === 'overview' && <OverviewTab />}
-        {activeTab === 'metrics' && <MetricsTab />}
-        {activeTab === 'team' && <TeamTab />}
-        {activeTab === 'requests' && <RequestsTab currentUser={currentUser} />}
-        {activeTab === 'announcements' && <AnnouncementsTab currentUser={currentUser} />}
-        {activeTab === 'agent-data' && currentUser.role !== 'Agent' && <AgentDataTab currentUser={currentUser} />}
-        {activeTab === 'admin' && currentUser.role !== 'Agent' && <AdminSettingsTab />}
+        {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
+        {activeTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
+        {activeTab === 'team' && isTabAllowed('team') && <TeamTab />}
+        {activeTab === 'my-performance' && isTabAllowed('my_performance') && <OverviewTab />}
+        {activeTab === 'requests' && isTabAllowed('requests') && <RequestsTab currentUser={currentUser} />}
+        {activeTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
+        {activeTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}
+        {activeTab === 'admin' && isTabAllowed('admin') && <AdminSettingsTab />}
       </div>
     </div>
   );
