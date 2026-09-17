@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Bell } from 'lucide-react';
+import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
@@ -167,7 +167,6 @@ export default function Home() {
               <Megaphone className="h-4 w-4" /> Announcements
             </button>
 
-            {/* Admin & Team Lead Data Management Controls */}
             {currentUser.role !== 'Agent' && (
               <>
                 <button
@@ -207,9 +206,9 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex-1 p-8 overflow-y-auto">
-        {activeTab === 'overview' && <OverviewTab currentUser={currentUser} />}
-        {activeTab === 'metrics' && <MetricsTab currentUser={currentUser} />}
-        {activeTab === 'team' && <TeamTab currentUser={currentUser} />}
+        {activeTab === 'overview' && <OverviewTab />}
+        {activeTab === 'metrics' && <MetricsTab />}
+        {activeTab === 'team' && <TeamTab />}
         {activeTab === 'requests' && <RequestsTab currentUser={currentUser} />}
         {activeTab === 'announcements' && <AnnouncementsTab currentUser={currentUser} />}
         {activeTab === 'agent-data' && currentUser.role !== 'Agent' && <AgentDataTab currentUser={currentUser} />}
