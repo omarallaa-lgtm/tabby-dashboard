@@ -9,6 +9,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export type UserRole = 'Admin' | 'Team Leader' | 'Agent';
 
+export interface User {
+  email: string;
+  role: UserRole;
+  addedAt?: string;
+}
+
 export interface UserProfile {
   id?: string;
   user_email: string;
@@ -24,6 +30,11 @@ const MetricsContext = createContext<any>(null);
 
 export const MetricsProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [allowedUsers, setAllowedUsers] = useState<User[]>([
+    { email: 'omar.allaa@tabby.ai', role: 'Admin' },
+    { email: 'mohamed.gabry@tabby.ai', role: 'Team Leader' },
+  ]);
+
   const [agentMetrics, setAgentMetrics] = useState<any[]>([]);
   const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({});
   const [floorAverages, setFloorAverages] = useState<Record<string, any>>({});
@@ -36,7 +47,6 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     try {
       let query = supabase.from('agent_metrics').select('*');
 
-      // Server-side / Data-level restriction: Agents only fetch their own row
       if (activeUser && activeUser.role === 'Agent') {
         query = query.eq('agent_email', activeUser.user_email);
       } else if (activeUser && activeUser.role === 'Team Leader') {
@@ -46,7 +56,6 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
       const { data: agentData } = await query;
       if (agentData) setAgentMetrics(agentData);
 
-      // Fetch Level Aggregates (Team & Floor)
       const { data: aggData } = await supabase.from('level_aggregates').select('*');
       if (aggData) {
         const teamMap: Record<string, any> = {};
@@ -70,6 +79,14 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
+  const addAllowedEmail = (email: string, role: UserRole = 'Admin') => {
+    setAllowedUsers((prev) => [...prev.filter((u) => u.email !== email), { email, role }]);
+  };
+
+  const removeAllowedEmail = (email: string) => {
+    setAllowedUsers((prev) => prev.filter((u) => u.email !== email));
+  };
+
   const logAuditAction = async (action: string, target: string, prevVal?: any, newVal?: any) => {
     if (!currentUser) return;
     await supabase.from('audit_logs').insert([
@@ -88,6 +105,9 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
       value={{
         currentUser,
         setCurrentUser,
+        allowedUsers,
+        addAllowedEmail,
+        removeAllowedEmail,
         agentMetrics,
         teamMetrics,
         floorAverages,
