@@ -7,148 +7,92 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhd
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-export type UserRole = 'Admin' | 'Manager' | 'Agent';
+export type UserRole = 'Admin' | 'Team Leader' | 'Agent';
 
-export interface User {
-  email: string;
+export interface UserProfile {
+  id?: string;
+  user_email: string;
+  username: string;
   role: UserRole;
-  addedAt?: string;
+  team_name: string;
+  floor_name: string;
+  account_status: 'Active' | 'Disabled';
+  allowed_tabs: string[];
 }
-
-export interface AgentMetricRow {
-  agent_name: string;
-  agent_email: string;
-  team_name?: string;
-  csat: number;
-  kscat: number;
-  dsat: number;
-  total_count: number;
-  total_wo_karma: number;
-  csat_percent: number;
-  kscat_percent: number;
-  variance: number;
-  adherence: number;
-  productivity: number;
-  productivity_online?: number;
-  aht: number;
-  abt: number;
-  agbt: number;
-  closed_rate?: number;
-  closed_after_resolution: number;
-  deescalation_rate: number;
-  escalation_rate: number;
-  fcr_percent?: number;
-  tardy_minutes?: number;
-  idle_time_avg?: number;
-}
-
-export interface TargetSettings {
-  csatTarget: number;
-  kscatTarget: number;
-  adherenceTarget: number;
-  ahtTarget: number;
-  deescalationTarget: number;
-}
-
-const defaultTargets: TargetSettings = {
-  csatTarget: 85.0,
-  kscatTarget: 80.0,
-  adherenceTarget: 90.0,
-  ahtTarget: 5.0,
-  deescalationTarget: 70.0,
-};
 
 const MetricsContext = createContext<any>(null);
 
 export const MetricsProvider = ({ children }: { children: React.ReactNode }) => {
-  const [allowedUsers, setAllowedUsers] = useState<User[]>([
-    { email: 'omar.allaa@tabby.ai', role: 'Admin' },
-    { email: 'admin@tabby.ai', role: 'Admin' }
-  ]);
-
-  const [agentMetrics, setAgentMetrics] = useState<AgentMetricRow[]>([]);
-  const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({
-    csatPercent: '60.53%',
-    kscatPercent: '40.35%',
-    csatCount: 138,
-    kscatCount: 138,
-    dsatCount: 90,
-    totalTickets: 342,
-    totalWoKarma: 228,
-    adherencePercent: '77.50%',
-    aht: '6.1',
-    abt: '14.5',
-    productivity8hrs: '27.3',
-    productivityOnline8hrs: '41.8',
-    escalationRate: '4.10%',
-    deescalationRate: '3.10%',
-    agbt: '24.4',
-    closedAfterRes: '59.20%',
-    closedTickets: '51.30%',
-    fcrPercent: '56.00%',
-  });
-
-  const [floorAverages, setFloorAverages] = useState<Record<string, any>>({
-    csat: '60.00%',
-    kscat: '40.00%',
-    adherence: '81.70%',
-    aht: '5.5',
-    abt: '14.6',
-    agbt: '24.4',
-    productivity8hrs: '30.0',
-    productivityOnline8hrs: '44.9',
-    escalationRate: '4.70%',
-    deescalationRate: '4.00%',
-    closedAfterRes: '61.50%',
-    closedTickets: '50.30%',
-    fcrPercent: '53.50%',
-  });
-
-  const [targets, setTargets] = useState<TargetSettings>(defaultTargets);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [agentMetrics, setAgentMetrics] = useState<any[]>([]);
+  const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({});
+  const [floorAverages, setFloorAverages] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = async (user?: UserProfile) => {
     setLoading(true);
+    const activeUser = user || currentUser;
+
     try {
-      const { data, error } = await supabase.from('agent_metrics').select('*');
-      if (!error && data && data.length > 0) {
-        setAgentMetrics(data as AgentMetricRow[]);
+      let query = supabase.from('agent_metrics').select('*');
+
+      // Server-side / Data-level restriction: Agents only fetch their own row
+      if (activeUser && activeUser.role === 'Agent') {
+        query = query.eq('agent_email', activeUser.user_email);
+      } else if (activeUser && activeUser.role === 'Team Leader') {
+        query = query.eq('team_name', activeUser.team_name);
+      }
+
+      const { data: agentData } = await query;
+      if (agentData) setAgentMetrics(agentData);
+
+      // Fetch Level Aggregates (Team & Floor)
+      const { data: aggData } = await supabase.from('level_aggregates').select('*');
+      if (aggData) {
+        const teamMap: Record<string, any> = {};
+        const floorMap: Record<string, any> = {};
+
+        aggData.forEach((item) => {
+          if (item.level_type === 'Team Overall') {
+            teamMap[item.metric_key] = item.metric_value;
+          } else if (item.level_type === 'Floor Average') {
+            floorMap[item.metric_key] = item.metric_value;
+          }
+        });
+
+        setTeamMetrics(teamMap);
+        setFloorAverages(floorMap);
       }
     } catch (e) {
-      console.error('Error fetching Supabase metrics:', e);
+      console.error('Error fetching dashboard context:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMetrics();
-  }, []);
-
-  const addAllowedEmail = (email: string, role: UserRole = 'Admin') => {
-    setAllowedUsers((prev) => [...prev.filter((u) => u.email !== email), { email, role }]);
-  };
-
-  const removeAllowedEmail = (email: string) => {
-    setAllowedUsers((prev) => prev.filter((u) => u.email !== email));
+  const logAuditAction = async (action: string, target: string, prevVal?: any, newVal?: any) => {
+    if (!currentUser) return;
+    await supabase.from('audit_logs').insert([
+      {
+        actor_email: currentUser.user_email,
+        action,
+        target_entity: target,
+        previous_value: prevVal || null,
+        new_value: newVal || null,
+      },
+    ]);
   };
 
   return (
     <MetricsContext.Provider
       value={{
-        allowedUsers,
-        addAllowedEmail,
-        removeAllowedEmail,
+        currentUser,
+        setCurrentUser,
         agentMetrics,
-        setAgentMetrics,
         teamMetrics,
-        setTeamMetrics,
         floorAverages,
-        setFloorAverages,
-        targets,
-        setTargets,
         refreshMetrics: fetchMetrics,
-        totalAgents: agentMetrics.length,
+        logAuditAction,
         loading,
       }}
     >
