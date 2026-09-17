@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Save, FileSpreadsheet, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Save, FileSpreadsheet, CheckCircle2, Upload, AlertCircle } from 'lucide-react';
 import { processKSCATCalc, processMetricsFile, processPVFFile } from '@/lib/csv-parser';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import Papa from 'papaparse';
@@ -12,11 +12,18 @@ import Papa from 'papaparse';
 export function AgentDataTab() {
   const { refreshMetrics, logAuditAction } = useMetrics() as any;
   const [periodId, setPeriodId] = useState('2026-W37');
+  
   const [kscatFile, setKscatFile] = useState<File | null>(null);
   const [pvfFile, setPvfFile] = useState<File | null>(null);
   const [metricsFile, setMetricsFile] = useState<File | null>(null);
+  
   const [statusMsg, setStatusMsg] = useState('');
+  const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const kscatRef = useRef<HTMLInputElement>(null);
+  const pvfRef = useRef<HTMLInputElement>(null);
+  const metricsRef = useRef<HTMLInputElement>(null);
 
   const parseCSV = (file: File): Promise<any[]> => {
     return new Promise((resolve) => {
@@ -29,8 +36,10 @@ export function AgentDataTab() {
   };
 
   const handleProcessAndBackup = async () => {
+    setIsError(false);
     if (!kscatFile || !pvfFile || !metricsFile) {
-      setStatusMsg('Validation Error: All 3 CSV files (KSCAT Calc, PVF, and Metrics) are required.');
+      setIsError(true);
+      setStatusMsg('Validation Error: Please upload all 3 CSV files (KSCAT Calc, PVF, and Metrics).');
       return;
     }
 
@@ -42,7 +51,6 @@ export function AgentDataTab() {
       const pvfRows = await parseCSV(pvfFile);
       const metricsRows = await parseCSV(metricsFile);
 
-      // Execute Section 10-16 Official Formulas
       const kscatData = processKSCATCalc(kscatRows);
       const pvfData = processPVFFile(pvfRows);
       const { agentMetrics, teamAverages, floorAverages } = processMetricsFile(metricsRows);
@@ -90,13 +98,11 @@ export function AgentDataTab() {
         };
       });
 
-      // Upsert Agent Level Data
       const { error: agentErr } = await supabase.from('agent_metrics').upsert(combinedRecords, {
         onConflict: 'period_id,agent_email',
       });
       if (agentErr) throw agentErr;
 
-      // Upsert Team & Floor Level Aggregates (L1:L22 and L25:L46)
       const aggRecords: any[] = [];
       Object.keys(teamAverages).forEach((key) => {
         aggRecords.push({
@@ -122,14 +128,17 @@ export function AgentDataTab() {
         onConflict: 'period_id,level_type,team_or_floor_name,metric_key',
       });
 
-      // Audit Log Record
-      logAuditAction('DATA_IMPORT', `Period: ${periodId}, Records: ${combinedRecords.length}`);
+      if (typeof logAuditAction === 'function') {
+        logAuditAction('DATA_IMPORT', `Period: ${periodId}, Records: ${combinedRecords.length}`);
+      }
 
+      setIsError(false);
       setStatusMsg(`✓ Success! Imported and calculated ${combinedRecords.length} agent metrics for period ${periodId}.`);
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (e: any) {
       console.error(e);
-      setStatusMsg(`Error importing data: ${e.message || 'Check CSV column structure'}`);
+      setIsError(true);
+      setStatusMsg(`Error importing data: ${e.message || 'Check database schema or CSV format'}`);
     } finally {
       setLoading(false);
     }
@@ -147,43 +156,93 @@ export function AgentDataTab() {
           <CardTitle className="text-base">Target Period Selection</CardTitle>
           <CardDescription className="text-xs">Historical reporting periods are retained and never deleted.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="w-64 space-y-1">
             <label className="text-xs font-medium">Reporting Period Identifier</label>
             <Input
               value={periodId}
               onChange={(e) => setPeriodId(e.target.value)}
-              placeholder="e.g. 2026-W37 or Sep-2026"
+              placeholder="e.g. 2026-W37"
               className="text-xs h-9"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-emerald-500 transition-colors">
-              <FileSpreadsheet className="h-8 w-8 mx-auto text-emerald-600 mb-2" />
-              <div className="text-xs font-semibold mb-1">1. Upload KSCAT Calc.csv</div>
-              <input type="file" accept=".csv" onChange={(e) => setKscatFile(e.target.files?.[0] || null)} className="text-xs w-full" />
-              {kscatFile && <p className="text-[10px] text-emerald-600 font-medium mt-1">✓ {kscatFile.name}</p>}
+            {/* KSCAT Upload Card */}
+            <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-between min-h-[160px]">
+              <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
+              <div className="text-xs font-semibold">1. Upload KSCAT Calc.csv</div>
+              <input
+                type="file"
+                ref={kscatRef}
+                accept=".csv"
+                onChange={(e) => setKscatFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => kscatRef.current?.click()}
+                className="text-xs gap-1 mt-2"
+              >
+                <Upload className="h-3 w-3" /> Select File
+              </Button>
+              {kscatFile && <p className="text-[10px] text-emerald-600 font-medium mt-2 truncate max-w-[200px]">✓ {kscatFile.name}</p>}
             </div>
 
-            <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-emerald-500 transition-colors">
-              <FileSpreadsheet className="h-8 w-8 mx-auto text-emerald-600 mb-2" />
-              <div className="text-xs font-semibold mb-1">2. Upload PVF.csv</div>
-              <input type="file" accept=".csv" onChange={(e) => setPvfFile(e.target.files?.[0] || null)} className="text-xs w-full" />
-              {pvfFile && <p className="text-[10px] text-emerald-600 font-medium mt-1">✓ {pvfFile.name}</p>}
+            {/* PVF Upload Card */}
+            <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-between min-h-[160px]">
+              <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
+              <div className="text-xs font-semibold">2. Upload PVF.csv</div>
+              <input
+                type="file"
+                ref={pvfRef}
+                accept=".csv"
+                onChange={(e) => setPvfFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => pvfRef.current?.click()}
+                className="text-xs gap-1 mt-2"
+              >
+                <Upload className="h-3 w-3" /> Select File
+              </Button>
+              {pvfFile && <p className="text-[10px] text-emerald-600 font-medium mt-2 truncate max-w-[200px]">✓ {pvfFile.name}</p>}
             </div>
 
-            <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-emerald-500 transition-colors">
-              <FileSpreadsheet className="h-8 w-8 mx-auto text-emerald-600 mb-2" />
-              <div className="text-xs font-semibold mb-1">3. Upload Metrics.csv</div>
-              <input type="file" accept=".csv" onChange={(e) => setMetricsFile(e.target.files?.[0] || null)} className="text-xs w-full" />
-              {metricsFile && <p className="text-[10px] text-emerald-600 font-medium mt-1">✓ {metricsFile.name}</p>}
+            {/* Metrics Upload Card */}
+            <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-between min-h-[160px]">
+              <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
+              <div className="text-xs font-semibold">3. Upload Metrics.csv</div>
+              <input
+                type="file"
+                ref={metricsRef}
+                accept=".csv"
+                onChange={(e) => setMetricsFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => metricsRef.current?.click()}
+                className="text-xs gap-1 mt-2"
+              >
+                <Upload className="h-3 w-3" /> Select File
+              </Button>
+              {metricsFile && <p className="text-[10px] text-emerald-600 font-medium mt-2 truncate max-w-[200px]">✓ {metricsFile.name}</p>}
             </div>
           </div>
 
           {statusMsg && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md text-xs flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <div className={`p-3 rounded-md text-xs flex items-center gap-2 ${
+              isError ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+            }`}>
+              {isError ? <AlertCircle className="h-4 w-4 text-red-600 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
               <span>{statusMsg}</span>
             </div>
           )}
