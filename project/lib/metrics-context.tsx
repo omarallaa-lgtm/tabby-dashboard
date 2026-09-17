@@ -7,6 +7,14 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhd
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
+export type UserRole = 'Admin' | 'Manager' | 'Agent';
+
+export interface User {
+  email: string;
+  role: UserRole;
+  addedAt?: string;
+}
+
 export interface AgentMetricRow {
   agent_name: string;
   agent_email: string;
@@ -53,6 +61,11 @@ const defaultTargets: TargetSettings = {
 const MetricsContext = createContext<any>(null);
 
 export const MetricsProvider = ({ children }: { children: React.ReactNode }) => {
+  const [allowedUsers, setAllowedUsers] = useState<User[]>([
+    { email: 'omar.allaa@tabby.ai', role: 'Admin' },
+    { email: 'admin@tabby.ai', role: 'Admin' }
+  ]);
+
   const [agentMetrics, setAgentMetrics] = useState<AgentMetricRow[]>([]);
   const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({
     csatPercent: '60.53%',
@@ -112,9 +125,20 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     fetchMetrics();
   }, []);
 
+  const addAllowedEmail = (email: string, role: UserRole = 'Admin') => {
+    setAllowedUsers((prev) => [...prev.filter((u) => u.email !== email), { email, role }]);
+  };
+
+  const removeAllowedEmail = (email: string) => {
+    setAllowedUsers((prev) => prev.filter((u) => u.email !== email));
+  };
+
   return (
     <MetricsContext.Provider
       value={{
+        allowedUsers,
+        addAllowedEmail,
+        removeAllowedEmail,
         agentMetrics,
         setAgentMetrics,
         teamMetrics,
