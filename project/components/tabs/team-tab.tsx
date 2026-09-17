@@ -1,131 +1,105 @@
 'use client';
 
-import React from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useMetrics } from '@/lib/metrics-context';
-import { Building2, TrendingUp, TrendingDown, Minus, Trophy, Users } from 'lucide-react';
+import { Users, Award, Activity, ShieldCheck } from 'lucide-react';
 
 export function TeamTab() {
-  const { teamMetrics } = useMetrics();
+  const context = useMetrics() as any;
+  const { agentMetrics = [], teamMetrics: rawTeamMetrics = [] } = context;
 
-  const csatPctStr = teamMetrics?.csatPercent || '60.53%';
-  const kscatPctStr = teamMetrics?.kscatPercent || '40.35%';
-  const totalDsatVal = teamMetrics?.dsatCount ?? 90;
-  const adherenceStr = teamMetrics?.adherencePercent || '77.50%';
-  const ahtStr = teamMetrics?.aht || '6.1';
+  const teamMetrics = Array.isArray(rawTeamMetrics) ? rawTeamMetrics : [];
+  const totalAgents = agentMetrics?.length || 0;
 
-  const defaultFloorMetrics = [
-    { metricName: 'CSAT %', value: '60.00%' },
-    { metricName: 'Average Basket Time', value: '14.6' },
-    { metricName: 'Productivity 8-hrs', value: '30.0' },
-    { metricName: 'Productivity Online 8-hrs', value: '44.9' },
-    { metricName: 'Escalation Rate %', value: '4.70%' },
-    { metricName: 'Deescalation Rate %', value: '4.00%' },
-    { metricName: 'Adherence %', value: '81.70%' },
-    { metricName: 'Average Group Basket Time', value: '24.4' },
-    { metricName: 'Average Handling Time', value: '5.5' },
-    { metricName: 'Closed After Resolution %', value: '61.50%' },
-    { metricName: 'Closed Tickets %', value: '50.30%' },
-    { metricName: 'FCR %', value: '53.50%' },
-  ];
+  const avgCsat = totalAgents
+    ? (agentMetrics.reduce((acc: number, curr: any) => acc + (Number(curr.csat) || 0), 0) / totalAgents).toFixed(1)
+    : '60.5';
 
-  const floorMetrics = teamMetrics?.floorMetrics || defaultFloorMetrics;
+  const avgKscat = totalAgents
+    ? (agentMetrics.reduce((acc: number, curr: any) => acc + (Number(curr.kscat) || 0), 0) / totalAgents).toFixed(1)
+    : '40.3';
 
-  const comparisonTable = [
-    { name: 'CSAT %', team: csatPctStr, floor: '60.00%', isLowerBetter: false },
-    { name: 'KSCAT %', team: kscatPctStr, floor: '40.00%', isLowerBetter: false },
-    { name: 'Adherence %', team: adherenceStr, floor: '81.70%', isLowerBetter: false },
-    { name: 'AHT (Average Handling Time)', team: ahtStr, floor: '5.5', isLowerBetter: true },
-    { name: 'ABT (Average Basket Time)', team: '14.5', floor: '14.6', isLowerBetter: true },
-    { name: 'DSAT Count', team: String(totalDsatVal), floor: '100', isLowerBetter: true },
-    { name: 'Escalation Rate %', team: '4.10%', floor: '4.70%', isLowerBetter: true },
-    { name: 'Deescalation Rate %', team: '3.10%', floor: '4.00%', isLowerBetter: false },
-    { name: 'FCR %', team: '56.00%', floor: '53.50%', isLowerBetter: false },
-  ];
+  const totalDsatVal = agentMetrics.reduce((acc: number, curr: any) => acc + (Number(curr.dsat) || 0), 0) || 90;
+
+  const csatPctStr = `${avgCsat}%`;
+  const kscatPctStr = `${avgKscat}%`;
+  const adherenceStr = '95.2%';
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <CardHeader className="px-0 pt-0 mb-4">
-          <div className="flex items-center gap-2">
-            <Users className="h-6 w-6 text-emerald-600" />
-            <div>
-              <CardTitle>Team vs. Floor Benchmark Overview</CardTitle>
-              <CardDescription>
-                Direct operational comparison between your team totals and overall contact center floor averages
-              </CardDescription>
-            </div>
-          </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Team Overview</h2>
+        <p className="text-muted-foreground">Team-level metric aggregations and breakdown</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">CSAT Target</CardTitle>
+            <Award className="h-4 w-4 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{csatPctStr}</div>
+            <p className="text-xs text-muted-foreground mt-1">Average across active teams</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">KSCAT Target</CardTitle>
+            <Activity className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kscatPctStr}</div>
+            <p className="text-xs text-muted-foreground mt-1">Knowledge CSAT rate</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total DSAT</CardTitle>
+            <Users className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalDsatVal}</div>
+            <p className="text-xs text-muted-foreground mt-1">Dissatisfaction count</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Adherence Target</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{adherenceStr}</div>
+            <p className="text-xs text-muted-foreground mt-1">Schedule adherence rate</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Teams Operational Status</CardTitle>
+          <CardDescription>Detailed stats by team tier</CardDescription>
         </CardHeader>
-
-        <CardContent className="px-0">
-          <div className="border rounded-xl overflow-hidden">
-            <Table className="text-xs">
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="font-bold text-gray-700">Metric Name</TableHead>
-                  <TableHead className="text-right font-bold text-gray-700">Team Value</TableHead>
-                  <TableHead className="text-right font-bold text-gray-700">Floor Average</TableHead>
-                  <TableHead className="text-center font-bold text-gray-700">Status vs Floor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y">
-                {comparisonTable.map((row) => {
-                  const teamNum = parseFloat(row.team.replace('%', '').trim()) || 0;
-                  const floorNum = parseFloat(row.floor.replace('%', '').trim()) || 0;
-
-                  const isBetter = row.isLowerBetter ? teamNum <= floorNum : teamNum >= floorNum;
-                  const isSame = teamNum === floorNum;
-
-                  return (
-                    <TableRow key={row.name} className="hover:bg-gray-50">
-                      <TableCell className="font-medium text-gray-900">{row.name}</TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600">{row.team}</TableCell>
-                      <TableCell className="text-right font-semibold text-blue-600">{row.floor}</TableCell>
-                      <TableCell className="text-center">
-                        {isSame ? (
-                          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-[10px]">
-                            <Minus className="h-3 w-3 mr-1 inline" /> Equal to Floor
-                          </Badge>
-                        ) : isBetter ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                            <TrendingUp className="h-3 w-3 mr-1 inline" /> Outperforming
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px]">
-                            <TrendingDown className="h-3 w-3 mr-1 inline" /> Lagging Floor
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="p-6">
-        <CardHeader className="px-0 pt-0 pb-3">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600" />
-            <div>
-              <CardTitle className="text-base">Complete Floor Metrics Reference</CardTitle>
-              <CardDescription className="text-xs">Extracted floor metrics values</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="px-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {floorMetrics.map((fm, i) => (
-              <div key={i} className="p-3 border rounded-lg bg-slate-50 space-y-1">
-                <p className="text-[11px] font-medium text-muted-foreground truncate">{fm.metricName}</p>
-                <p className="text-base font-bold text-blue-600">{fm.value}</p>
-              </div>
-            ))}
+        <CardContent>
+          <div className="space-y-4">
+            {teamMetrics.length > 0 ? (
+              teamMetrics.map((team: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <div className="font-semibold">{team.name || `Team ${idx + 1}`}</div>
+                    <div className="text-xs text-muted-foreground">{team.agentsCount || 0} Agents</div>
+                  </div>
+                  <div className="text-right font-medium">
+                    CSAT: {team.avgCsat || 90}%
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-muted-foreground">No team records available</div>
+            )}
           </div>
         </CardContent>
       </Card>
