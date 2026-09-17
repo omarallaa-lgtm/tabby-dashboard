@@ -1,171 +1,195 @@
 'use client';
 
-import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { FileText, Check, X, Clock, AlertCircle } from 'lucide-react';
-import { requestItems, type RequestItem } from '@/lib/mock-data';
-import { cn } from '@/lib/utils';
+import { PlusCircle, CheckCircle2, XCircle, Clock, ExternalLink } from 'lucide-react';
+import { supabase, UserRole } from '@/lib/metrics-context';
 
-const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ComponentType<{ className?: string }>; className: string }> = {
-  Pending: { variant: 'outline', icon: Clock, className: 'text-amber-500 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800' },
-  Approved: { variant: 'secondary', icon: Check, className: 'text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800' },
-  Denied: { variant: 'destructive', icon: X, className: 'text-red-500' },
-};
+export function RequestsTab({ currentUser }: { currentUser: { email: string; role: UserRole } }) {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [requestType, setRequestType] = useState('Shift Swap');
+  const [ticketLink, setTicketLink] = useState('');
+  const [details, setDetails] = useState('');
+  const [commentMap, setCommentMap] = useState<Record<string, string>>({});
 
-const priorityConfig: Record<string, string> = {
-  High: 'text-red-500',
-  Medium: 'text-amber-500',
-  Low: 'text-muted-foreground',
-};
-
-const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  'Time Off': Clock,
-  'Shift Swap': AlertCircle,
-  'Schedule Change': FileText,
-  'Equipment': FileText,
-};
-
-type FilterType = 'all' | 'pending' | 'approved' | 'denied';
-
-export function RequestsTab() {
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [items, setItems] = useState<RequestItem[]>(requestItems);
-
-  const filtered = filter === 'all' ? items : items.filter((r) => r.status.toLowerCase() === filter);
-
-  const counts = {
-    all: items.length,
-    pending: items.filter((r) => r.status === 'Pending').length,
-    approved: items.filter((r) => r.status === 'Approved').length,
-    denied: items.filter((r) => r.status === 'Denied').length,
+  const fetchRequests = async () => {
+    let query = supabase.from('requests').select('*').order('created_at', { ascending: false });
+    if (currentUser.role === 'Agent') {
+      query = query.eq('agent_email', currentUser.email);
+    }
+    const { data } = await query;
+    if (data) setRequests(data);
   };
 
-  const handleAction = (id: string, action: 'Approved' | 'Denied') => {
-    setItems((prev) => prev.map((r) => (r.id === id ? { ...r, status: action } : r)));
+  useEffect(() => {
+    fetchRequests();
+  }, [currentUser]);
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!details.trim()) return;
+
+    const newReqId = `REQ-${Math.floor(100000 + Math.random() * 900000)}`;
+    await supabase.from('requests').insert([
+      {
+        request_id: newReqId,
+        agent_email: currentUser.email,
+        request_type: requestType,
+        ticket_link: ticketLink,
+        details,
+        status: 'pending',
+      },
+    ]);
+
+    setDetails('');
+    setTicketLink('');
+    fetchRequests();
   };
 
-  const filterButtons: { id: FilterType; label: string; count: number }[] = [
-    { id: 'all', label: 'All', count: counts.all },
-    { id: 'pending', label: 'Pending', count: counts.pending },
-    { id: 'approved', label: 'Approved', count: counts.approved },
-    { id: 'denied', label: 'Denied', count: counts.denied },
-  ];
+  const handleAction = async (id: string, newStatus: 'approved' | 'declined') => {
+    const comment = commentMap[id] || '';
+    await supabase
+      .from('requests')
+      .update({
+        status: newStatus,
+        approver_email: currentUser.email,
+        approver_comment: comment,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    fetchRequests();
+  };
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {filterButtons.map((f, i) => {
-          const isActive = filter === f.id;
-          return (
-            <Card
-              key={f.id}
-              className={cn(
-                'cursor-pointer p-5 transition-all hover:shadow-md animate-fade-in-up',
-                isActive && 'ring-2 ring-primary'
-              )}
-              style={{ animationDelay: `${i * 60}ms` }}
-              onClick={() => setFilter(f.id)}
-            >
-              <p className="text-sm text-muted-foreground">{f.label}</p>
-              <p className="mt-1 text-2xl font-bold">{f.count}</p>
-            </Card>
-          );
-        })}
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Requests & Discrepancy Module</h2>
+        <p className="text-xs text-muted-foreground">Submit, review, and track operational requests with audit logs</p>
       </div>
 
-      <Card className="p-6">
-        <CardHeader className="px-0 pt-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Agent Requests</CardTitle>
-              <CardDescription>Time off, shift swaps, schedule changes, and equipment requests</CardDescription>
-            </div>
-          </div>
+      {/* Agent Submit Request Form */}
+      {currentUser.role === 'Agent' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <PlusCircle className="h-5 w-5 text-emerald-600" /> Create New Request
+            </CardTitle>
+            <CardDescription className="text-xs">Submit shift swaps, time-off requests, or metric recalculation disputes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmitRequest} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Request Type</label>
+                  <select
+                    value={requestType}
+                    onChange={(e) => setRequestType(e.target.value)}
+                    className="w-full h-9 rounded-md border text-xs px-3"
+                  >
+                    <option value="Shift Swap">Shift Swap</option>
+                    <option value="Time Off">Time Off</option>
+                    <option value="CSAT Dispute">CSAT Dispute</option>
+                    <option value="Overtime Approval">Overtime Approval</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">CRM Ticket Link (Optional)</label>
+                  <Input
+                    placeholder="https://crm.tabby.ai/object/ticket/..."
+                    value={ticketLink}
+                    onChange={(e) => setTicketLink(e.target.value)}
+                    className="text-xs h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Request Details</label>
+                <textarea
+                  placeholder="Provide specific details..."
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  className="w-full rounded-md border p-2 text-xs h-20"
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
+                Submit Operational Request
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Request Audit Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Request History & Audit Log</CardTitle>
         </CardHeader>
-        <CardContent className="px-0">
-          <div className="overflow-x-auto">
-            <Table>
+        <CardContent>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="text-xs">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">ID</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Request ID</TableHead>
                   <TableHead>Agent</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Details</TableHead>
-                  <TableHead className="text-center">Priority</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Actions</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Approver / Timestamp</TableHead>
+                  {currentUser.role !== 'Agent' && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((req) => {
-                  const cfg = statusConfig[req.status];
-                  const StatusIcon = cfg.icon;
-                  const TypeIcon = typeIcons[req.type] || FileText;
-                  return (
-                    <TableRow key={req.id}>
-                      <TableCell>
-                        <span className="font-mono text-xs text-muted-foreground">{req.id}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="rounded-md bg-muted/60 p-1.5">
-                            <TypeIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                          </div>
-                          <span className="text-sm font-medium">{req.type}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
+                {requests.map((req) => (
+                  <TableRow key={req.id}>
+                    <TableCell className="font-bold">{req.request_id}</TableCell>
+                    <TableCell>{req.agent_email}</TableCell>
+                    <TableCell><Badge variant="outline">{req.request_type}</Badge></TableCell>
+                    <TableCell className="max-w-xs truncate">{req.details}</TableCell>
+                    <TableCell>
+                      {req.status === 'pending' && <Badge className="bg-amber-100 text-amber-800">Pending</Badge>}
+                      {req.status === 'approved' && <Badge className="bg-emerald-100 text-emerald-800">Approved</Badge>}
+                      {req.status === 'declined' && <Badge className="bg-red-100 text-red-800">Declined</Badge>}
+                    </TableCell>
+                    <TableCell>
+                      {req.approver_email ? (
                         <div>
-                          <p className="text-sm font-medium">{req.agent}</p>
-                          <p className="text-xs text-muted-foreground">{req.team}</p>
+                          <div className="font-medium">{req.approver_email}</div>
+                          <div className="text-[10px] text-muted-foreground">{new Date(req.updated_at).toLocaleString()}</div>
+                          {req.approver_comment && <div className="italic text-[10px]">"{req.approver_comment}"</div>}
                         </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <p className="text-sm text-muted-foreground line-clamp-2">{req.details}</p>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={cn('text-xs font-semibold', priorityConfig[req.priority])}>
-                          {req.priority}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{req.submitted}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={cfg.variant} className={cn('gap-1', cfg.className)}>
-                          <StatusIcon className="h-3 w-3" />
-                          {req.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {req.status === 'Pending' ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
-                              onClick={() => handleAction(req.id, 'Approved')}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                              onClick={() => handleAction(req.id, 'Denied')}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    {currentUser.role !== 'Agent' && (
+                      <TableCell className="text-right space-y-1">
+                        {req.status === 'pending' && (
+                          <div className="flex flex-col items-end gap-1">
+                            <Input
+                              placeholder="Review comment..."
+                              value={commentMap[req.id] || ''}
+                              onChange={(e) => setCommentMap({ ...commentMap, [req.id]: e.target.value })}
+                              className="text-[10px] h-6 w-32"
+                            />
+                            <div className="flex gap-1">
+                              <Button size="sm" onClick={() => handleAction(req.id, 'approved')} className="h-6 px-2 bg-emerald-600 text-white text-[10px]">Approve</Button>
+                              <Button size="sm" onClick={() => handleAction(req.id, 'declined')} className="h-6 px-2 bg-red-600 text-white text-[10px]">Decline</Button>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                    </TableRow>
-                  );
-                })}
+                    )}
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
