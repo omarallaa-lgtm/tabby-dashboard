@@ -1,105 +1,226 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useMetrics } from '@/lib/metrics-context';
-import { Users, Award, Activity, ShieldCheck } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 export function TeamTab() {
-  const context = useMetrics() as any;
-  const { agentMetrics = [], teamMetrics: rawTeamMetrics = [] } = context;
-
-  const teamMetrics = Array.isArray(rawTeamMetrics) ? rawTeamMetrics : [];
-  const totalAgents = agentMetrics?.length || 0;
-
-  const avgCsat = totalAgents
-    ? (agentMetrics.reduce((acc: number, curr: any) => acc + (Number(curr.csat) || 0), 0) / totalAgents).toFixed(1)
-    : '60.5';
-
-  const avgKscat = totalAgents
-    ? (agentMetrics.reduce((acc: number, curr: any) => acc + (Number(curr.kscat) || 0), 0) / totalAgents).toFixed(1)
-    : '40.3';
-
-  const totalDsatVal = agentMetrics.reduce((acc: number, curr: any) => acc + (Number(curr.dsat) || 0), 0) || 90;
-
-  const csatPctStr = `${avgCsat}%`;
-  const kscatPctStr = `${avgKscat}%`;
-  const adherenceStr = '95.2%';
-
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Team Overview</h2>
-        <p className="text-muted-foreground">Team-level metric aggregations and breakdown</p>
+        <h2 className="text-2xl font-bold tracking-tight">Team vs. Floor Benchmark Overview</h2>
+        <p className="text-xs text-muted-foreground mt-1">Direct operational comparison between your team totals and overall contact center floor averages</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">CSAT Target</CardTitle>
-            <Award className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{csatPctStr}</div>
-            <p className="text-xs text-muted-foreground mt-1">Average across active teams</p>
-          </CardContent>
-        </Card>
+      {/* Main Benchmark Comparison Table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="text-xs">
+                <TableHead className="w-[300px]">Metric Name</TableHead>
+                <TableHead>Team Value</TableHead>
+                <TableHead>Floor Average</TableHead>
+                <TableHead>Status vs Floor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="text-xs">
+              <TableRow>
+                <TableCell className="font-semibold">CSAT %</TableCell>
+                <TableCell className="font-bold text-emerald-600">60.53%</TableCell>
+                <TableCell className="text-blue-600">60.00%</TableCell>
+                <TableCell>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3" /> Outperforming
+                  </Badge>
+                </TableCell>
+              </TableRow>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">KSCAT Target</CardTitle>
-            <Activity className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kscatPctStr}</div>
-            <p className="text-xs text-muted-foreground mt-1">Knowledge CSAT rate</p>
-          </CardContent>
-        </Card>
+              <TableRow>
+                <TableCell className="font-semibold">KSCAT %</TableCell>
+                <TableCell className="font-bold text-emerald-600">40.35%</TableCell>
+                <TableCell className="text-blue-600">40.00%</TableCell>
+                <TableCell>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3" /> Outperforming
+                  </Badge>
+                </TableCell>
+              </TableRow>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total DSAT</CardTitle>
-            <Users className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalDsatVal}</div>
-            <p className="text-xs text-muted-foreground mt-1">Dissatisfaction count</p>
-          </CardContent>
-        </Card>
+              <TableRow>
+                <TableCell className="font-semibold">Adherence %</TableCell>
+                <TableCell className="font-bold text-purple-600">77.50%</TableCell>
+                <TableCell className="text-blue-600">81.70%</TableCell>
+                <TableCell>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100 gap-1 font-normal">
+                    <TrendingDown className="h-3 w-3" /> Lagging Floor
+                  </Badge>
+                </TableCell>
+              </TableRow>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Adherence Target</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{adherenceStr}</div>
-            <p className="text-xs text-muted-foreground mt-1">Schedule adherence rate</p>
-          </CardContent>
-        </Card>
-      </div>
+              <TableRow>
+                <TableCell className="font-semibold">AHT (Average Handling Time)</TableCell>
+                <TableCell className="font-bold">6.1</TableCell>
+                <TableCell className="text-blue-600">5.5</TableCell>
+                <TableCell>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100 gap-1 font-normal">
+                    <TrendingDown className="h-3 w-3" /> Lagging Floor
+                  </Badge>
+                </TableCell>
+              </TableRow>
 
+              <TableRow>
+                <TableCell className="font-semibold">ABT (Average Basket Time)</TableCell>
+                <TableCell className="font-bold">14.5</TableCell>
+                <TableCell className="text-blue-600">14.6</TableCell>
+                <TableCell>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3" /> Outperforming
+                  </Badge>
+                </TableCell>
+              </TableRow>
+
+              <TableRow>
+                <TableCell className="font-semibold">DSAT Count</TableCell>
+                <TableCell className="font-bold text-red-600">90</TableCell>
+                <TableCell className="text-blue-600">100</TableCell>
+                <TableCell>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3" /> Outperforming
+                  </Badge>
+                </TableCell>
+              </TableRow>
+
+              <TableRow>
+                <TableCell className="font-semibold">Escalation Rate %</TableCell>
+                <TableCell className="font-bold text-amber-600">4.10%</TableCell>
+                <TableCell className="text-blue-600">4.70%</TableCell>
+                <TableCell>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3" /> Outperforming
+                  </Badge>
+                </TableCell>
+              </TableRow>
+
+              <TableRow>
+                <TableCell className="font-semibold">Deescalation Rate %</TableCell>
+                <TableCell className="font-bold text-emerald-600">3.10%</TableCell>
+                <TableCell className="text-blue-600">4.00%</TableCell>
+                <TableCell>
+                  <Badge className="bg-red-100 text-red-800 hover:bg-red-100 gap-1 font-normal">
+                    <TrendingDown className="h-3 w-3" /> Lagging Floor
+                  </Badge>
+                </TableCell>
+              </TableRow>
+
+              <TableRow>
+                <TableCell className="font-semibold">FCR %</TableCell>
+                <TableCell className="font-bold">56.00%</TableCell>
+                <TableCell className="text-blue-600">53.50%</TableCell>
+                <TableCell>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 gap-1 font-normal">
+                    <TrendingUp className="h-3 w-3" /> Outperforming
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Complete Floor Metrics Reference */}
       <Card>
         <CardHeader>
-          <CardTitle>Teams Operational Status</CardTitle>
-          <CardDescription>Detailed stats by team tier</CardDescription>
+          <CardTitle className="text-base">Complete Floor Metrics Reference</CardTitle>
+          <CardDescription className="text-xs">Extracted floor metrics values</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {teamMetrics.length > 0 ? (
-              teamMetrics.map((team: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <div className="font-semibold">{team.name || `Team ${idx + 1}`}</div>
-                    <div className="text-xs text-muted-foreground">{team.agentsCount || 0} Agents</div>
-                  </div>
-                  <div className="text-right font-medium">
-                    CSAT: {team.avgCsat || 90}%
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-muted-foreground">No team records available</div>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">CSAT %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">60.00%</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Average Basket Time</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">14.6</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Productivity 8-hrs</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">30.0</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Productivity Online 8-hrs</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">44.9</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Escalation Rate %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">4.70%</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Deescalation Rate %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">4.00%</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Adherence %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">81.70%</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Average Group Basket Time</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">24.4</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Average Handling Time</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">5.5</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Closed After Resolution %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">61.50%</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">Closed Tickets %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">50.30%</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-50/50">
+              <CardContent className="p-3">
+                <div className="text-[11px] font-medium text-gray-500 uppercase">FCR %</div>
+                <div className="text-xl font-bold text-blue-600 mt-1">53.50%</div>
+              </CardContent>
+            </Card>
           </div>
         </CardContent>
       </Card>
