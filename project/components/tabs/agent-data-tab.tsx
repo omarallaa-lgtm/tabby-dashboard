@@ -51,7 +51,7 @@ export function AgentDataTab() {
       const pvfRows = await parseCSV(pvfFile);
       const metricsRows = await parseCSV(metricsFile);
 
-      const kscatData = processKSCATCalc(kscatRows);
+      const { agentResults: kscatData, teamKscatTotals } = processKSCATCalc(kscatRows);
       const pvfData = processPVFFile(pvfRows);
       const { agentMetrics, teamAverages, floorAverages } = processMetricsFile(metricsRows);
 
@@ -98,19 +98,23 @@ export function AgentDataTab() {
         };
       });
 
+      // Save agent metrics
       const { error: agentErr } = await supabase.from('agent_metrics').upsert(combinedRecords, {
         onConflict: 'period_id,agent_email',
       });
       if (agentErr) throw agentErr;
 
+      // Save team & floor aggregates (combining Metrics sheet + Team KSCAT raw totals)
       const aggRecords: any[] = [];
-      Object.keys(teamAverages).forEach((key) => {
+      const combinedTeam = { ...teamAverages, ...teamKscatTotals };
+
+      Object.keys(combinedTeam).forEach((key) => {
         aggRecords.push({
           period_id: periodId,
           level_type: 'Team Overall',
           team_or_floor_name: 'Support Tier 1',
           metric_key: key,
-          metric_value: teamAverages[key],
+          metric_value: combinedTeam[key],
         });
       });
 
@@ -133,12 +137,12 @@ export function AgentDataTab() {
       }
 
       setIsError(false);
-      setStatusMsg(`✓ Success! Imported and calculated ${combinedRecords.length} agent metrics for period ${periodId}.`);
+      setStatusMsg(`✓ Success! Dynamic import complete for period ${periodId}.`);
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (e: any) {
       console.error(e);
       setIsError(true);
-      setStatusMsg(`Error importing data: ${e.message || 'Check database schema or CSV format'}`);
+      setStatusMsg(`Error importing data: ${e.message || 'Check CSV structure'}`);
     } finally {
       setLoading(false);
     }
@@ -168,70 +172,31 @@ export function AgentDataTab() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            {/* KSCAT Upload Card */}
             <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-between min-h-[160px]">
               <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
               <div className="text-xs font-semibold">1. Upload KSCAT Calc.csv</div>
-              <input
-                type="file"
-                ref={kscatRef}
-                accept=".csv"
-                onChange={(e) => setKscatFile(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => kscatRef.current?.click()}
-                className="text-xs gap-1 mt-2"
-              >
+              <input type="file" ref={kscatRef} accept=".csv" onChange={(e) => setKscatFile(e.target.files?.[0] || null)} className="hidden" />
+              <Button type="button" variant="outline" size="sm" onClick={() => kscatRef.current?.click()} className="text-xs gap-1 mt-2">
                 <Upload className="h-3 w-3" /> Select File
               </Button>
               {kscatFile && <p className="text-[10px] text-emerald-600 font-medium mt-2 truncate max-w-[200px]">✓ {kscatFile.name}</p>}
             </div>
 
-            {/* PVF Upload Card */}
             <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-between min-h-[160px]">
               <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
               <div className="text-xs font-semibold">2. Upload PVF.csv</div>
-              <input
-                type="file"
-                ref={pvfRef}
-                accept=".csv"
-                onChange={(e) => setPvfFile(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => pvfRef.current?.click()}
-                className="text-xs gap-1 mt-2"
-              >
+              <input type="file" ref={pvfRef} accept=".csv" onChange={(e) => setPvfFile(e.target.files?.[0] || null)} className="hidden" />
+              <Button type="button" variant="outline" size="sm" onClick={() => pvfRef.current?.click()} className="text-xs gap-1 mt-2">
                 <Upload className="h-3 w-3" /> Select File
               </Button>
               {pvfFile && <p className="text-[10px] text-emerald-600 font-medium mt-2 truncate max-w-[200px]">✓ {pvfFile.name}</p>}
             </div>
 
-            {/* Metrics Upload Card */}
             <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 transition-colors flex flex-col items-center justify-between min-h-[160px]">
               <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
               <div className="text-xs font-semibold">3. Upload Metrics.csv</div>
-              <input
-                type="file"
-                ref={metricsRef}
-                accept=".csv"
-                onChange={(e) => setMetricsFile(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => metricsRef.current?.click()}
-                className="text-xs gap-1 mt-2"
-              >
+              <input type="file" ref={metricsRef} accept=".csv" onChange={(e) => setMetricsFile(e.target.files?.[0] || null)} className="hidden" />
+              <Button type="button" variant="outline" size="sm" onClick={() => metricsRef.current?.click()} className="text-xs gap-1 mt-2">
                 <Upload className="h-3 w-3" /> Select File
               </Button>
               {metricsFile && <p className="text-[10px] text-emerald-600 font-medium mt-2 truncate max-w-[200px]">✓ {metricsFile.name}</p>}
