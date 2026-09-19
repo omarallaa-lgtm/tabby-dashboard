@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Star, Target, BarChart2, Inbox, Globe, MessageSquare, Phone, Users, TrendingUp, Settings2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2, TrendingUp, Target, Settings2, Sparkles } from 'lucide-react';
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget, historicalTrends = [] } = useMetrics() as any;
@@ -16,6 +16,7 @@ export function OverviewTab() {
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [tempTarget, setTempTarget] = useState('85');
 
+  // Utility to format decimals, fractions, and percentages
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -46,7 +47,9 @@ export function OverviewTab() {
     }
   };
 
-  // Channel Calculations
+  const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
+
+  // Calculate Overall Totals across Active Roster (Table 1 Total Row)
   const totalCsat = agentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
   const totalKscat = agentMetrics.reduce((s: number, a: any) => s + (a.kscat || 0), 0);
   const totalDsat = agentMetrics.reduce((s: number, a: any) => s + (a.dsat || 0), 0);
@@ -54,16 +57,21 @@ export function OverviewTab() {
   const totalWoKarma = totalCsat + totalDsat;
   const totalCsatPct = totalWoKarma > 0 ? (totalCsat / totalWoKarma) * 100 : 0;
   const totalKscatPct = totalCount > 0 ? (totalCsat / totalCount) * 100 : 0;
+  const totalVariance = totalCsatPct - totalKscatPct;
 
+  // Calculate Chat Totals (Table 4)
   const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
   const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
   const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
+  const totalChatCount = totalChatCsat + totalChatKscat + totalChatDsat;
+  const totalChatWoKarma = totalChatCsat + totalChatDsat;
 
+  // Calculate Phone Totals (Table 5)
   const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
   const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
   const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
-
-  const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
+  const totalPhoneCount = totalPhoneCsat + totalPhoneKscat + totalPhoneDsat;
+  const totalPhoneWoKarma = totalPhoneCsat + totalPhoneDsat;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -108,59 +116,14 @@ export function OverviewTab() {
         </div>
       )}
 
-      {/* Interactive KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <Card
-          onClick={() => setSelectedMetric({ label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85 })}
-          className={`cursor-pointer transition-all hover:scale-105 ${selectedMetric.label === 'CSAT %' ? 'border-emerald-500 border-2 bg-emerald-500/10' : ''}`}
-        >
-          <CardContent className="p-4 relative">
-            <Star className="h-4 w-4 text-amber-500 fill-amber-500 absolute top-3 right-3" />
-            <div className="text-[10px] font-bold text-gray-500 uppercase">CSAT %</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-1">{formatVal(totalCsatPct, true)}</div>
-            <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-2">
-              <Target className="h-3 w-3 text-amber-600" /> Target: {kpiTargets.csatPercent || 85}%
-            </div>
-          </CardContent>
+      {!hasData && (
+        <Card className="p-6 bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-3">
+          <Inbox className="h-5 w-5 text-amber-600 shrink-0" />
+          <span>No operational data loaded yet. Upload your KSCAT Calc, PVF, and Metrics sheets under <strong>Data & Import</strong> to render live statistics.</span>
         </Card>
+      )}
 
-        <Card onClick={() => setSelectedMetric({ label: 'KSCAT %', teamKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35 })}>
-          <CardContent className="p-4">
-            <div className="text-[10px] font-bold text-gray-500 uppercase">KSCAT %</div>
-            <div className="text-2xl font-bold text-blue-600 mt-1">{formatVal(totalKscatPct, true)}</div>
-          </CardContent>
-        </Card>
-
-        <Card onClick={() => setSelectedMetric({ label: 'Adherence %', teamKey: 'Adherence, %', targetKey: 'adherencePercent', defaultTarget: 90 })}>
-          <CardContent className="p-4">
-            <div className="text-[10px] font-bold text-gray-500 uppercase">Adherence %</div>
-            <div className="text-2xl font-bold text-purple-600 mt-1">{formatVal(teamMetrics['Adherence, %'], true)}</div>
-          </CardContent>
-        </Card>
-
-        <Card onClick={() => setSelectedMetric({ label: 'AHT', teamKey: 'Average handling time', targetKey: 'aht', defaultTarget: 5 })}>
-          <CardContent className="p-4">
-            <div className="text-[10px] font-bold text-gray-500 uppercase">AHT</div>
-            <div className="text-2xl font-bold mt-1">{formatVal(teamMetrics['Average handling time'])}</div>
-          </CardContent>
-        </Card>
-
-        <Card onClick={() => setSelectedMetric({ label: 'ABT', teamKey: 'Average basket time', targetKey: 'abt', defaultTarget: 14 })}>
-          <CardContent className="p-4">
-            <div className="text-[10px] font-bold text-gray-500 uppercase">ABT</div>
-            <div className="text-2xl font-bold mt-1">{formatVal(teamMetrics['Average basket time'])}</div>
-          </CardContent>
-        </Card>
-
-        <Card onClick={() => setSelectedMetric({ label: 'FCR %', teamKey: 'FCR, %', targetKey: 'fcrPercent', defaultTarget: 70 })}>
-          <CardContent className="p-4">
-            <div className="text-[10px] font-bold text-gray-500 uppercase">FCR %</div>
-            <div className="text-2xl font-bold mt-1">{formatVal(teamMetrics['FCR, %'], true)}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Comparison Graph & Supabase Historical Backups Chart */}
+      {/* Benchmark Comparison Chart & Supabase Backups */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2">
           <CardHeader className="pb-2">
@@ -204,7 +167,7 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        {/* Historical Backup Trajectory (Sourced from Supabase Backups) */}
+        {/* Historical Backup Trajectory */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -214,7 +177,7 @@ export function OverviewTab() {
           <CardContent className="pt-2 text-xs">
             {historicalTrends.length > 0 ? (
               <div className="space-y-3">
-                {historicalTrends.map((t, i) => (
+                {historicalTrends.map((t: any, i: number) => (
                   <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-slate-500/5 border">
                     <div>
                       <div className="font-bold">{t.period}</div>
@@ -233,15 +196,25 @@ export function OverviewTab() {
 
       {/* TABLES 2 & 3: TEAM PERFORMANCE & FLOOR AVERAGE (Side-by-Side) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* TABLE 2: TEAM PERFORMANCE */}
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-emerald-600">
-              <Users className="h-5 w-5" /> 2. Team Performance Table
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-emerald-700">
+                <Users className="h-5 w-5" /> 2. Team Performance Table
+              </span>
+              <Badge className="bg-emerald-100 text-emerald-800">Team Aggregate</Badge>
             </CardTitle>
+            <CardDescription className="text-xs">Exact formulas mapped from Row 14 totals and Metrics K:L block</CardDescription>
           </CardHeader>
           <CardContent>
             <Table className="text-xs">
-              <TableHeader><TableRow><TableHead>Metric Name</TableHead><TableHead className="text-right">Team Value</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Metric Name</TableHead>
+                  <TableHead className="text-right">Team Value</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 <TableRow><TableCell className="font-semibold">CSAT</TableCell><TableCell className="text-right font-bold text-emerald-600">{totalCsat}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">KSCAT</TableCell><TableCell className="text-right font-bold text-blue-600">{totalKscat}</TableCell></TableRow>
@@ -252,40 +225,66 @@ export function OverviewTab() {
                 <TableRow><TableCell className="font-semibold">CSAT %</TableCell><TableCell className="text-right font-bold text-emerald-600">{totalCsatPct.toFixed(2)}%</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Average Basket Time (ABT)</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Average basket time'])}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Productivity 8-hrs</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Productivity 8-hrs'])}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Productivity Online 8-hrs</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Productivity Online 8-hrs'])}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Escalation Rate %</TableCell><TableCell className="text-right text-amber-600 font-bold">{formatVal(teamMetrics['Escalation rate %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Deescalation Rate %</TableCell><TableCell className="text-right text-emerald-600 font-bold">{formatVal(teamMetrics['Deescalation rate %'], true)}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Adherence %</TableCell><TableCell className="text-right text-purple-600 font-bold">{formatVal(teamMetrics['Adherence, %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Average Group Basket Time</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Average group basket time'])}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Average Handling Time (AHT)</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Average handling time'])}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Closed After Resolution %</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Closed after resolution, %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Closed Tickets %</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Closed tickets, %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">FCR %</TableCell><TableCell className="text-right">{formatVal(teamMetrics['FCR, %'], true)}</TableCell></TableRow>
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
+        {/* TABLE 3: FLOOR AVERAGE */}
         <Card className="border-blue-500/30 bg-blue-500/5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-blue-600">
-              <BarChart2 className="h-5 w-5" /> 3. Floor Average Table
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-blue-700">
+                <BarChart2 className="h-5 w-5" /> 3. Floor Average Table
+              </span>
+              <Badge className="bg-blue-100 text-blue-800">Floor Benchmark</Badge>
             </CardTitle>
+            <CardDescription className="text-xs">Extracted directly from Metrics sheet K:L block (Rows 25–46)</CardDescription>
           </CardHeader>
           <CardContent>
             <Table className="text-xs">
-              <TableHeader><TableRow><TableHead>Metric Name</TableHead><TableHead className="text-right">Floor Average</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Metric Name</TableHead>
+                  <TableHead className="text-right">Floor Average</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 <TableRow><TableCell className="font-semibold">CSAT %</TableCell><TableCell className="text-right font-bold text-emerald-600">{formatVal(floorAverages['CSAT adjusted with calls, %'], true)}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Average Basket Time (ABT)</TableCell><TableCell className="text-right">{formatVal(floorAverages['Average basket time'])}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Productivity 8-hrs</TableCell><TableCell className="text-right">{formatVal(floorAverages['Productivity 8-hrs'])}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Productivity Online 8-hrs</TableCell><TableCell className="text-right">{formatVal(floorAverages['Productivity Online 8-hrs'])}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Escalation Rate %</TableCell><TableCell className="text-right text-amber-600 font-bold">{formatVal(floorAverages['Escalation rate %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Deescalation Rate %</TableCell><TableCell className="text-right text-emerald-600 font-bold">{formatVal(floorAverages['Deescalation rate %'], true)}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Adherence %</TableCell><TableCell className="text-right text-purple-600 font-bold">{formatVal(floorAverages['Adherence, %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Average Group Basket Time</TableCell><TableCell className="text-right">{formatVal(floorAverages['Average group basket time'])}</TableCell></TableRow>
                 <TableRow><TableCell className="font-semibold">Average Handling Time (AHT)</TableCell><TableCell className="text-right">{formatVal(floorAverages['Average handling time'])}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Closed After Resolution %</TableCell><TableCell className="text-right">{formatVal(floorAverages['Closed after resolution, %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">Closed Tickets %</TableCell><TableCell className="text-right">{formatVal(floorAverages['Closed tickets, %'], true)}</TableCell></TableRow>
+                <TableRow><TableCell className="font-semibold">FCR %</TableCell><TableCell className="text-right">{formatVal(floorAverages['FCR, %'], true)}</TableCell></TableRow>
               </TableBody>
             </Table>
           </CardContent>
         </Card>
       </div>
 
-      {/* TABLE 1: OVERALL PERFORMANCE TABLE */}
+      {/* TABLE 1: OVERALL PERFORMANCE TABLE (Full 22 Columns) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Globe className="h-5 w-5 text-emerald-500" /> 1. Overall Performance Table (All 22 Columns)
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-emerald-600" /> 1. Overall Performance Table
+            </span>
+            <Badge variant="outline">Rows 2–14 (All Channels Combined)</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -295,43 +294,91 @@ export function OverviewTab() {
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
                   <TableHead className="w-56">Agent Identifier</TableHead>
-                  <TableHead>CSAT</TableHead><TableHead>KSCAT</TableHead><TableHead>DSAT</TableHead>
-                  <TableHead>Total Count</TableHead><TableHead>Total w/o Karma</TableHead>
-                  <TableHead>KSCAT %</TableHead><TableHead>CSAT %</TableHead><TableHead>Variance</TableHead>
-                  <TableHead>ABT</TableHead><TableHead>Productivity 8-hrs</TableHead>
-                  <TableHead>Productivity Online 8-hrs</TableHead><TableHead>Escalation Rate %</TableHead>
-                  <TableHead>Deescalation Rate %</TableHead><TableHead>Adherence %</TableHead>
-                  <TableHead>AGBT</TableHead><TableHead>AHT</TableHead>
-                  <TableHead>Closed After Resolution %</TableHead><TableHead>Closed Tickets %</TableHead>
-                  <TableHead>FCR %</TableHead><TableHead>Tardy/minute</TableHead><TableHead>Idle Time</TableHead>
+                  <TableHead>CSAT</TableHead>
+                  <TableHead>KSCAT</TableHead>
+                  <TableHead>DSAT</TableHead>
+                  <TableHead>Total Count</TableHead>
+                  <TableHead>Total w/o Karma</TableHead>
+                  <TableHead>KSCAT %</TableHead>
+                  <TableHead>CSAT %</TableHead>
+                  <TableHead>Variance</TableHead>
+                  <TableHead>ABT</TableHead>
+                  <TableHead>Productivity 8-hrs</TableHead>
+                  <TableHead>Productivity Online 8-hrs</TableHead>
+                  <TableHead>Escalation Rate %</TableHead>
+                  <TableHead>Deescalation Rate %</TableHead>
+                  <TableHead>Adherence %</TableHead>
+                  <TableHead>AGBT</TableHead>
+                  <TableHead>AHT</TableHead>
+                  <TableHead>Closed After Resolution %</TableHead>
+                  <TableHead>Closed Tickets %</TableHead>
+                  <TableHead>FCR %</TableHead>
+                  <TableHead>Tardy/minute</TableHead>
+                  <TableHead>Idle Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {agentMetrics.length > 0 ? (
-                  agentMetrics.map((agent: any, idx: number) => (
-                    <TableRow key={idx} className="hover:bg-slate-500/5">
-                      <TableCell className="font-bold">#{idx + 1}</TableCell>
-                      <TableCell className="font-medium">{agent.agent_email}</TableCell>
-                      <TableCell>{agent.csat}</TableCell><TableCell>{agent.kscat}</TableCell><TableCell className="text-red-500 font-bold">{agent.dsat}</TableCell>
-                      <TableCell>{agent.total_count}</TableCell><TableCell>{agent.total_wo_karma}</TableCell>
-                      <TableCell className="text-blue-600 font-semibold">{agent.kscat_percent}%</TableCell>
-                      <TableCell className="text-emerald-600 font-bold">{agent.csat_percent}%</TableCell>
-                      <TableCell className="text-purple-600 font-medium">{agent.variance}%</TableCell>
-                      <TableCell>{agent.abt || '-'}</TableCell><TableCell>{agent.productivity_8hrs || '-'}</TableCell>
-                      <TableCell>{agent.productivity_online_8hrs || '-'}</TableCell>
-                      <TableCell>{formatVal(agent.escalation_rate, true)}</TableCell>
-                      <TableCell>{formatVal(agent.deescalation_rate, true)}</TableCell>
-                      <TableCell>{formatVal(agent.adherence, true)}</TableCell>
-                      <TableCell>{agent.agbt || '-'}</TableCell><TableCell>{agent.aht || '-'}</TableCell>
-                      <TableCell>{formatVal(agent.closed_after_resolution, true)}</TableCell>
-                      <TableCell>{formatVal(agent.closed_tickets_pct, true)}</TableCell>
-                      <TableCell>{formatVal(agent.fcr_percent, true)}</TableCell>
-                      <TableCell>{agent.tardy_minutes || '0:00:00'}</TableCell>
-                      <TableCell>{agent.idle_time_avg ? `${agent.idle_time_avg}h` : '-'}</TableCell>
+                  <>
+                    {agentMetrics.map((agent: any, idx: number) => (
+                      <TableRow key={idx} className="hover:bg-slate-500/5">
+                        <TableCell className="font-bold">#{idx + 1}</TableCell>
+                        <TableCell className="font-medium text-gray-900 dark:text-white">{agent.agent_email}</TableCell>
+                        <TableCell>{agent.csat}</TableCell>
+                        <TableCell>{agent.kscat}</TableCell>
+                        <TableCell className="text-red-500 font-bold">{agent.dsat}</TableCell>
+                        <TableCell>{agent.total_count}</TableCell>
+                        <TableCell>{agent.total_wo_karma}</TableCell>
+                        <TableCell className="text-blue-600 font-semibold">{agent.kscat_percent}%</TableCell>
+                        <TableCell className="text-emerald-600 font-bold">{agent.csat_percent}%</TableCell>
+                        <TableCell className="text-purple-600 font-medium">{agent.variance}%</TableCell>
+                        <TableCell>{agent.abt || '-'}</TableCell>
+                        <TableCell>{agent.productivity_8hrs || '-'}</TableCell>
+                        <TableCell>{agent.productivity_online_8hrs || '-'}</TableCell>
+                        <TableCell>{formatVal(agent.escalation_rate, true)}</TableCell>
+                        <TableCell>{formatVal(agent.deescalation_rate, true)}</TableCell>
+                        <TableCell>{formatVal(agent.adherence, true)}</TableCell>
+                        <TableCell>{agent.agbt || '-'}</TableCell>
+                        <TableCell>{agent.aht || '-'}</TableCell>
+                        <TableCell>{formatVal(agent.closed_after_resolution, true)}</TableCell>
+                        <TableCell>{formatVal(agent.closed_tickets_pct, true)}</TableCell>
+                        <TableCell>{formatVal(agent.fcr_percent, true)}</TableCell>
+                        <TableCell>{agent.tardy_minutes || '0:00:00'}</TableCell>
+                        <TableCell>{agent.idle_time_avg ? `${agent.idle_time_avg}h` : '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                    {/* TOTAL ROW (Row 14) */}
+                    <TableRow className="bg-slate-500/10 font-bold text-xs border-t-2 border-emerald-500">
+                      <TableCell colSpan={2}>Total</TableCell>
+                      <TableCell>{totalCsat}</TableCell>
+                      <TableCell>{totalKscat}</TableCell>
+                      <TableCell className="text-red-500">{totalDsat}</TableCell>
+                      <TableCell>{totalCount}</TableCell>
+                      <TableCell>{totalWoKarma}</TableCell>
+                      <TableCell className="text-blue-600">{totalKscatPct.toFixed(2)}%</TableCell>
+                      <TableCell className="text-emerald-600">{totalCsatPct.toFixed(2)}%</TableCell>
+                      <TableCell className="text-purple-600">{totalVariance.toFixed(2)}%</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Average basket time'])}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Productivity 8-hrs'])}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Productivity Online 8-hrs'])}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Escalation rate %'], true)}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Deescalation rate %'], true)}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Adherence, %'], true)}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Average group basket time'])}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Average handling time'])}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Closed after resolution, %'], true)}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['Closed tickets, %'], true)}</TableCell>
+                      <TableCell>{formatVal(teamMetrics['FCR, %'], true)}</TableCell>
+                      <TableCell>-</TableCell>
+                      <TableCell>-</TableCell>
                     </TableRow>
-                  ))
+                  </>
                 ) : (
-                  <TableRow><TableCell colSpan={23} className="text-center py-8 text-muted-foreground">No records loaded.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={23} className="text-center py-8 text-muted-foreground">
+                      No agent records uploaded.
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
@@ -339,18 +386,31 @@ export function OverviewTab() {
         </CardContent>
       </Card>
 
-      {/* TABLES 4 & 5: CHAT & PHONE PERFORMANCE TABLES */}
+      {/* TABLE 4 & TABLE 5: CHAT & PHONE PERFORMANCE TABLES (Side-by-Side) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* TABLE 4: CHAT PERFORMANCE */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-blue-500">
-              <MessageSquare className="h-5 w-5" /> 4. Chat Performance Table
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-blue-600">
+                <MessageSquare className="h-5 w-5" /> 4. Chat Performance Table
+              </span>
+              <Badge variant="outline">Rows 16–30 (Chat Filtered)</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-lg border overflow-x-auto">
               <Table className="text-xs">
-                <TableHeader><TableRow><TableHead>Agent</TableHead><TableHead>CSAT</TableHead><TableHead>KSCAT</TableHead><TableHead>DSAT</TableHead><TableHead>Total Count</TableHead><TableHead>CSAT %</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agent</TableHead>
+                    <TableHead>CSAT</TableHead>
+                    <TableHead>KSCAT</TableHead>
+                    <TableHead>DSAT</TableHead>
+                    <TableHead>Total Count</TableHead>
+                    <TableHead>CSAT %</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {agentMetrics.map((agent: any, idx: number) => {
                     const c = agent.chat_csat || agent.chatCsat || 0;
@@ -358,17 +418,27 @@ export function OverviewTab() {
                     const d = agent.chat_dsat || agent.chatDsat || 0;
                     const t = c + k + d;
                     const cPct = c + d > 0 ? (c / (c + d)) * 100 : 0;
+
                     return (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{agent.agent_email}</TableCell>
-                        <TableCell>{c}</TableCell><TableCell>{k}</TableCell><TableCell className="text-red-500 font-bold">{d}</TableCell>
-                        <TableCell>{t}</TableCell><TableCell className="text-emerald-500 font-bold">{cPct.toFixed(2)}%</TableCell>
+                        <TableCell>{c}</TableCell>
+                        <TableCell>{k}</TableCell>
+                        <TableCell className="text-red-500 font-bold">{d}</TableCell>
+                        <TableCell>{t}</TableCell>
+                        <TableCell className="text-emerald-600 font-bold">{cPct.toFixed(2)}%</TableCell>
                       </TableRow>
                     );
                   })}
                   <TableRow className="bg-slate-500/10 font-bold">
-                    <TableCell>Total Chat</TableCell><TableCell>{totalChatCsat}</TableCell><TableCell>{totalChatKscat}</TableCell><TableCell className="text-red-500">{totalChatDsat}</TableCell><TableCell>{totalChatCsat + totalChatKscat + totalChatDsat}</TableCell>
-                    <TableCell className="text-emerald-500">{totalChatCsat + totalChatDsat > 0 ? ((totalChatCsat / (totalChatCsat + totalChatDsat)) * 100).toFixed(2) : 0}%</TableCell>
+                    <TableCell>Total Chat</TableCell>
+                    <TableCell>{totalChatCsat}</TableCell>
+                    <TableCell>{totalChatKscat}</TableCell>
+                    <TableCell className="text-red-500">{totalChatDsat}</TableCell>
+                    <TableCell>{totalChatCount}</TableCell>
+                    <TableCell className="text-emerald-600">
+                      {totalChatWoKarma > 0 ? ((totalChatCsat / totalChatWoKarma) * 100).toFixed(2) : 0}%
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -376,16 +446,29 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
+        {/* TABLE 5: PHONE PERFORMANCE */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-purple-500">
-              <Phone className="h-5 w-5" /> 5. Phone Performance Table
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-purple-600">
+                <Phone className="h-5 w-5" /> 5. Phone Performance Table
+              </span>
+              <Badge variant="outline">Rows 32–46 (Phone Filtered)</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-lg border overflow-x-auto">
               <Table className="text-xs">
-                <TableHeader><TableRow><TableHead>Agent</TableHead><TableHead>CSAT</TableHead><TableHead>KSCAT</TableHead><TableHead>DSAT</TableHead><TableHead>Total Count</TableHead><TableHead>CSAT %</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agent</TableHead>
+                    <TableHead>CSAT</TableHead>
+                    <TableHead>KSCAT</TableHead>
+                    <TableHead>DSAT</TableHead>
+                    <TableHead>Total Count</TableHead>
+                    <TableHead>CSAT %</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {agentMetrics.map((agent: any, idx: number) => {
                     const c = agent.phone_csat || agent.phoneCsat || 0;
@@ -393,17 +476,27 @@ export function OverviewTab() {
                     const d = agent.phone_dsat || agent.phoneDsat || 0;
                     const t = c + k + d;
                     const cPct = c + d > 0 ? (c / (c + d)) * 100 : 0;
+
                     return (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{agent.agent_email}</TableCell>
-                        <TableCell>{c}</TableCell><TableCell>{k}</TableCell><TableCell className="text-red-500 font-bold">{d}</TableCell>
-                        <TableCell>{t}</TableCell><TableCell className="text-emerald-500 font-bold">{cPct.toFixed(2)}%</TableCell>
+                        <TableCell>{c}</TableCell>
+                        <TableCell>{k}</TableCell>
+                        <TableCell className="text-red-500 font-bold">{d}</TableCell>
+                        <TableCell>{t}</TableCell>
+                        <TableCell className="text-emerald-600 font-bold">{cPct.toFixed(2)}%</TableCell>
                       </TableRow>
                     );
                   })}
                   <TableRow className="bg-slate-500/10 font-bold">
-                    <TableCell>Total Phone</TableCell><TableCell>{totalPhoneCsat}</TableCell><TableCell>{totalPhoneKscat}</TableCell><TableCell className="text-red-500">{totalPhoneDsat}</TableCell><TableCell>{totalPhoneCsat + totalPhoneKscat + totalPhoneDsat}</TableCell>
-                    <TableCell className="text-emerald-500">{totalPhoneCsat + totalPhoneDsat > 0 ? ((totalPhoneCsat / (totalPhoneCsat + totalPhoneDsat)) * 100).toFixed(2) : 0}%</TableCell>
+                    <TableCell>Total Phone</TableCell>
+                    <TableCell>{totalPhoneCsat}</TableCell>
+                    <TableCell>{totalPhoneKscat}</TableCell>
+                    <TableCell className="text-red-500">{totalPhoneDsat}</TableCell>
+                    <TableCell>{totalPhoneCount}</TableCell>
+                    <TableCell className="text-emerald-600">
+                      {totalPhoneWoKarma > 0 ? ((totalPhoneCsat / totalPhoneWoKarma) * 100).toFixed(2) : 0}%
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
