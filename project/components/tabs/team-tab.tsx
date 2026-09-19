@@ -5,7 +5,7 @@ import { useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { TrendingUp, TrendingDown, Users2, BarChart3, LineChart, Inbox, Sparkles } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users2, BarChart3, LineChart, Inbox } from 'lucide-react';
 
 export function TeamTab() {
   const { teamMetrics = {}, floorAverages = {}, kpiTargets = {}, dailyProgressData = [] } = useMetrics() as any;
@@ -37,12 +37,10 @@ export function TeamTab() {
   ];
 
   const hasData = Object.keys(teamMetrics).length > 0;
-
-  // Selected Metric for Dual Line Graph
   const currentMetricDef = comparisons.find((c) => c.name === graphMetricKey) || comparisons[0];
 
-  // Helper to extract numeric values for SVG line path plotting
   const getNumVal = (mMap: Record<string, number>, keys: string[]) => {
+    if (!mMap) return 0;
     for (const k of keys) {
       if (mMap[k] !== undefined && mMap[k] !== null) {
         const v = Number(mMap[k]);
@@ -52,31 +50,41 @@ export function TeamTab() {
     return 0;
   };
 
-  // Build SVG Path Coordinates for Two Line Series (Blue = Team, Amber = Floor)
+  // Fixed ViewBox dimensions: width = 500, height = 180
+  const SVG_WIDTH = 500;
+  const SVG_HEIGHT = 180;
+  const PADDING_X = 30;
+  const PADDING_Y = 20;
+  const USABLE_WIDTH = SVG_WIDTH - PADDING_X * 2;
+  const USABLE_HEIGHT = SVG_HEIGHT - PADDING_Y * 2;
+
   const chartPoints = dailyProgressData.map((d: any, idx: number) => {
     const totalPoints = Math.max(dailyProgressData.length - 1, 1);
-    const x = (idx / totalPoints) * 100;
+    const x = PADDING_X + (idx / totalPoints) * USABLE_WIDTH;
 
     const teamNum = getNumVal(d.teamMetrics || {}, currentMetricDef.keys);
     const floorNum = getNumVal(d.floorMetrics || {}, currentMetricDef.keys);
+
+    // Map value 0..100 to y coordinates
+    const yTeam = SVG_HEIGHT - PADDING_Y - (Math.min(Math.max(teamNum, 0), 100) / 100) * USABLE_HEIGHT;
+    const yFloor = SVG_HEIGHT - PADDING_Y - (Math.min(Math.max(floorNum, 0), 100) / 100) * USABLE_HEIGHT;
 
     return {
       period: d.period,
       x,
       teamVal: teamNum,
       floorVal: floorNum,
-      // Map y between 10% (max 100) and 90% (min 0) for SVG padding
-      yTeam: 90 - Math.min(Math.max(teamNum, 0), 100) * 0.8,
-      yFloor: 90 - Math.min(Math.max(floorNum, 0), 100) * 0.8,
+      yTeam,
+      yFloor,
     };
   });
 
   const teamLineD = chartPoints.length > 0
-    ? chartPoints.reduce((acc: string, pt: any, i: number) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x}% ${pt.yTeam}%`, '')
+    ? chartPoints.reduce((acc: string, pt: any, i: number) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.yTeam}`, '')
     : '';
 
   const floorLineD = chartPoints.length > 0
-    ? chartPoints.reduce((acc: string, pt: any, i: number) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x}% ${pt.yFloor}%`, '')
+    ? chartPoints.reduce((acc: string, pt: any, i: number) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.yFloor}`, '')
     : '';
 
   return (
@@ -85,7 +93,7 @@ export function TeamTab() {
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Users2 className="h-6 w-6 text-emerald-500" /> Team vs. Floor Benchmark Overview
         </h2>
-        <p className="text-xs text-muted-foreground mt-1">Multi-series progress tracking comparing Team performance trajectory against Floor averages across daily backups</p>
+        <p className="text-xs text-muted-foreground mt-1">Progress trajectory comparing Team performance against Floor averages across daily backups</p>
       </div>
 
       {!hasData ? (
@@ -96,7 +104,7 @@ export function TeamTab() {
         </Card>
       ) : (
         <>
-          {/* TWO-SERIES LINE GRAPH (TEAM VS FLOOR OVER ALL MONTH BACKUPS) */}
+          {/* TWO-SERIES LINE GRAPH */}
           <Card className="border-blue-500/30">
             <CardHeader className="pb-2">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -125,7 +133,7 @@ export function TeamTab() {
             </CardHeader>
 
             <CardContent className="pt-4 space-y-4">
-              {/* Legend matching provided reference layout */}
+              {/* Graph Legend */}
               <div className="flex items-center justify-center gap-6 text-xs font-bold border-b pb-3">
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full bg-blue-500 inline-block shadow-sm"></span>
@@ -137,25 +145,23 @@ export function TeamTab() {
                 </div>
               </div>
 
-              {/* Responsive Line Plotting Area */}
+              {/* Fixed ViewBox Responsive SVG Container */}
               <div className="h-64 w-full relative bg-slate-500/5 rounded-xl border p-4 flex flex-col justify-between">
-                <svg className="w-full h-full overflow-visible">
+                <svg viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
                   {/* Grid Lines */}
-                  <line x1="0" y1="10%" x2="100%" y2="10%" stroke="#e2e8f0" strokeDasharray="3" />
-                  <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#e2e8f0" strokeDasharray="3" />
-                  <line x1="0" y1="90%" x2="100%" y2="90%" stroke="#e2e8f0" strokeDasharray="3" />
+                  <line x1={PADDING_X} y1={PADDING_Y} x2={SVG_WIDTH - PADDING_X} y2={PADDING_Y} stroke="#cbd5e1" strokeDasharray="3" strokeWidth="1" />
+                  <line x1={PADDING_X} y1={SVG_HEIGHT / 2} x2={SVG_WIDTH - PADDING_X} y2={SVG_HEIGHT / 2} stroke="#cbd5e1" strokeDasharray="3" strokeWidth="1" />
+                  <line x1={PADDING_X} y1={SVG_HEIGHT - PADDING_Y} x2={SVG_WIDTH - PADDING_X} y2={SVG_HEIGHT - PADDING_Y} stroke="#cbd5e1" strokeDasharray="3" strokeWidth="1" />
 
-                  {/* Team Line (Blue) */}
-                  {teamLineD && <path d={teamLineD} fill="none" stroke="#3b82f6" strokeWidth="3" className="transition-all duration-500" />}
+                  {/* Connecting Lines */}
+                  {teamLineD && <path d={teamLineD} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+                  {floorLineD && <path d={floorLineD} fill="none" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
 
-                  {/* Floor Line (Amber) */}
-                  {floorLineD && <path d={floorLineD} fill="none" stroke="#f59e0b" strokeWidth="3" className="transition-all duration-500" />}
-
-                  {/* Data Points */}
+                  {/* Circles for Data Points */}
                   {chartPoints.map((pt: any, i: number) => (
                     <g key={i}>
-                      <circle cx={`${pt.x}%`} cy={`${pt.yTeam}%`} r="5" fill="#3b82f6" className="transition-all hover:scale-125" />
-                      <circle cx={`${pt.x}%`} cy={`${pt.yFloor}%`} r="5" fill="#f59e0b" className="transition-all hover:scale-125" />
+                      <circle cx={pt.x} cy={pt.yTeam} r="6" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+                      <circle cx={pt.x} cy={pt.yFloor} r="6" fill="#f59e0b" stroke="#ffffff" strokeWidth="2" />
                     </g>
                   ))}
                 </svg>
