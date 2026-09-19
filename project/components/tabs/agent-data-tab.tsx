@@ -12,7 +12,7 @@ import Papa from 'papaparse';
 
 export function AgentDataTab() {
   const { refreshMetrics, currentUser } = useMetrics() as any;
-  const [periodId, setPeriodId] = useState(() => new Date().toISOString().split('T')[0]); // Date format YYYY-MM-DD
+  const [periodId, setPeriodId] = useState(() => new Date().toISOString().split('T')[0]); // YYYY-MM-DD
   const [uploadLogs, setUploadLogs] = useState<any[]>([]);
   
   const [kscatFile, setKscatFile] = useState<File | null>(null);
