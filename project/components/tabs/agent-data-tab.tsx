@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -12,7 +12,7 @@ import Papa from 'papaparse';
 
 export function AgentDataTab() {
   const { refreshMetrics, currentUser } = useMetrics() as any;
-  const [periodId, setPeriodId] = useState('2026-W37');
+  const [periodId, setPeriodId] = useState(() => new Date().toISOString().split('T')[0]); // Date format YYYY-MM-DD
   const [uploadLogs, setUploadLogs] = useState<any[]>([]);
   
   const [kscatFile, setKscatFile] = useState<File | null>(null);
@@ -141,7 +141,7 @@ export function AgentDataTab() {
       ]);
 
       setIsError(false);
-      setStatusMsg(`✓ Success! Saved ${combinedRecords.length} records for period ${periodId}.`);
+      setStatusMsg(`✓ Success! Saved ${combinedRecords.length} records for date period ${periodId}.`);
       fetchHistory();
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (e: any) {
@@ -165,18 +165,18 @@ export function AgentDataTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Data Import & Period Backups</h2>
-        <p className="text-xs text-muted-foreground">Upload operational files and manage historical period backups in Supabase</p>
+        <h2 className="text-2xl font-bold tracking-tight">Data Import & Date Period Backups</h2>
+        <p className="text-xs text-muted-foreground">Upload operational files named by day and manage historical backups in Supabase</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Upload & Period Selection</CardTitle>
+          <CardTitle className="text-base">Upload & Date Selection</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="w-64 space-y-1">
-            <label className="text-xs font-medium">Reporting Period Identifier</label>
-            <Input value={periodId} onChange={(e) => setPeriodId(e.target.value)} className="text-xs h-9" />
+            <label className="text-xs font-medium">Reporting Period Date Identifier (YYYY-MM-DD)</label>
+            <Input type="date" value={periodId} onChange={(e) => setPeriodId(e.target.value)} className="text-xs h-9" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
@@ -214,7 +214,7 @@ export function AgentDataTab() {
 
           <div className="flex justify-end">
             <Button onClick={handleProcessAndBackup} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-2">
-              <Save className="h-4 w-4" /> Save & Backup Period Data
+              <Save className="h-4 w-4" /> Save & Backup Date Period Data
             </Button>
           </div>
         </CardContent>
@@ -223,7 +223,7 @@ export function AgentDataTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <History className="h-5 w-5 text-emerald-600" /> Backup Log & Selective Purge
+            <History className="h-5 w-5 text-emerald-600" /> Date Backup Log & Selective Purge
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -231,7 +231,7 @@ export function AgentDataTab() {
             <Table className="text-xs">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Period</TableHead>
+                  <TableHead>Date Period</TableHead>
                   <TableHead>Uploaded By</TableHead>
                   <TableHead>Records</TableHead>
                   <TableHead>Timestamp</TableHead>
