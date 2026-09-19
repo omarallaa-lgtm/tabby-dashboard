@@ -11,7 +11,7 @@ import { supabase, useMetrics } from '@/lib/metrics-context';
 import Papa from 'papaparse';
 
 export function AgentDataTab() {
-  const { refreshMetrics, logAuditAction, currentUser } = useMetrics() as any;
+  const { refreshMetrics, currentUser } = useMetrics() as any;
   const [periodId, setPeriodId] = useState('2026-W37');
   const [uploadLogs, setUploadLogs] = useState<any[]>([]);
   
@@ -81,6 +81,12 @@ export function AgentDataTab() {
           kscat_percent: k.kscatPercent || 0,
           csat_percent: k.csatPercent || 0,
           variance: k.variance || 0,
+          chat_csat: k.chatCsat || 0,
+          chat_kscat: k.chatKscat || 0,
+          chat_dsat: k.chatDsat || 0,
+          phone_csat: k.phoneCsat || 0,
+          phone_kscat: k.phoneKscat || 0,
+          phone_dsat: k.phoneDsat || 0,
           tardy_minutes: p.tardyMinutes || 0,
           idle_time_avg: p.idleTimeAvg || 0,
           abt: m['Average basket time'] || 0,
@@ -99,7 +105,32 @@ export function AgentDataTab() {
 
       await supabase.from('agent_metrics').upsert(combinedRecords, { onConflict: 'period_id,agent_email' });
 
-      // Save History Log Batch
+      // Save Team & Floor Aggregates
+      const aggRecords: any[] = [];
+      const combinedTeam: Record<string, any> = { ...teamAverages, ...teamKscatTotals };
+
+      Object.keys(combinedTeam).forEach((key) => {
+        aggRecords.push({
+          period_id: periodId,
+          level_type: 'Team Overall',
+          team_or_floor_name: 'Support Tier 1',
+          metric_key: key,
+          metric_value: combinedTeam[key],
+        });
+      });
+
+      Object.keys(floorAverages).forEach((key) => {
+        aggRecords.push({
+          period_id: periodId,
+          level_type: 'Floor Average',
+          team_or_floor_name: 'Floor 1',
+          metric_key: key,
+          metric_value: (floorAverages as Record<string, any>)[key],
+        });
+      });
+
+      await supabase.from('level_aggregates').upsert(aggRecords, { onConflict: 'period_id,level_type,team_or_floor_name,metric_key' });
+
       await supabase.from('upload_history').insert([
         {
           period_id: periodId,
@@ -110,7 +141,7 @@ export function AgentDataTab() {
       ]);
 
       setIsError(false);
-      setStatusMsg(`✓ Success! Saved ${combinedRecords.length} records to backup for period ${periodId}.`);
+      setStatusMsg(`✓ Success! Saved ${combinedRecords.length} records for period ${periodId}.`);
       fetchHistory();
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (e: any) {
@@ -123,7 +154,6 @@ export function AgentDataTab() {
   };
 
   const handleDeleteBackup = async (historyId: string, targetPeriod: string) => {
-    // Delete only agent metrics matching this specific period_id batch from Supabase
     await supabase.from('agent_metrics').delete().eq('period_id', targetPeriod);
     await supabase.from('level_aggregates').delete().eq('period_id', targetPeriod);
     await supabase.from('upload_history').delete().eq('id', historyId);
@@ -190,13 +220,11 @@ export function AgentDataTab() {
         </CardContent>
       </Card>
 
-      {/* Historical Upload Backups Log */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <History className="h-5 w-5 text-emerald-600" /> Backup Log & Selective Purge
           </CardTitle>
-          <CardDescription className="text-xs">Selectively delete specific uploads without losing other period backups</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border overflow-x-auto">
