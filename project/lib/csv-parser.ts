@@ -21,7 +21,7 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. Process KSCAT Calc (Exact COUNTIFS for Overall, Chat, and Phone Channels)
+// 1. Process KSCAT Calc File (Channel Aware & Exact COUNTIFS)
 export const processKSCATCalc = (rows: any[]) => {
   const agentMap: Record<string, { 
     csat: number; kscat: number; dsat: number;
