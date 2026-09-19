@@ -9,9 +9,26 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Star, AlertTriangle, Target, Users, Search } from 'lucide-react';
 
 export function MetricsTab() {
-  const { agentMetrics = [] } = useMetrics() as any;
+  const { agentMetrics = [], floorAverages = {} } = useMetrics() as any;
   const [selectedGroup, setSelectedGroup] = useState('csat');
   const [filterText, setFilterText] = useState('');
+
+  const floorCsatRaw = floorAverages['CSAT adjusted with calls, %'] || floorAverages['csat'];
+  const floorCsatVal = floorCsatRaw !== undefined ? parseFloat(String(floorCsatRaw).replace('%', '')) : 60.0;
+
+  const totalAgents = agentMetrics.length;
+  const beatingFloorCount = agentMetrics.filter(
+    (a: any) => (Number(a.csat_percent) || 0) >= floorCsatVal
+  ).length;
+  const belowFloorCount = totalAgents > 0 ? totalAgents - beatingFloorCount : 0;
+  const targetMetCount = agentMetrics.filter(
+    (a: any) => (Number(a.csat_percent) || 0) >= 85.0
+  ).length;
+
+  const filteredAgents = agentMetrics.filter((agent: any) => {
+    const name = (agent.agent_name || agent.agent_email || '').toLowerCase();
+    return name.includes(filterText.toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
@@ -20,14 +37,17 @@ export function MetricsTab() {
         <p className="text-muted-foreground text-sm">Detailed metric breakdown</p>
       </div>
 
-      {/* Top Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500">Beating Floor Avg (★)</div>
-              <div className="text-2xl font-bold text-emerald-600 mt-1">10 / 10</div>
-              <div className="text-[11px] text-muted-foreground mt-1">100% of team</div>
+              <div className="text-2xl font-bold text-emerald-600 mt-1">
+                {beatingFloorCount} / {totalAgents}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                {totalAgents > 0 ? ((beatingFloorCount / totalAgents) * 100).toFixed(0) : 0}% of team
+              </div>
             </div>
             <Star className="h-8 w-8 text-amber-400 fill-amber-400 opacity-80" />
           </CardContent>
@@ -37,7 +57,7 @@ export function MetricsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500">Below Floor Avg</div>
-              <div className="text-2xl font-bold text-gray-900 mt-1">0</div>
+              <div className="text-2xl font-bold text-gray-900 mt-1">{belowFloorCount}</div>
               <div className="text-[11px] text-muted-foreground mt-1">Needs coaching</div>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-400 opacity-80" />
@@ -48,7 +68,7 @@ export function MetricsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500">Target Compliant (✓)</div>
-              <div className="text-2xl font-bold text-blue-600 mt-1">10</div>
+              <div className="text-2xl font-bold text-blue-600 mt-1">{targetMetCount}</div>
               <div className="text-[11px] text-muted-foreground mt-1">Hitting 85%+ CSAT target</div>
             </div>
             <Target className="h-8 w-8 text-blue-500 opacity-80" />
@@ -59,7 +79,7 @@ export function MetricsTab() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-gray-500">Floor CSAT Benchmark</div>
-              <div className="text-2xl font-bold text-purple-600 mt-1">60.0%</div>
+              <div className="text-2xl font-bold text-purple-600 mt-1">{floorCsatVal.toFixed(1)}%</div>
               <div className="text-[11px] text-muted-foreground mt-1">Floor reference point</div>
             </div>
             <Users className="h-8 w-8 text-purple-400 opacity-80" />
@@ -67,7 +87,6 @@ export function MetricsTab() {
         </Card>
       </div>
 
-      {/* Main Section */}
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -85,16 +104,9 @@ export function MetricsTab() {
                   className="pl-8 text-xs h-9 w-48"
                 />
               </div>
-              <div className="flex border rounded-md p-1 bg-gray-50 text-xs">
-                <Button variant="ghost" size="sm" className="h-7 px-2">All (10)</Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2">★ Floor Beat (10)</Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2">Below Floor (0)</Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2">✓ Target Met (10)</Button>
-              </div>
             </div>
           </div>
 
-          {/* Metric Group Tabs */}
           <div className="flex gap-2 mt-4">
             <Button
               variant={selectedGroup === 'csat' ? 'default' : 'outline'}
@@ -141,20 +153,28 @@ export function MetricsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody className="text-xs">
-                {agentMetrics.map((agent: any, idx: number) => (
-                  <TableRow key={idx} className="hover:bg-gray-50">
-                    <TableCell className="font-semibold text-gray-500">#{idx + 1}</TableCell>
-                    <TableCell className="font-medium text-gray-900">{agent.agent_name || agent.agent_email}</TableCell>
-                    <TableCell>{agent.csat || 98.2}</TableCell>
-                    <TableCell>{agent.kscat || 88.2}</TableCell>
-                    <TableCell className="text-red-500 font-medium">{agent.dsat || (idx + 1)}</TableCell>
-                    <TableCell>{agent.total_count || 142}</TableCell>
-                    <TableCell>{agent.total_wo_karma || 137}</TableCell>
-                    <TableCell className="text-blue-600 font-semibold">{agent.kscat_percent || '88.2%'}</TableCell>
-                    <TableCell className="text-emerald-600 font-bold">{agent.csat_percent || '98.2%'}</TableCell>
-                    <TableCell className="text-purple-600 font-medium">10.00%</TableCell>
+                {filteredAgents.length > 0 ? (
+                  filteredAgents.map((agent: any, idx: number) => (
+                    <TableRow key={idx} className="hover:bg-gray-50">
+                      <TableCell className="font-semibold text-gray-500">#{idx + 1}</TableCell>
+                      <TableCell className="font-medium text-gray-900">{agent.agent_name || agent.agent_email}</TableCell>
+                      <TableCell>{agent.csat}</TableCell>
+                      <TableCell>{agent.kscat}</TableCell>
+                      <TableCell className="text-red-500 font-medium">{agent.dsat}</TableCell>
+                      <TableCell>{agent.total_count}</TableCell>
+                      <TableCell>{agent.total_wo_karma}</TableCell>
+                      <TableCell className="text-blue-600 font-semibold">{agent.kscat_percent}%</TableCell>
+                      <TableCell className="text-emerald-600 font-bold">{agent.csat_percent}%</TableCell>
+                      <TableCell className="text-purple-600 font-medium">{agent.variance}%</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+                      No agent records found. Upload operational files in Data & Import tab.
+                    </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
