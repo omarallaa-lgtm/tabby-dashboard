@@ -6,14 +6,31 @@ export const parseCleanNumber = (val: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
-// SECTION 10: KSCAT CALCULATIONS
+// Helper: Get row value by named key OR by zero-based positional index
+const getColVal = (row: any, keys: string[], posIdx?: number): any => {
+  if (Array.isArray(row)) {
+    if (posIdx !== undefined && posIdx < row.length) return row[posIdx];
+  } else if (typeof row === 'object' && row !== null) {
+    for (const key of keys) {
+      if (row[key] !== undefined && row[key] !== '') return row[key];
+    }
+    const objKeys = Object.keys(row);
+    if (posIdx !== undefined && posIdx < objKeys.length) {
+      return row[objKeys[posIdx]];
+    }
+  }
+  return '';
+};
+
+// 1. Process KSCAT Calc File (Exact COUNTIFS + Team Aggregate)
 export const processKSCATCalc = (rows: any[]) => {
   const agentMap: Record<string, { csat: number; kscat: number; dsat: number }> = {};
+  let teamCsat = 0, teamKscat = 0, teamDsat = 0;
 
   rows.forEach((row) => {
-    const assignee = String(row['assignee'] || row['Assignee'] || '').trim().toLowerCase();
-    const resolver = String(row['resolver'] || row['Resolver'] || '').trim().toLowerCase();
-    const csatStatus = String(row['csat'] || row['CSAT'] || '').trim().toLowerCase();
+    const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
+    const resolver = String(getColVal(row, ['resolver', 'Resolver'], 0) || '').trim().toLowerCase();
+    const csatStatus = String(getColVal(row, ['csat', 'CSAT'], 8) || '').trim().toLowerCase();
 
     if (!assignee) return;
 
@@ -21,41 +38,29 @@ export const processKSCATCalc = (rows: any[]) => {
       agentMap[assignee] = { csat: 0, kscat: 0, dsat: 0 };
     }
 
-    // Rule: CSAT = COUNTIFS(C:C, agent, I:I, "good")
     if (csatStatus === 'good') {
       agentMap[assignee].csat += 1;
+      teamCsat += 1;
     } else if (csatStatus === 'bad') {
-      // Rule: KSCAT = COUNTIFS(C:C, agent, I:I, "bad", A:A, "<>"&agent)
       if (resolver !== assignee) {
         agentMap[assignee].kscat += 1;
-      } 
-      // Rule: DSAT = COUNTIFS(C:C, agent, I:I, "bad", A:A, agent)
-      else {
+        teamKscat += 1;
+      } else {
         agentMap[assignee].dsat += 1;
+        teamDsat += 1;
       }
     }
   });
 
-  const results: Record<string, any> = {};
+  const agentResults: Record<string, any> = {};
   Object.keys(agentMap).forEach((email) => {
     const { csat, kscat, dsat } = agentMap[email];
-    
-    // Total Count = B3 + C3 + D3 (CSAT + KSCAT + DSAT)
     const totalCount = csat + kscat + dsat;
-    
-    // Total w/o Karma = B3 + D3 (CSAT + DSAT)
     const totalWoKarma = csat + dsat;
-
-    // KSCAT % = IFERROR(CSAT / Total Count, 0)
     const kscatPct = totalCount > 0 ? (csat / totalCount) * 100 : 0;
-
-    // CSAT % = IFERROR(CSAT / Total w/o Karma, 0)
     const csatPct = totalWoKarma > 0 ? (csat / totalWoKarma) * 100 : 0;
 
-    // Variance = CSAT % - KSCAT %
-    const variance = csatPct - kscatPct;
-
-    results[email] = {
+    agentResults[email] = {
       csat,
       kscat,
       dsat,
@@ -63,35 +68,45 @@ export const processKSCATCalc = (rows: any[]) => {
       totalWoKarma,
       kscatPercent: Number(kscatPct.toFixed(2)),
       csatPercent: Number(csatPct.toFixed(2)),
-      variance: Number(variance.toFixed(2)),
+      variance: Number((csatPct - kscatPct).toFixed(2)),
     };
   });
 
-  return results;
+  const teamTotalCount = teamCsat + teamKscat + teamDsat;
+  const teamTotalWoKarma = teamCsat + teamDsat;
+
+  return {
+    agentResults,
+    teamKscatTotals: {
+      csatCount: teamCsat,
+      kscatCount: teamKscat,
+      dsatCount: teamDsat,
+      totalTickets: teamTotalCount,
+      totalWoKarma: teamTotalWoKarma,
+      csatPercent: teamTotalWoKarma > 0 ? Number(((teamCsat / teamTotalWoKarma) * 100).toFixed(2)) : 0,
+      kscatPercent: teamTotalCount > 0 ? Number(((teamCsat / teamTotalCount) * 100).toFixed(2)) : 0,
+    },
+  };
 };
 
-// SECTION 12: PVF CALCULATIONS
+// 2. Process PVF File (Robust Position 35 for Tardy & Position 11 for Idle)
 export const processPVFFile = (rows: any[]) => {
   const pvfMap: Record<string, { tardySum: number; idleTimeSum: number; count: number }> = {};
 
   rows.forEach((row) => {
-    const email = String(row['agent_email (clickable)'] || row['agent_email'] || row['A'] || '').trim().toLowerCase();
+    const email = String(getColVal(row, ['agent_email (clickable)', 'agent_email'], 0) || '').trim().toLowerCase();
     if (!email) return;
 
-    // Tardy/minute = SUMIFS(PVF!AJ:AJ, PVF!A:A, A3, PVF!AJ:AJ, ">0")
-    const tardyVal = parseCleanNumber(row['Unnamed: 35'] || row['AJ'] || row['tardy']);
-    
-    // Idle Time = AVERAGEIFS(PVF!L:L, PVF!A:A, A3)
-    const idleVal = parseCleanNumber(row['time_not_working_h_shift_adjusted'] || row['L'] || row['idle']);
+    // Column AJ (Tardy): Positional index 35
+    const tardyVal = parseCleanNumber(getColVal(row, ['AJ', 'tardy_minute', 'Unnamed: 35'], 35));
+    // Column L (Idle): Positional index 11
+    const idleVal = parseCleanNumber(getColVal(row, ['time_not_working_h_shift_adjusted', 'L'], 11));
 
     if (!pvfMap[email]) {
       pvfMap[email] = { tardySum: 0, idleTimeSum: 0, count: 0 };
     }
 
-    if (tardyVal > 0) {
-      pvfMap[email].tardySum += tardyVal;
-    }
-    
+    if (tardyVal > 0) pvfMap[email].tardySum += tardyVal;
     pvfMap[email].idleTimeSum += idleVal;
     pvfMap[email].count += 1;
   });
@@ -100,7 +115,7 @@ export const processPVFFile = (rows: any[]) => {
   Object.keys(pvfMap).forEach((email) => {
     const { tardySum, idleTimeSum, count } = pvfMap[email];
     results[email] = {
-      tardyMinutes: tardySum,
+      tardyMinutes: Number(tardySum.toFixed(2)),
       idleTimeAvg: count > 0 ? Number((idleTimeSum / count).toFixed(2)) : 0,
     };
   });
@@ -108,32 +123,31 @@ export const processPVFFile = (rows: any[]) => {
   return results;
 };
 
-// SECTIONS 13, 14, 15, 16: METRICS FILE PARSER
+// 3. Process Metrics File (Dynamic Date Headers & Standardized Keys)
 export const processMetricsFile = (rows: any[]) => {
   const agentMetrics: Record<string, Record<string, number>> = {};
   const teamAverages: Record<string, number> = {};
   const floorAverages: Record<string, number> = {};
 
   rows.forEach((row, index) => {
-    // 1. Individual Agent Mapping (Columns C, D, E)
-    const agentEmail = String(row['Agent'] || row['agent'] || '').trim().toLowerCase();
-    const metricName = String(row['Unnamed: 3'] || row['Metric Name'] || '').trim();
-    const metricVal = parseCleanNumber(row['01/09/26'] || row['Value'] || row['E']);
+    // Columns C, D, E (Agent, Metric Name, Value)
+    const agentEmail = String(getColVal(row, ['Agent', 'agent'], 2) || '').trim().toLowerCase();
+    const metricName = String(getColVal(row, ['Unnamed: 3', 'Metric Name'], 3) || '').trim();
+    const metricVal = parseCleanNumber(getColVal(row, ['Value', 'E'], 4));
 
     if (agentEmail && metricName) {
       if (!agentMetrics[agentEmail]) agentMetrics[agentEmail] = {};
       agentMetrics[agentEmail][metricName] = metricVal;
     }
 
-    // 2. Team Overall Averages (Rows 1-22, Columns K & L -> Unnamed: 10 & 1/9/2026)
-    const teamKey = String(row['Unnamed: 10'] || '').trim();
-    const teamVal = parseCleanNumber(row['1/9/2026']);
+    // Columns K & L (Team Overall: Rows 0-22, Floor Average: Rows 24-46)
+    const teamKey = String(getColVal(row, ['Unnamed: 10', 'Metric'], 10) || '').trim();
+    const teamVal = parseCleanNumber(getColVal(row, ['1/9/2026', 'Value'], 11));
 
     if (teamKey) {
       if (index <= 22) {
         teamAverages[teamKey] = teamVal;
       } else if (index >= 24 && index <= 46) {
-        // 3. Floor Averages (Rows 25-46, Columns K & L)
         floorAverages[teamKey] = teamVal;
       }
     }
