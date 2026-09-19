@@ -21,7 +21,7 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. KSCAT Calc Parser (Exact SheetCOUNTIFS & Channel Awareness)
+// 1. Process KSCAT Calc (Exact COUNTIFS for Overall, Chat, and Phone Channels)
 export const processKSCATCalc = (rows: any[]) => {
   const agentMap: Record<string, { 
     csat: number; kscat: number; dsat: number;
@@ -33,7 +33,7 @@ export const processKSCATCalc = (rows: any[]) => {
     const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
     const resolver = String(getColVal(row, ['resolver', 'Resolver'], 0) || '').trim().toLowerCase();
     const csatStatus = String(getColVal(row, ['csat', 'CSAT'], 8) || '').trim().toLowerCase();
-    const channel = String(getColVal(row, ['ticket_channel', 'Channel'], 7) || '').trim().toLowerCase();
+    const channel = String(getColVal(row, ['ticket_channel', 'ticketChannel', 'Channel'], 7) || '').trim().toLowerCase();
 
     if (!assignee) return;
 
@@ -143,14 +143,13 @@ export const processPVFFile = (rows: any[]) => {
   return results;
 };
 
-// 3. Process Metrics File (Exact Row 1-22 Team & Row 25-46 Floor Extraction)
+// 3. Process Metrics File
 export const processMetricsFile = (rows: any[]) => {
   const agentMetrics: Record<string, Record<string, number>> = {};
   const teamAverages: Record<string, number> = {};
   const floorAverages: Record<string, number> = {};
 
   rows.forEach((row, index) => {
-    // Agent Extraction
     const agentEmail = String(getColVal(row, ['Agent', 'agent'], 2) || '').trim().toLowerCase();
     const metricName = String(getColVal(row, ['Unnamed: 3', 'Metric Name'], 3) || '').trim();
     const metricVal = parseCleanNumber(getColVal(row, ['01/09/26', 'Value', 'E'], 4));
@@ -160,7 +159,6 @@ export const processMetricsFile = (rows: any[]) => {
       agentMetrics[agentEmail][metricName] = metricVal;
     }
 
-    // Team Overall & Floor Extraction (Columns K & L)
     const teamKey = String(getColVal(row, ['Unnamed: 10', 'Metric'], 10) || '').trim();
     const teamVal = parseCleanNumber(getColVal(row, ['1/9/2026', 'Value', 'L'], 11));
 
