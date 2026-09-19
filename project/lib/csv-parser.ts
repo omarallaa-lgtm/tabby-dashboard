@@ -21,10 +21,13 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. Process KSCAT Calc File (Channel Aware & Exact COUNTIFS)
+// 1. KSCAT Calc Parser (Exact SheetCOUNTIFS & Channel Awareness)
 export const processKSCATCalc = (rows: any[]) => {
-  const agentMap: Record<string, { csat: number; kscat: number; dsat: number; chatCsat: number; chatKscat: number; chatDsat: number; phoneCsat: number; phoneKscat: number; phoneDsat: number }> = {};
-  let teamCsat = 0, teamKscat = 0, teamDsat = 0;
+  const agentMap: Record<string, { 
+    csat: number; kscat: number; dsat: number;
+    chatCsat: number; chatKscat: number; chatDsat: number;
+    phoneCsat: number; phoneKscat: number; phoneDsat: number;
+  }> = {};
 
   rows.forEach((row) => {
     const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
@@ -35,23 +38,24 @@ export const processKSCATCalc = (rows: any[]) => {
     if (!assignee) return;
 
     if (!agentMap[assignee]) {
-      agentMap[assignee] = { csat: 0, kscat: 0, dsat: 0, chatCsat: 0, chatKscat: 0, chatDsat: 0, phoneCsat: 0, phoneKscat: 0, phoneDsat: 0 };
+      agentMap[assignee] = { 
+        csat: 0, kscat: 0, dsat: 0, 
+        chatCsat: 0, chatKscat: 0, chatDsat: 0, 
+        phoneCsat: 0, phoneKscat: 0, phoneDsat: 0 
+      };
     }
 
     if (csatStatus === 'good') {
       agentMap[assignee].csat += 1;
-      teamCsat += 1;
       if (channel === 'chat') agentMap[assignee].chatCsat += 1;
       if (channel === 'phone') agentMap[assignee].phoneCsat += 1;
     } else if (csatStatus === 'bad') {
       if (resolver !== assignee) {
         agentMap[assignee].kscat += 1;
-        teamKscat += 1;
         if (channel === 'chat') agentMap[assignee].chatKscat += 1;
         if (channel === 'phone') agentMap[assignee].phoneKscat += 1;
       } else {
         agentMap[assignee].dsat += 1;
-        teamDsat += 1;
         if (channel === 'chat') agentMap[assignee].chatDsat += 1;
         if (channel === 'phone') agentMap[assignee].phoneDsat += 1;
       }
@@ -59,8 +63,14 @@ export const processKSCATCalc = (rows: any[]) => {
   });
 
   const agentResults: Record<string, any> = {};
+  let totalCsat = 0, totalKscat = 0, totalDsat = 0;
+
   Object.keys(agentMap).forEach((email) => {
     const a = agentMap[email];
+    totalCsat += a.csat;
+    totalKscat += a.kscat;
+    totalDsat += a.dsat;
+
     const totalCount = a.csat + a.kscat + a.dsat;
     const totalWoKarma = a.csat + a.dsat;
     const kscatPct = totalCount > 0 ? (a.csat / totalCount) * 100 : 0;
@@ -84,19 +94,19 @@ export const processKSCATCalc = (rows: any[]) => {
     };
   });
 
-  const teamTotalCount = teamCsat + teamKscat + teamDsat;
-  const teamTotalWoKarma = teamCsat + teamDsat;
+  const teamTotalCount = totalCsat + totalKscat + totalDsat;
+  const teamTotalWoKarma = totalCsat + totalDsat;
 
   return {
     agentResults,
     teamKscatTotals: {
-      csatCount: teamCsat,
-      kscatCount: teamKscat,
-      dsatCount: teamDsat,
-      totalTickets: teamTotalCount,
-      totalWoKarma: teamTotalWoKarma,
-      csatPercent: teamTotalWoKarma > 0 ? Number(((teamCsat / teamTotalWoKarma) * 100).toFixed(2)) : 0,
-      kscatPercent: teamTotalCount > 0 ? Number(((teamCsat / teamTotalCount) * 100).toFixed(2)) : 0,
+      CSAT: totalCsat,
+      KSCAT: totalKscat,
+      DSAT: totalDsat,
+      'Total Count': teamTotalCount,
+      'Total w/o Karma': teamTotalWoKarma,
+      'CSAT %': teamTotalWoKarma > 0 ? Number(((totalCsat / teamTotalWoKarma) * 100).toFixed(2)) : 0,
+      'KSCAT %': teamTotalCount > 0 ? Number(((totalCsat / teamTotalCount) * 100).toFixed(2)) : 0,
     },
   };
 };
@@ -133,13 +143,14 @@ export const processPVFFile = (rows: any[]) => {
   return results;
 };
 
-// 3. Process Metrics File
+// 3. Process Metrics File (Exact Row 1-22 Team & Row 25-46 Floor Extraction)
 export const processMetricsFile = (rows: any[]) => {
   const agentMetrics: Record<string, Record<string, number>> = {};
   const teamAverages: Record<string, number> = {};
   const floorAverages: Record<string, number> = {};
 
   rows.forEach((row, index) => {
+    // Agent Extraction
     const agentEmail = String(getColVal(row, ['Agent', 'agent'], 2) || '').trim().toLowerCase();
     const metricName = String(getColVal(row, ['Unnamed: 3', 'Metric Name'], 3) || '').trim();
     const metricVal = parseCleanNumber(getColVal(row, ['01/09/26', 'Value', 'E'], 4));
@@ -149,13 +160,14 @@ export const processMetricsFile = (rows: any[]) => {
       agentMetrics[agentEmail][metricName] = metricVal;
     }
 
+    // Team Overall & Floor Extraction (Columns K & L)
     const teamKey = String(getColVal(row, ['Unnamed: 10', 'Metric'], 10) || '').trim();
     const teamVal = parseCleanNumber(getColVal(row, ['1/9/2026', 'Value', 'L'], 11));
 
     if (teamKey) {
-      if (index <= 20) {
+      if (index <= 22) {
         teamAverages[teamKey] = teamVal;
-      } else if (index >= 24 && index <= 44) {
+      } else if (index >= 24 && index <= 46) {
         floorAverages[teamKey] = teamVal;
       }
     }
