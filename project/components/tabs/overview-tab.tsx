@@ -1,14 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import { useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { Star, Target, Settings2, TrendingUp, Inbox } from 'lucide-react';
+import { Star, Target, Settings2, TrendingUp, Inbox, BarChart2 } from 'lucide-react';
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {} } = useMetrics() as any;
+  const [selectedMetric, setSelectedMetric] = useState<{ label: string; teamKey: string; target: number }>({
+    label: 'CSAT %',
+    teamKey: 'CSAT adjusted with calls, %',
+    target: 85,
+  });
 
   const getVal = (source: Record<string, any>, keys: string[]) => {
     for (const k of keys) {
@@ -23,6 +29,15 @@ export function OverviewTab() {
     return '-';
   };
 
+  const getNumericVal = (source: Record<string, any>, keys: string[]) => {
+    const valStr = getVal(source, keys);
+    if (valStr === '-') return 0;
+    return parseFloat(valStr.replace('%', '')) || 0;
+  };
+
+  const teamScore = getNumericVal(teamMetrics, [selectedMetric.teamKey, selectedMetric.label]);
+  const floorScore = getNumericVal(floorAverages, [selectedMetric.teamKey, selectedMetric.label]);
+
   const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
 
   return (
@@ -31,13 +46,8 @@ export function OverviewTab() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Team Overall Performance View</h2>
           <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-            <span>✓ = Meets Target</span> | <span>★ = Beats Floor Average</span>
+            <span>Click any KPI card below to update the benchmark comparison graph</span>
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Settings2 className="h-4 w-4" /> Set Targets
-          </Button>
         </div>
       </div>
 
@@ -48,9 +58,12 @@ export function OverviewTab() {
         </Card>
       )}
 
-      {/* Grid Cards (Bound ONLY to uploaded teamMetrics) */}
+      {/* Grid Cards (Click-to-Compare Bindings) */}
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <Card className="border-emerald-500 border-2 bg-emerald-50/20">
+        <Card
+          onClick={() => setSelectedMetric({ label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', target: 85 })}
+          className={`cursor-pointer transition-all hover:border-emerald-500 ${selectedMetric.label === 'CSAT %' ? 'border-emerald-500 border-2 bg-emerald-50/20' : ''}`}
+        >
           <CardContent className="p-4 relative">
             <Star className="h-4 w-4 text-amber-500 fill-amber-500 absolute top-3 right-3" />
             <div className="text-xs font-semibold text-gray-600 uppercase">CSAT %</div>
@@ -58,12 +71,15 @@ export function OverviewTab() {
               {getVal(teamMetrics, ['CSAT adjusted with calls, %', 'csatPercent'])}
             </div>
             <div className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
-              <Target className="h-3 w-3 text-amber-600" /> Target: 85
+              <Target className="h-3 w-3 text-amber-600" /> Target: 85%
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          onClick={() => setSelectedMetric({ label: 'KSCAT %', teamKey: 'kscatPercent', target: 40 })}
+          className={`cursor-pointer transition-all hover:border-blue-500 ${selectedMetric.label === 'KSCAT %' ? 'border-blue-500 border-2 bg-blue-50/20' : ''}`}
+        >
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-gray-600 uppercase">KSCAT %</div>
             <div className="text-2xl font-bold text-blue-600 mt-1">
@@ -72,43 +88,10 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">CSAT Count</div>
-            <div className="text-2xl font-bold mt-1">
-              {getVal(teamMetrics, ['csatCount', 'CSAT Count'])}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">KSCAT Count</div>
-            <div className="text-2xl font-bold mt-1">
-              {getVal(teamMetrics, ['kscatCount', 'KSCAT Count'])}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">DSAT Count</div>
-            <div className="text-2xl font-bold text-red-600 mt-1">
-              {getVal(teamMetrics, ['dsatCount', 'DSAT Count'])}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">Total Tickets</div>
-            <div className="text-2xl font-bold mt-1">
-              {getVal(teamMetrics, ['totalTickets', 'Total Count'])}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
+        <Card
+          onClick={() => setSelectedMetric({ label: 'Adherence %', teamKey: 'Adherence, %', target: 90 })}
+          className={`cursor-pointer transition-all hover:border-purple-500 ${selectedMetric.label === 'Adherence %' ? 'border-purple-500 border-2 bg-purple-50/20' : ''}`}
+        >
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-gray-600 uppercase">Adherence %</div>
             <div className="text-2xl font-bold text-purple-600 mt-1">
@@ -117,7 +100,10 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          onClick={() => setSelectedMetric({ label: 'AHT', teamKey: 'Average handling time', target: 5 })}
+          className={`cursor-pointer transition-all hover:border-emerald-500 ${selectedMetric.label === 'AHT' ? 'border-emerald-500 border-2 bg-emerald-50/20' : ''}`}
+        >
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-gray-600 uppercase">AHT</div>
             <div className="text-2xl font-bold mt-1">
@@ -126,7 +112,10 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          onClick={() => setSelectedMetric({ label: 'ABT', teamKey: 'Average basket time', target: 14 })}
+          className={`cursor-pointer transition-all hover:border-emerald-500 ${selectedMetric.label === 'ABT' ? 'border-emerald-500 border-2 bg-emerald-50/20' : ''}`}
+        >
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-gray-600 uppercase">ABT</div>
             <div className="text-2xl font-bold mt-1">
@@ -135,57 +124,73 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          onClick={() => setSelectedMetric({ label: 'Productivity 8-hrs', teamKey: 'Productivity 8-hrs', target: 30 })}
+          className={`cursor-pointer transition-all hover:border-emerald-500 ${selectedMetric.label === 'Productivity 8-hrs' ? 'border-emerald-500 border-2 bg-emerald-50/20' : ''}`}
+        >
           <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">Productivity (8-hrs)</div>
+            <div className="text-xs font-semibold text-gray-600 uppercase">Productivity 8-hrs</div>
             <div className="text-2xl font-bold mt-1">
               {getVal(teamMetrics, ['Productivity 8-hrs', 'productivity8hrs'])}
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">Escalation Rate %</div>
-            <div className="text-2xl font-bold text-amber-600 mt-1">
-              {getVal(teamMetrics, ['Escalation rate %', 'escalationRate'])}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-gray-600 uppercase">Deescalation Rate %</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-1">
-              {getVal(teamMetrics, ['Deescalation rate %', 'deescalationRate'])}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
+      {/* Interactive Score Comparison Graph */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              Monthly Trend: CSAT %
-              <Badge className="bg-emerald-100 text-emerald-800">
-                <TrendingUp className="h-3 w-3 mr-1" /> ACTIVE PERIOD
-              </Badge>
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart2 className="h-5 w-5 text-emerald-600" /> Metric Benchmark: {selectedMetric.label}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Comparing Team ({teamScore}) vs Floor Average ({floorScore}) vs Target ({selectedMetric.target})
+              </p>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-40 w-full border-t border-b py-4 relative flex items-end">
-              <svg className="w-full h-full overflow-visible">
-                <line x1="0" y1="10%" x2="100%" y2="10%" stroke="#f59e0b" strokeDasharray="4" strokeWidth="1.5" />
-                <line x1="0" y1="65%" x2="100%" y2="65%" stroke="#3b82f6" strokeWidth="2" />
-                <path d="M0,85 Q50,75 100,60" fill="none" stroke="#10b981" strokeWidth="3" />
-              </svg>
+          <CardContent className="pt-4">
+            <div className="space-y-4 text-xs">
+              {/* Team Score Bar */}
+              <div>
+                <div className="flex justify-between font-semibold mb-1">
+                  <span>Team Score</span>
+                  <span className="text-emerald-600">{teamScore}</span>
+                </div>
+                <div className="h-4 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(teamScore, 100)}%` }}></div>
+                </div>
+              </div>
+
+              {/* Floor Average Bar */}
+              <div>
+                <div className="flex justify-between font-semibold mb-1">
+                  <span>Floor Average Benchmark</span>
+                  <span className="text-blue-600">{floorScore}</span>
+                </div>
+                <div className="h-4 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(floorScore, 100)}%` }}></div>
+                </div>
+              </div>
+
+              {/* Target Score Bar */}
+              <div>
+                <div className="flex justify-between font-semibold mb-1">
+                  <span>Operational Target</span>
+                  <span className="text-amber-600">{selectedMetric.target}</span>
+                </div>
+                <div className="h-4 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.min(selectedMetric.target, 100)}%` }}></div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Floor Averages Reference Box */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle className="text-base">Floor Averages Reference</CardTitle>
           </CardHeader>
           <CardContent>
@@ -227,6 +232,7 @@ export function OverviewTab() {
         </Card>
       </div>
 
+      {/* Leaderboard Table (Preserving Full Email Identifiers) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Agent Performance Leaderboard</CardTitle>
@@ -237,7 +243,7 @@ export function OverviewTab() {
               <TableHeader>
                 <TableRow className="text-xs">
                   <TableHead>Rank</TableHead>
-                  <TableHead>Agent</TableHead>
+                  <TableHead>Agent Identifier</TableHead>
                   <TableHead>CSAT</TableHead>
                   <TableHead>KSCAT</TableHead>
                   <TableHead>DSAT</TableHead>
@@ -251,7 +257,7 @@ export function OverviewTab() {
                   agentMetrics.map((agent: any, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell className="font-bold">#{idx + 1}</TableCell>
-                      <TableCell className="font-medium">{agent.agent_name || agent.agent_email}</TableCell>
+                      <TableCell className="font-medium text-gray-900">{agent.agent_email}</TableCell>
                       <TableCell>{agent.csat}</TableCell>
                       <TableCell>{agent.kscat}</TableCell>
                       <TableCell className="text-red-500 font-bold">{agent.dsat}</TableCell>
