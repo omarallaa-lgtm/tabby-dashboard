@@ -6,7 +6,6 @@ export const parseCleanNumber = (val: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
-// Flexible lookup by column name aliases or zero-based positional index
 const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   if (Array.isArray(row)) {
     if (posIdx !== undefined && posIdx < row.length) return row[posIdx];
@@ -22,12 +21,13 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. KSCAT Calc Parser (Exact COUNTIFS + Team Totals)
+// 1. Process KSCAT Calc (Exact agent email matching)
 export const processKSCATCalc = (rows: any[]) => {
   const agentMap: Record<string, { csat: number; kscat: number; dsat: number }> = {};
   let teamCsat = 0, teamKscat = 0, teamDsat = 0;
 
   rows.forEach((row) => {
+    // Preserve full email identifier
     const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
     const resolver = String(getColVal(row, ['resolver', 'Resolver'], 0) || '').trim().toLowerCase();
     const csatStatus = String(getColVal(row, ['csat', 'CSAT'], 8) || '').trim().toLowerCase();
@@ -85,14 +85,11 @@ export const processKSCATCalc = (rows: any[]) => {
       totalWoKarma: teamTotalWoKarma,
       csatPercent: teamTotalWoKarma > 0 ? Number(((teamCsat / teamTotalWoKarma) * 100).toFixed(2)) : 0,
       kscatPercent: teamTotalCount > 0 ? Number(((teamCsat / teamTotalCount) * 100).toFixed(2)) : 0,
-      variance: teamTotalWoKarma > 0 && teamTotalCount > 0 
-        ? Number((((teamCsat / teamTotalWoKarma) * 100) - ((teamCsat / teamTotalCount) * 100)).toFixed(2)) 
-        : 0,
     },
   };
 };
 
-// 2. PVF File Parser (Tardy & Idle Time)
+// 2. Process PVF File
 export const processPVFFile = (rows: any[]) => {
   const pvfMap: Record<string, { tardySum: number; idleTimeSum: number; count: number }> = {};
 
@@ -124,7 +121,7 @@ export const processPVFFile = (rows: any[]) => {
   return results;
 };
 
-// 3. Metrics File Parser (Agent Metrics + K:L Block Overall & Floor)
+// 3. Process Metrics File
 export const processMetricsFile = (rows: any[]) => {
   const agentMetrics: Record<string, Record<string, number>> = {};
   const teamAverages: Record<string, number> = {};
@@ -133,7 +130,7 @@ export const processMetricsFile = (rows: any[]) => {
   rows.forEach((row, index) => {
     const agentEmail = String(getColVal(row, ['Agent', 'agent'], 2) || '').trim().toLowerCase();
     const metricName = String(getColVal(row, ['Unnamed: 3', 'Metric Name'], 3) || '').trim();
-    const metricVal = parseCleanNumber(getColVal(row, ['Value', 'E'], 4));
+    const metricVal = parseCleanNumber(getColVal(row, ['01/09/26', 'Value', 'E'], 4));
 
     if (agentEmail && metricName) {
       if (!agentMetrics[agentEmail]) agentMetrics[agentEmail] = {};
