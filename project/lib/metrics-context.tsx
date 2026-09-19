@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
@@ -8,23 +8,6 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export type UserRole = 'Admin' | 'Team Leader' | 'Agent';
-
-export interface User {
-  email: string;
-  role: UserRole;
-  addedAt?: string;
-}
-
-export interface UserProfile {
-  id?: string;
-  user_email: string;
-  username: string;
-  role: UserRole;
-  team_name: string;
-  floor_name: string;
-  account_status: 'Active' | 'Disabled';
-  allowed_tabs: string[];
-}
 
 const MetricsContext = createContext<any>(null);
 
@@ -41,7 +24,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     abt: 14,
     fcrPercent: 70,
   });
-  const [historicalTrends, setHistoricalTrends] = useState<any[]>([]);
+  const [dailyProgressData, setDailyProgressData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const fetchMetrics = async (user?: any) => {
@@ -49,7 +32,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     const activeUser = user || currentUser;
 
     try {
-      // 1. Order by created_at descending so the newest upload comes first
+      // 1. Fetch Current Agent Metrics
       let query = supabase
         .from('agent_metrics')
         .select('*')
@@ -57,45 +40,46 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
 
       if (activeUser && activeUser.role === 'Agent') {
         query = query.eq('agent_email', activeUser.user_email);
-      } else if (activeUser && activeUser.role === 'Team Leader') {
-        query = query.eq('team_name', activeUser.team_name);
       }
 
       const { data: agentData } = await query;
-
       if (agentData) {
-        // Filter out duplicate agent rows across multiple backup uploads (keep newest record)
-        const uniqueAgentsMap = new Map();
-        agentData.forEach((row) => {
-          if (!uniqueAgentsMap.has(row.agent_email)) {
-            uniqueAgentsMap.set(row.agent_email, row);
-          }
-        });
-
-        const deduplicatedAgentMetrics = Array.from(uniqueAgentsMap.values());
-        setAgentMetrics(deduplicatedAgentMetrics);
+        const uniqueMap = new Map();
+        agentData.forEach((r) => { if (!uniqueMap.has(r.agent_email)) uniqueMap.set(r.agent_email, r); });
+        setAgentMetrics(Array.from(uniqueMap.values()));
       }
 
-      // 2. Fetch Level Aggregates (Team & Floor)
+      // 2. Fetch Aggregates & Build Daily Progress Timeline for Team vs Floor
       const { data: aggData } = await supabase
         .from('level_aggregates')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (aggData) {
         const teamMap: Record<string, any> = {};
         const floorMap: Record<string, any> = {};
 
+        // Group by period_id/date for the Progress Graph
+        const periodGrouped: Record<string, { period: string; teamMetrics: Record<string, number>; floorMetrics: Record<string, number> }> = {};
+
         aggData.forEach((item) => {
-          if (item.level_type === 'Team Overall' && !teamMap[item.metric_key]) {
+          const p = item.period_id;
+          if (!periodGrouped[p]) {
+            periodGrouped[p] = { period: p, teamMetrics: {}, floorMetrics: {} };
+          }
+
+          if (item.level_type === 'Team Overall') {
             teamMap[item.metric_key] = item.metric_value;
-          } else if (item.level_type === 'Floor Average' && !floorMap[item.metric_key]) {
+            periodGrouped[p].teamMetrics[item.metric_key] = Number(item.metric_value);
+          } else if (item.level_type === 'Floor Average') {
             floorMap[item.metric_key] = item.metric_value;
+            periodGrouped[p].floorMetrics[item.metric_key] = Number(item.metric_value);
           }
         });
 
         setTeamMetrics(teamMap);
         setFloorAverages(floorMap);
+        setDailyProgressData(Object.values(periodGrouped));
       }
 
       // 3. Fetch KPI Targets
@@ -104,31 +88,6 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         const tMap: Record<string, number> = {};
         targetData.forEach((t) => { tMap[t.metric_key] = Number(t.target_value); });
         setKpiTargets((prev) => ({ ...prev, ...tMap }));
-      }
-
-      // 4. Fetch Multi-Period Historical Backups for Progress Graphs
-      const { data: historyData } = await supabase
-        .from('agent_metrics')
-        .select('period_id, csat_percent, kscat_percent, total_count')
-        .order('created_at', { ascending: true });
-
-      if (historyData) {
-        const grouped: Record<string, { period_id: string; csatSum: number; count: number; tickets: number }> = {};
-        historyData.forEach((row) => {
-          if (!grouped[row.period_id]) {
-            grouped[row.period_id] = { period_id: row.period_id, csatSum: 0, count: 0, tickets: 0 };
-          }
-          grouped[row.period_id].csatSum += Number(row.csat_percent || 0);
-          grouped[row.period_id].tickets += Number(row.total_count || 0);
-          grouped[row.period_id].count += 1;
-        });
-
-        const trendArray = Object.values(grouped).map((g) => ({
-          period: g.period_id,
-          csat: g.count > 0 ? Number((g.csatSum / g.count).toFixed(2)) : 0,
-          tickets: g.tickets,
-        }));
-        setHistoricalTrends(trendArray);
       }
     } catch (e) {
       console.error('Error fetching dashboard context:', e);
@@ -144,19 +103,6 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     ]);
   };
 
-  const logAuditAction = async (action: string, target: string, prevVal?: any, newVal?: any) => {
-    if (!currentUser) return;
-    await supabase.from('audit_logs').insert([
-      {
-        actor_email: currentUser.user_email,
-        action,
-        target_entity: target,
-        previous_value: prevVal || null,
-        new_value: newVal || null,
-      },
-    ]);
-  };
-
   return (
     <MetricsContext.Provider
       value={{
@@ -167,9 +113,8 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         floorAverages,
         kpiTargets,
         updateTarget,
-        historicalTrends,
+        dailyProgressData,
         refreshMetrics: fetchMetrics,
-        logAuditAction,
         loading,
       }}
     >
