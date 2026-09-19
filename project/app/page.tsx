@@ -27,13 +27,11 @@ export default function Home() {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Verification against password specification
     if (password !== 'Boyka@1322') {
       setErrorMessage("😼 Not so fast, human! That login didn't quite match. Check your credentials and try again.");
       return;
     }
 
-    // Derive Role & Access
     let role = 'Agent';
     let allowedTabs = ['overview', 'my_performance', 'requests', 'announcements'];
 
@@ -57,7 +55,9 @@ export default function Home() {
 
     setCurrentUser(userObj);
     refreshMetrics(userObj);
-    logAuditAction('USER_LOGIN', cleanEmail);
+    if (typeof logAuditAction === 'function') {
+      logAuditAction('USER_LOGIN', cleanEmail);
+    }
   };
 
   const handleLogout = () => {
