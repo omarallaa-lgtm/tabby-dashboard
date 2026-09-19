@@ -6,7 +6,6 @@ export const parseCleanNumber = (val: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
-// Helper: Get row value by named key OR by zero-based positional index
 const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   if (Array.isArray(row)) {
     if (posIdx !== undefined && posIdx < row.length) return row[posIdx];
@@ -22,132 +21,34 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. Process KSCAT Calc File (Exact COUNTIFS + Team Aggregate)
-export const processKSCATCalc = (rows: any[]) => {
-  const agentMap: Record<string, { csat: number; kscat: number; dsat: number }> = {};
-  let teamCsat = 0, teamKscat = 0, teamDsat = 0;
-
-  rows.forEach((row) => {
-    const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
-    const resolver = String(getColVal(row, ['resolver', 'Resolver'], 0) || '').trim().toLowerCase();
-    const csatStatus = String(getColVal(row, ['csat', 'CSAT'], 8) || '').trim().toLowerCase();
-
-    if (!assignee) return;
-
-    if (!agentMap[assignee]) {
-      agentMap[assignee] = { csat: 0, kscat: 0, dsat: 0 };
-    }
-
-    if (csatStatus === 'good') {
-      agentMap[assignee].csat += 1;
-      teamCsat += 1;
-    } else if (csatStatus === 'bad') {
-      if (resolver !== assignee) {
-        agentMap[assignee].kscat += 1;
-        teamKscat += 1;
-      } else {
-        agentMap[assignee].dsat += 1;
-        teamDsat += 1;
-      }
-    }
-  });
-
-  const agentResults: Record<string, any> = {};
-  Object.keys(agentMap).forEach((email) => {
-    const { csat, kscat, dsat } = agentMap[email];
-    const totalCount = csat + kscat + dsat;
-    const totalWoKarma = csat + dsat;
-    const kscatPct = totalCount > 0 ? (csat / totalCount) * 100 : 0;
-    const csatPct = totalWoKarma > 0 ? (csat / totalWoKarma) * 100 : 0;
-
-    agentResults[email] = {
-      csat,
-      kscat,
-      dsat,
-      totalCount,
-      totalWoKarma,
-      kscatPercent: Number(kscatPct.toFixed(2)),
-      csatPercent: Number(csatPct.toFixed(2)),
-      variance: Number((csatPct - kscatPct).toFixed(2)),
-    };
-  });
-
-  const teamTotalCount = teamCsat + teamKscat + teamDsat;
-  const teamTotalWoKarma = teamCsat + teamDsat;
-
-  return {
-    agentResults,
-    teamKscatTotals: {
-      csatCount: teamCsat,
-      kscatCount: teamKscat,
-      dsatCount: teamDsat,
-      totalTickets: teamTotalCount,
-      totalWoKarma: teamTotalWoKarma,
-      csatPercent: teamTotalWoKarma > 0 ? Number(((teamCsat / teamTotalWoKarma) * 100).toFixed(2)) : 0,
-      kscatPercent: teamTotalCount > 0 ? Number(((teamCsat / teamTotalCount) * 100).toFixed(2)) : 0,
-    },
-  };
-};
-
-// 2. Process PVF File (Robust Position 35 for Tardy & Position 11 for Idle)
-export const processPVFFile = (rows: any[]) => {
-  const pvfMap: Record<string, { tardySum: number; idleTimeSum: number; count: number }> = {};
-
-  rows.forEach((row) => {
-    const email = String(getColVal(row, ['agent_email (clickable)', 'agent_email'], 0) || '').trim().toLowerCase();
-    if (!email) return;
-
-    // Column AJ (Tardy): Positional index 35
-    const tardyVal = parseCleanNumber(getColVal(row, ['AJ', 'tardy_minute', 'Unnamed: 35'], 35));
-    // Column L (Idle): Positional index 11
-    const idleVal = parseCleanNumber(getColVal(row, ['time_not_working_h_shift_adjusted', 'L'], 11));
-
-    if (!pvfMap[email]) {
-      pvfMap[email] = { tardySum: 0, idleTimeSum: 0, count: 0 };
-    }
-
-    if (tardyVal > 0) pvfMap[email].tardySum += tardyVal;
-    pvfMap[email].idleTimeSum += idleVal;
-    pvfMap[email].count += 1;
-  });
-
-  const results: Record<string, { tardyMinutes: number; idleTimeAvg: number }> = {};
-  Object.keys(pvfMap).forEach((email) => {
-    const { tardySum, idleTimeSum, count } = pvfMap[email];
-    results[email] = {
-      tardyMinutes: Number(tardySum.toFixed(2)),
-      idleTimeAvg: count > 0 ? Number((idleTimeSum / count).toFixed(2)) : 0,
-    };
-  });
-
-  return results;
-};
-
-// 3. Process Metrics File (Dynamic Date Headers & Standardized Keys)
+// Parser for Metrics.csv extracting all 12 operational metrics
 export const processMetricsFile = (rows: any[]) => {
   const agentMetrics: Record<string, Record<string, number>> = {};
   const teamAverages: Record<string, number> = {};
   const floorAverages: Record<string, number> = {};
 
   rows.forEach((row, index) => {
-    // Columns C, D, E (Agent, Metric Name, Value)
+    // 1. Agent-Level Extraction (Columns C, D, E -> Positional indices 2, 3, 4)
     const agentEmail = String(getColVal(row, ['Agent', 'agent'], 2) || '').trim().toLowerCase();
     const metricName = String(getColVal(row, ['Unnamed: 3', 'Metric Name'], 3) || '').trim();
-    const metricVal = parseCleanNumber(getColVal(row, ['Value', 'E'], 4));
+    const metricVal = parseCleanNumber(getColVal(row, ['01/09/26', 'Value', 'E'], 4));
 
     if (agentEmail && metricName) {
       if (!agentMetrics[agentEmail]) agentMetrics[agentEmail] = {};
       agentMetrics[agentEmail][metricName] = metricVal;
     }
 
-    // Columns K & L (Team Overall: Rows 0-22, Floor Average: Rows 24-46)
+    // 2. Team Overall & Floor Average Extraction (Columns K & L -> Positional indices 10 & 11)
     const teamKey = String(getColVal(row, ['Unnamed: 10', 'Metric'], 10) || '').trim();
-    const teamVal = parseCleanNumber(getColVal(row, ['1/9/2026', 'Value'], 11));
+    const teamVal = parseCleanNumber(getColVal(row, ['1/9/2026', 'Value', 'L'], 11));
 
     if (teamKey) {
-      if (index <= 22) {
+      // Rows 0..20: Team Overall
+      if (index <= 20) {
         teamAverages[teamKey] = teamVal;
-      } else if (index >= 24 && index <= 46) {
+      } 
+      // Rows 24..44: Floor Average
+      else if (index >= 24 && index <= 44) {
         floorAverages[teamKey] = teamVal;
       }
     }
