@@ -7,8 +7,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2, Target, Settings2, Sparkles, Check, SlidersHorizontal } from 'lucide-react';
+import { Inbox, MessageSquare, Phone, Users, Globe, BarChart2, Target, Settings2, Sparkles, Check } from 'lucide-react';
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget } = useMetrics() as any;
@@ -32,7 +31,7 @@ export function OverviewTab() {
   const [targetMetricKey, setTargetMetricKey] = useState('csatPercent');
   const [tempTargetValue, setTempTargetValue] = useState('85');
 
-  // Format Helper
+  // Utility to format numbers, percentages, and fractions
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -51,6 +50,7 @@ export function OverviewTab() {
     return num <= 1 && num > 0 ? num * 100 : num;
   };
 
+  // Comprehensive Metric Definitions Mapping Team Keys -> Floor Keys -> Target Keys
   const allMetricDefinitions = [
     { label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', floorKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
     { label: 'KSCAT %', teamKey: 'KSCAT %', floorKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35, isPct: true },
@@ -67,8 +67,21 @@ export function OverviewTab() {
     { label: 'FCR %', teamKey: 'FCR, %', floorKey: 'FCR, %', targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
   ];
 
-  // All Agent Emails for Roster Filter
-  const allAgentEmails = useMemo(() => agentMetrics.map((a: any) => a.agent_email), [agentMetrics]);
+  // Deduplicate agent rows by agent_email to prevent repeated agent entries
+  const uniqueAgentMetrics = useMemo(() => {
+    const map = new Map();
+    agentMetrics.forEach((a: any) => {
+      if (!map.has(a.agent_email)) {
+        map.set(a.agent_email, a);
+      }
+    });
+    return Array.from(map.values());
+  }, [agentMetrics]);
+
+  // All Unique Agent Emails for Roster Filter
+  const allAgentEmails = useMemo(() => {
+    return uniqueAgentMetrics.map((a: any) => a.agent_email);
+  }, [uniqueAgentMetrics]);
 
   // Active Filtered Roster
   const activeRosterEmails = useMemo(() => {
@@ -78,8 +91,8 @@ export function OverviewTab() {
 
   // Filtered Agent Subset for Dynamic Team Totals
   const filteredAgentMetrics = useMemo(() => {
-    return agentMetrics.filter((a: any) => activeRosterEmails.includes(a.agent_email));
-  }, [agentMetrics, activeRosterEmails]);
+    return uniqueAgentMetrics.filter((a: any) => activeRosterEmails.includes(a.agent_email));
+  }, [uniqueAgentMetrics, activeRosterEmails]);
 
   // Dynamic Team Totals Calculated Strictly Over Selected Roster
   const teamTotalCsat = filteredAgentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
@@ -120,19 +133,19 @@ export function OverviewTab() {
   };
 
   // Channel Calculations for Tables 4 & 5
-  const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
-  const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
-  const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
+  const totalChatCsat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
+  const totalChatKscat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
+  const totalChatDsat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
   const totalChatCount = totalChatCsat + totalChatKscat + totalChatDsat;
   const totalChatWoKarma = totalChatCsat + totalChatDsat;
 
-  const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
-  const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
-  const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
+  const totalPhoneCsat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
+  const totalPhoneKscat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
+  const totalPhoneDsat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
   const totalPhoneCount = totalPhoneCsat + totalPhoneKscat + totalPhoneDsat;
   const totalPhoneWoKarma = totalPhoneCsat + totalPhoneDsat;
 
-  const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
+  const hasData = uniqueAgentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -164,7 +177,7 @@ export function OverviewTab() {
         </div>
       </div>
 
-      {/* Target Setting Modal */}
+      {/* Target Setting Modal supporting ALL Metrics */}
       {showTargetModal && (
         <div className="p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-4 animate-fade-in-up">
           <div className="font-bold text-emerald-600 flex items-center gap-2 text-sm">
@@ -477,6 +490,7 @@ export function OverviewTab() {
                         <TableCell>{agent.idle_time_avg ? `${agent.idle_time_avg}h` : '-'}</TableCell>
                       </TableRow>
                     ))}
+                    {/* TOTAL ROW */}
                     <TableRow className="bg-slate-500/10 font-bold text-xs border-t-2 border-emerald-500">
                       <TableCell colSpan={2}>Total (Selected Roster)</TableCell>
                       <TableCell>{teamTotalCsat}</TableCell>
