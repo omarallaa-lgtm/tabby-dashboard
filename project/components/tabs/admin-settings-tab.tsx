@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { ShieldCheck, UserPlus, Trash2, Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { supabase, UserRole } from '@/lib/metrics-context';
 
 export function AdminSettingsTab() {
