@@ -90,14 +90,19 @@ export function OverviewTab() {
   const totalKscatPct = totalCount > 0 ? (totalCsat / totalCount) * 100 : 0;
   const totalVariance = totalCsatPct - totalKscatPct;
 
-  // Channel Calculations
+  // Calculate Chat Totals (Table 4)
   const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
   const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
   const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
+  const totalChatCount = totalChatCsat + totalChatKscat + totalChatDsat;
+  const totalChatWoKarma = totalChatCsat + totalChatDsat;
 
+  // Calculate Phone Totals (Table 5)
   const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
   const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
   const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
+  const totalPhoneCount = totalPhoneCsat + totalPhoneKscat + totalPhoneDsat;
+  const totalPhoneWoKarma = totalPhoneCsat + totalPhoneDsat;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
