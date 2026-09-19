@@ -1,18 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2, TrendingUp, Target, Settings2, Sparkles, Check } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2, Target, Settings2, Sparkles, Check, SlidersHorizontal } from 'lucide-react';
 
 export function OverviewTab() {
-  const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget, historicalTrends = [] } = useMetrics() as any;
+  const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget } = useMetrics() as any;
   const [activeChannel, setActiveChannel] = useState<'overall' | 'chat' | 'phone'>('overall');
-  
+
+  // Roster Selection State (Gear Icon Toggle)
+  const [showRosterGear, setShowRosterGear] = useState(false);
+  const [selectedAgentEmails, setSelectedAgentEmails] = useState<string[]>([]);
+
   // Selected Metric for Live Comparison Chart
   const [selectedMetric, setSelectedMetric] = useState({
     label: 'CSAT %',
@@ -27,7 +32,7 @@ export function OverviewTab() {
   const [targetMetricKey, setTargetMetricKey] = useState('csatPercent');
   const [tempTargetValue, setTempTargetValue] = useState('85');
 
-  // Utility to format numbers, percentages, and fractions
+  // Format Helper
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -46,7 +51,6 @@ export function OverviewTab() {
     return num <= 1 && num > 0 ? num * 100 : num;
   };
 
-  // Comprehensive Metric Definitions Mapping Team Keys -> Floor Keys -> Target Keys
   const allMetricDefinitions = [
     { label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', floorKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
     { label: 'KSCAT %', teamKey: 'KSCAT %', floorKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35, isPct: true },
@@ -63,9 +67,46 @@ export function OverviewTab() {
     { label: 'FCR %', teamKey: 'FCR, %', floorKey: 'FCR, %', targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
   ];
 
-  const teamScore = getNumericVal(teamMetrics, selectedMetric.teamKey);
+  // All Agent Emails for Roster Filter
+  const allAgentEmails = useMemo(() => agentMetrics.map((a: any) => a.agent_email), [agentMetrics]);
+
+  // Active Filtered Roster
+  const activeRosterEmails = useMemo(() => {
+    if (selectedAgentEmails.length === 0) return allAgentEmails;
+    return selectedAgentEmails;
+  }, [selectedAgentEmails, allAgentEmails]);
+
+  // Filtered Agent Subset for Dynamic Team Totals
+  const filteredAgentMetrics = useMemo(() => {
+    return agentMetrics.filter((a: any) => activeRosterEmails.includes(a.agent_email));
+  }, [agentMetrics, activeRosterEmails]);
+
+  // Dynamic Team Totals Calculated Strictly Over Selected Roster
+  const teamTotalCsat = filteredAgentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
+  const teamTotalKscat = filteredAgentMetrics.reduce((s: number, a: any) => s + (a.kscat || 0), 0);
+  const teamTotalDsat = filteredAgentMetrics.reduce((s: number, a: any) => s + (a.dsat || 0), 0);
+  const teamTotalCount = teamTotalCsat + teamTotalKscat + teamTotalDsat;
+  const teamTotalWoKarma = teamTotalCsat + teamTotalDsat;
+  const teamTotalCsatPct = teamTotalWoKarma > 0 ? (teamTotalCsat / teamTotalWoKarma) * 100 : 0;
+  const teamTotalKscatPct = teamTotalCount > 0 ? (teamTotalCsat / teamTotalCount) * 100 : 0;
+
+  // Dynamic Values for Selected Metric
+  const teamScore = selectedMetric.label === 'CSAT %' ? teamTotalCsatPct : getNumericVal(teamMetrics, selectedMetric.teamKey);
   const floorScore = getNumericVal(floorAverages, selectedMetric.floorKey);
   const targetScore = kpiTargets[selectedMetric.targetKey] || selectedMetric.defaultTarget;
+
+  const handleToggleAgent = (email: string) => {
+    const current = selectedAgentEmails.length === 0 ? [...allAgentEmails] : [...selectedAgentEmails];
+    if (current.includes(email)) {
+      setSelectedAgentEmails(current.filter((e) => e !== email));
+    } else {
+      setSelectedAgentEmails([...current, email]);
+    }
+  };
+
+  const handleSelectAllAgents = () => {
+    setSelectedAgentEmails([...allAgentEmails]);
+  };
 
   const handleSaveTarget = async () => {
     const val = parseFloat(tempTargetValue);
@@ -78,31 +119,20 @@ export function OverviewTab() {
     }
   };
 
-  const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
-
-  // Calculate Totals across Active Roster
-  const totalCsat = agentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
-  const totalKscat = agentMetrics.reduce((s: number, a: any) => s + (a.kscat || 0), 0);
-  const totalDsat = agentMetrics.reduce((s: number, a: any) => s + (a.dsat || 0), 0);
-  const totalCount = totalCsat + totalKscat + totalDsat;
-  const totalWoKarma = totalCsat + totalDsat;
-  const totalCsatPct = totalWoKarma > 0 ? (totalCsat / totalWoKarma) * 100 : 0;
-  const totalKscatPct = totalCount > 0 ? (totalCsat / totalCount) * 100 : 0;
-  const totalVariance = totalCsatPct - totalKscatPct;
-
-  // Calculate Chat Totals (Table 4)
+  // Channel Calculations for Tables 4 & 5
   const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
   const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
   const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
   const totalChatCount = totalChatCsat + totalChatKscat + totalChatDsat;
   const totalChatWoKarma = totalChatCsat + totalChatDsat;
 
-  // Calculate Phone Totals (Table 5)
   const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
   const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
   const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
   const totalPhoneCount = totalPhoneCsat + totalPhoneKscat + totalPhoneDsat;
   const totalPhoneWoKarma = totalPhoneCsat + totalPhoneDsat;
+
+  const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -112,7 +142,7 @@ export function OverviewTab() {
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-emerald-500" /> Customer Service Executive Overview
           </h2>
-          <p className="text-xs text-muted-foreground mt-1">Click any row in Team Performance Table below to compare with Floor Average and Targets</p>
+          <p className="text-xs text-muted-foreground mt-1">Click the Gear Icon on Table 2 to select active roster agents and filter CSAT/DSAT scores</p>
         </div>
 
         <div className="flex items-center gap-2 text-xs">
@@ -134,7 +164,7 @@ export function OverviewTab() {
         </div>
       </div>
 
-      {/* Target Setting Modal supporting ALL Metrics */}
+      {/* Target Setting Modal */}
       {showTargetModal && (
         <div className="p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-4 animate-fade-in-up">
           <div className="font-bold text-emerald-600 flex items-center gap-2 text-sm">
@@ -184,92 +214,100 @@ export function OverviewTab() {
         </Card>
       )}
 
-      {/* Benchmark Comparison Chart & Supabase Backup Progress */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2 border-emerald-500/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2 text-emerald-600">
-                <BarChart2 className="h-5 w-5" /> Benchmark Comparison: {selectedMetric.label}
-              </span>
-              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Live Comparison</Badge>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Comparing Team Value ({teamScore.toFixed(2)}) vs Floor Average ({floorScore.toFixed(2)}) vs Target ({targetScore})
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-4 text-xs">
-            <div>
-              <div className="flex justify-between font-semibold mb-1">
-                <span>Team Score</span>
-                <span className="text-emerald-600 font-bold">{teamScore.toFixed(2)}</span>
-              </div>
-              <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(teamScore, 100)}%` }}></div>
-              </div>
+      {/* Live Benchmark Comparison Chart */}
+      <Card className="border-emerald-500/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2 text-emerald-600">
+              <BarChart2 className="h-5 w-5" /> Benchmark Comparison: {selectedMetric.label}
+            </span>
+            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">
+              {activeRosterEmails.length} / {allAgentEmails.length} Agents Selected
+            </Badge>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Comparing Selected Team Roster Score ({teamScore.toFixed(2)}) vs Floor Average ({floorScore.toFixed(2)}) vs Target ({targetScore})
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4 text-xs">
+          <div>
+            <div className="flex justify-between font-semibold mb-1">
+              <span>Team Score (Selected Roster)</span>
+              <span className="text-emerald-600 font-bold">{teamScore.toFixed(2)}</span>
             </div>
-
-            <div>
-              <div className="flex justify-between font-semibold mb-1">
-                <span>Floor Average Benchmark</span>
-                <span className="text-blue-600 font-bold">{floorScore.toFixed(2)}</span>
-              </div>
-              <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(floorScore, 100)}%` }}></div>
-              </div>
+            <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(teamScore, 100)}%` }}></div>
             </div>
+          </div>
 
-            <div>
-              <div className="flex justify-between font-semibold mb-1">
-                <span>Configured Operational Target</span>
-                <span className="text-amber-600 font-bold">{targetScore}</span>
-              </div>
-              <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.min(targetScore, 100)}%` }}></div>
-              </div>
+          <div>
+            <div className="flex justify-between font-semibold mb-1">
+              <span>Floor Average Benchmark</span>
+              <span className="text-blue-600 font-bold">{floorScore.toFixed(2)}</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(floorScore, 100)}%` }}></div>
+            </div>
+          </div>
 
-        {/* Historical Backup Trajectory */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-emerald-500" /> Supabase Backup Progress
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2 text-xs">
-            {historicalTrends.length > 0 ? (
-              <div className="space-y-3">
-                {historicalTrends.map((t: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-slate-500/5 border">
-                    <div>
-                      <div className="font-bold">{t.period}</div>
-                      <div className="text-[10px] text-muted-foreground">{t.tickets} total tickets</div>
-                    </div>
-                    <div className="font-bold text-emerald-500">{t.csat}% CSAT</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground py-8 text-center">No historical period backups saved yet. Import CSV files under Data & Backups.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <div>
+            <div className="flex justify-between font-semibold mb-1">
+              <span>Configured Operational Target</span>
+              <span className="text-amber-600 font-bold">{targetScore}</span>
+            </div>
+            <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
+              <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.min(targetScore, 100)}%` }}></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* TABLES 2 & 3: TEAM PERFORMANCE & FLOOR AVERAGE (CLICKABLE ROWS) */}
+      {/* TABLES 2 & 3: TEAM PERFORMANCE & FLOOR AVERAGE */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* TABLE 2: TEAM PERFORMANCE (CLICKABLE TO COMPARE WITH GRAPH) */}
+        {/* TABLE 2: TEAM PERFORMANCE WITH GEAR ICON ROSTER SELECTOR */}
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2 text-emerald-700">
                 <Users className="h-5 w-5" /> 2. Team Performance Table
               </span>
-              <Badge className="bg-emerald-100 text-emerald-800">Click Any Row To Compare</Badge>
+              <button
+                onClick={() => setShowRosterGear(!showRosterGear)}
+                className="p-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 transition-all flex items-center gap-1 text-xs font-bold"
+                title="Select Agents for Team CSAT Calculation"
+              >
+                <Settings2 className="h-4 w-4" /> Agent Filter
+              </button>
             </CardTitle>
-            <CardDescription className="text-xs">Clicking any row updates the Benchmark Comparison Chart above</CardDescription>
+            <CardDescription className="text-xs">
+              CSAT/DSAT totals dynamically recalculate based on agents selected via the gear icon
+            </CardDescription>
+
+            {/* Gear Icon Agent Selection Panel */}
+            {showRosterGear && (
+              <div className="p-3 mt-2 bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-lg space-y-2 text-xs animate-fade-in-up">
+                <div className="flex justify-between items-center font-bold text-emerald-700 border-b pb-1">
+                  <span>Select Agents for Team CSAT Matrix</span>
+                  <button onClick={handleSelectAllAgents} className="text-[10px] text-blue-600 hover:underline">Select All ({allAgentEmails.length})</button>
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pt-1">
+                  {allAgentEmails.map((email: string) => {
+                    const isChecked = activeRosterEmails.includes(email);
+                    return (
+                      <label key={email} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleAgent(email)}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                        />
+                        <span className="font-mono text-[11px]">{email}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <Table className="text-xs">
@@ -280,8 +318,37 @@ export function OverviewTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allMetricDefinitions.map((m) => {
-                  const val = teamMetrics[m.teamKey] || (m.teamKey === 'CSAT adjusted with calls, %' ? totalCsatPct : undefined);
+                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[0])} className="cursor-pointer hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">CSAT</TableCell>
+                  <TableCell className="text-right font-bold text-emerald-600">{teamTotalCsat}</TableCell>
+                </TableRow>
+                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[1])} className="cursor-pointer hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">KSCAT</TableCell>
+                  <TableCell className="text-right font-bold text-blue-600">{teamTotalKscat}</TableCell>
+                </TableRow>
+                <TableRow className="hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">DSAT</TableCell>
+                  <TableCell className="text-right font-bold text-red-500">{teamTotalDsat}</TableCell>
+                </TableRow>
+                <TableRow className="hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">Total Count</TableCell>
+                  <TableCell className="text-right font-bold">{teamTotalCount}</TableCell>
+                </TableRow>
+                <TableRow className="hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">Total w/o Karma</TableCell>
+                  <TableCell className="text-right font-bold">{teamTotalWoKarma}</TableCell>
+                </TableRow>
+                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[1])} className="cursor-pointer hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">KSCAT %</TableCell>
+                  <TableCell className="text-right font-bold text-blue-600">{teamTotalKscatPct.toFixed(2)}%</TableCell>
+                </TableRow>
+                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[0])} className="cursor-pointer hover:bg-emerald-500/20">
+                  <TableCell className="font-semibold">CSAT %</TableCell>
+                  <TableCell className="text-right font-bold text-emerald-600">{teamTotalCsatPct.toFixed(2)}%</TableCell>
+                </TableRow>
+
+                {allMetricDefinitions.slice(2).map((m) => {
+                  const val = teamMetrics[m.teamKey];
                   const isSelected = selectedMetric.label === m.label;
 
                   return (
@@ -381,9 +448,9 @@ export function OverviewTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {agentMetrics.length > 0 ? (
+                {filteredAgentMetrics.length > 0 ? (
                   <>
-                    {agentMetrics.map((agent: any, idx: number) => (
+                    {filteredAgentMetrics.map((agent: any, idx: number) => (
                       <TableRow key={idx} className="hover:bg-slate-500/5">
                         <TableCell className="font-bold">#{idx + 1}</TableCell>
                         <TableCell className="font-medium text-gray-900 dark:text-white">{agent.agent_email}</TableCell>
@@ -410,17 +477,16 @@ export function OverviewTab() {
                         <TableCell>{agent.idle_time_avg ? `${agent.idle_time_avg}h` : '-'}</TableCell>
                       </TableRow>
                     ))}
-                    {/* TOTAL ROW */}
                     <TableRow className="bg-slate-500/10 font-bold text-xs border-t-2 border-emerald-500">
-                      <TableCell colSpan={2}>Total</TableCell>
-                      <TableCell>{totalCsat}</TableCell>
-                      <TableCell>{totalKscat}</TableCell>
-                      <TableCell className="text-red-500">{totalDsat}</TableCell>
-                      <TableCell>{totalCount}</TableCell>
-                      <TableCell>{totalWoKarma}</TableCell>
-                      <TableCell className="text-blue-600">{totalKscatPct.toFixed(2)}%</TableCell>
-                      <TableCell className="text-emerald-600">{totalCsatPct.toFixed(2)}%</TableCell>
-                      <TableCell className="text-purple-600">{totalVariance.toFixed(2)}%</TableCell>
+                      <TableCell colSpan={2}>Total (Selected Roster)</TableCell>
+                      <TableCell>{teamTotalCsat}</TableCell>
+                      <TableCell>{teamTotalKscat}</TableCell>
+                      <TableCell className="text-red-500">{teamTotalDsat}</TableCell>
+                      <TableCell>{teamTotalCount}</TableCell>
+                      <TableCell>{teamTotalWoKarma}</TableCell>
+                      <TableCell className="text-blue-600">{teamTotalKscatPct.toFixed(2)}%</TableCell>
+                      <TableCell className="text-emerald-600">{teamTotalCsatPct.toFixed(2)}%</TableCell>
+                      <TableCell className="text-purple-600">{(teamTotalCsatPct - teamTotalKscatPct).toFixed(2)}%</TableCell>
                       <TableCell>{formatVal(teamMetrics['Average basket time'])}</TableCell>
                       <TableCell>{formatVal(teamMetrics['Productivity 8-hrs'])}</TableCell>
                       <TableCell>{formatVal(teamMetrics['Productivity Online 8-hrs'])}</TableCell>
@@ -475,7 +541,7 @@ export function OverviewTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {agentMetrics.map((agent: any, idx: number) => {
+                  {filteredAgentMetrics.map((agent: any, idx: number) => {
                     const c = agent.chat_csat || agent.chatCsat || 0;
                     const k = agent.chat_kscat || agent.chatKscat || 0;
                     const d = agent.chat_dsat || agent.chatDsat || 0;
@@ -533,7 +599,7 @@ export function OverviewTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {agentMetrics.map((agent: any, idx: number) => {
+                  {filteredAgentMetrics.map((agent: any, idx: number) => {
                     const c = agent.phone_csat || agent.phoneCsat || 0;
                     const k = agent.phone_kscat || agent.phoneKscat || 0;
                     const d = agent.phone_dsat || agent.phoneDsat || 0;
