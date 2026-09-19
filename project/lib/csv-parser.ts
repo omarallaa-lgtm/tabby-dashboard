@@ -21,13 +21,12 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. Process KSCAT Calc (Exact agent email matching)
+// 1. Process KSCAT Calc File (Exact COUNTIFS + Full Email Preservation)
 export const processKSCATCalc = (rows: any[]) => {
   const agentMap: Record<string, { csat: number; kscat: number; dsat: number }> = {};
   let teamCsat = 0, teamKscat = 0, teamDsat = 0;
 
   rows.forEach((row) => {
-    // Preserve full email identifier
     const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
     const resolver = String(getColVal(row, ['resolver', 'Resolver'], 0) || '').trim().toLowerCase();
     const csatStatus = String(getColVal(row, ['csat', 'CSAT'], 8) || '').trim().toLowerCase();
