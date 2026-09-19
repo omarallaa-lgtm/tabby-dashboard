@@ -7,16 +7,27 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2, TrendingUp, Target, Settings2, Sparkles } from 'lucide-react';
+import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2, TrendingUp, Target, Settings2, Sparkles, Check } from 'lucide-react';
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget, historicalTrends = [] } = useMetrics() as any;
   const [activeChannel, setActiveChannel] = useState<'overall' | 'chat' | 'phone'>('overall');
-  const [selectedMetric, setSelectedMetric] = useState({ label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85 });
-  const [showTargetModal, setShowTargetModal] = useState(false);
-  const [tempTarget, setTempTarget] = useState('85');
+  
+  // Selected Metric for Live Comparison Chart
+  const [selectedMetric, setSelectedMetric] = useState({
+    label: 'CSAT %',
+    teamKey: 'CSAT adjusted with calls, %',
+    floorKey: 'CSAT adjusted with calls, %',
+    targetKey: 'csatPercent',
+    defaultTarget: 85,
+  });
 
-  // Utility to format decimals, fractions, and percentages
+  // Target Modal State
+  const [showTargetModal, setShowTargetModal] = useState(false);
+  const [targetMetricKey, setTargetMetricKey] = useState('csatPercent');
+  const [tempTargetValue, setTempTargetValue] = useState('85');
+
+  // Utility to format numbers, percentages, and fractions
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -35,21 +46,41 @@ export function OverviewTab() {
     return num <= 1 && num > 0 ? num * 100 : num;
   };
 
+  // Comprehensive Metric Definitions Mapping Team Keys -> Floor Keys -> Target Keys
+  const allMetricDefinitions = [
+    { label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', floorKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
+    { label: 'KSCAT %', teamKey: 'KSCAT %', floorKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35, isPct: true },
+    { label: 'Average Basket Time (ABT)', teamKey: 'Average basket time', floorKey: 'Average basket time', targetKey: 'abt', defaultTarget: 14, isPct: false },
+    { label: 'Productivity 8-hrs', teamKey: 'Productivity 8-hrs', floorKey: 'Productivity 8-hrs', targetKey: 'productivity8hrs', defaultTarget: 30, isPct: false },
+    { label: 'Productivity Online 8-hrs', teamKey: 'Productivity Online 8-hrs', floorKey: 'Productivity Online 8-hrs', targetKey: 'productivityOnline8hrs', defaultTarget: 40, isPct: false },
+    { label: 'Escalation Rate %', teamKey: 'Escalation rate %', floorKey: 'Escalation rate %', targetKey: 'escalationRate', defaultTarget: 4.5, isPct: true },
+    { label: 'Deescalation Rate %', teamKey: 'Deescalation rate %', floorKey: 'Deescalation rate %', targetKey: 'deescalationRate', defaultTarget: 4.0, isPct: true },
+    { label: 'Adherence %', teamKey: 'Adherence, %', floorKey: 'Adherence, %', targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
+    { label: 'Average Group Basket Time', teamKey: 'Average group basket time', floorKey: 'Average group basket time', targetKey: 'agbt', defaultTarget: 25, isPct: false },
+    { label: 'Average Handling Time (AHT)', teamKey: 'Average handling time', floorKey: 'Average handling time', targetKey: 'aht', defaultTarget: 5, isPct: false },
+    { label: 'Closed After Resolution %', teamKey: 'Closed after resolution, %', floorKey: 'Closed after resolution, %', targetKey: 'closedAfterRes', defaultTarget: 60, isPct: true },
+    { label: 'Closed Tickets %', teamKey: 'Closed tickets, %', floorKey: 'Closed tickets, %', targetKey: 'closedTickets', defaultTarget: 50, isPct: true },
+    { label: 'FCR %', teamKey: 'FCR, %', floorKey: 'FCR, %', targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
+  ];
+
   const teamScore = getNumericVal(teamMetrics, selectedMetric.teamKey);
-  const floorScore = getNumericVal(floorAverages, selectedMetric.teamKey);
+  const floorScore = getNumericVal(floorAverages, selectedMetric.floorKey);
   const targetScore = kpiTargets[selectedMetric.targetKey] || selectedMetric.defaultTarget;
 
   const handleSaveTarget = async () => {
-    const val = parseFloat(tempTarget);
+    const val = parseFloat(tempTargetValue);
     if (!isNaN(val)) {
-      await updateTarget(selectedMetric.targetKey, val);
+      await updateTarget(targetMetricKey, val);
+      if (selectedMetric.targetKey === targetMetricKey) {
+        setSelectedMetric({ ...selectedMetric, defaultTarget: val });
+      }
       setShowTargetModal(false);
     }
   };
 
   const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
 
-  // Calculate Overall Totals across Active Roster (Table 1 Total Row)
+  // Calculate Totals across Active Roster
   const totalCsat = agentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
   const totalKscat = agentMetrics.reduce((s: number, a: any) => s + (a.kscat || 0), 0);
   const totalDsat = agentMetrics.reduce((s: number, a: any) => s + (a.dsat || 0), 0);
@@ -59,29 +90,24 @@ export function OverviewTab() {
   const totalKscatPct = totalCount > 0 ? (totalCsat / totalCount) * 100 : 0;
   const totalVariance = totalCsatPct - totalKscatPct;
 
-  // Calculate Chat Totals (Table 4)
+  // Channel Calculations
   const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
   const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
   const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
-  const totalChatCount = totalChatCsat + totalChatKscat + totalChatDsat;
-  const totalChatWoKarma = totalChatCsat + totalChatDsat;
 
-  // Calculate Phone Totals (Table 5)
   const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
   const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
   const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
-  const totalPhoneCount = totalPhoneCsat + totalPhoneKscat + totalPhoneDsat;
-  const totalPhoneWoKarma = totalPhoneCsat + totalPhoneDsat;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
-      {/* Header Controls */}
+      {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-emerald-500" /> Customer Service Executive Overview
           </h2>
-          <p className="text-xs text-muted-foreground mt-1">Live contact center KPIs, multi-channel performance, and historical Supabase trend backups</p>
+          <p className="text-xs text-muted-foreground mt-1">Click any row in Team Performance Table below to compare with Floor Average and Targets</p>
         </div>
 
         <div className="flex items-center gap-2 text-xs">
@@ -97,21 +123,51 @@ export function OverviewTab() {
             </Button>
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => setShowTargetModal(true)} className="gap-1 h-9 text-xs">
+          <Button variant="outline" size="sm" onClick={() => setShowTargetModal(true)} className="gap-1 h-9 text-xs font-bold border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10">
             <Settings2 className="h-3.5 w-3.5" /> Configure Target
           </Button>
         </div>
       </div>
 
-      {/* Target Setting Modal */}
+      {/* Target Setting Modal supporting ALL Metrics */}
       {showTargetModal && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-3 animate-fade-in-up">
-          <div className="font-bold text-emerald-500 flex items-center gap-2">
-            <Target className="h-4 w-4" /> Configure Target for {selectedMetric.label}
+        <div className="p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-4 animate-fade-in-up">
+          <div className="font-bold text-emerald-600 flex items-center gap-2 text-sm">
+            <Target className="h-5 w-5" /> Configure Operational Target for Any Metric
           </div>
-          <div className="flex gap-2 max-w-xs">
-            <Input type="number" value={tempTarget} onChange={(e) => setTempTarget(e.target.value)} className="h-8 text-xs bg-white text-gray-900" />
-            <Button size="sm" onClick={handleSaveTarget} className="h-8 bg-emerald-600 text-white text-xs">Save Target</Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Select Metric</label>
+              <select
+                value={targetMetricKey}
+                onChange={(e) => {
+                  setTargetMetricKey(e.target.value);
+                  const found = allMetricDefinitions.find((m) => m.targetKey === e.target.value);
+                  setTempTargetValue(String(kpiTargets[e.target.value] || found?.defaultTarget || 85));
+                }}
+                className="w-full h-9 rounded-md border text-xs px-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+              >
+                {allMetricDefinitions.map((m) => (
+                  <option key={m.targetKey} value={m.targetKey}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Target Value</label>
+              <Input
+                type="number"
+                value={tempTargetValue}
+                onChange={(e) => setTempTargetValue(e.target.value)}
+                className="h-9 text-xs bg-white text-gray-900"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <Button size="sm" onClick={handleSaveTarget} className="h-9 w-full bg-emerald-600 text-white text-xs font-bold gap-1">
+                <Check className="h-4 w-4" /> Save Target Value
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -123,22 +179,25 @@ export function OverviewTab() {
         </Card>
       )}
 
-      {/* Benchmark Comparison Chart & Supabase Backups */}
+      {/* Benchmark Comparison Chart & Supabase Backup Progress */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-2 border-emerald-500/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <BarChart2 className="h-5 w-5 text-emerald-500" /> Benchmark Comparison: {selectedMetric.label}
+              <span className="flex items-center gap-2 text-emerald-600">
+                <BarChart2 className="h-5 w-5" /> Benchmark Comparison: {selectedMetric.label}
               </span>
-              <Badge className="bg-emerald-100 text-emerald-800">Live Comparison</Badge>
+              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Live Comparison</Badge>
             </CardTitle>
+            <CardDescription className="text-xs">
+              Comparing Team Value ({teamScore.toFixed(2)}) vs Floor Average ({floorScore.toFixed(2)}) vs Target ({targetScore})
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-4 space-y-4 text-xs">
             <div>
               <div className="flex justify-between font-semibold mb-1">
                 <span>Team Score</span>
-                <span className="text-emerald-500 font-bold">{teamScore.toFixed(2)}</span>
+                <span className="text-emerald-600 font-bold">{teamScore.toFixed(2)}</span>
               </div>
               <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(teamScore, 100)}%` }}></div>
@@ -148,7 +207,7 @@ export function OverviewTab() {
             <div>
               <div className="flex justify-between font-semibold mb-1">
                 <span>Floor Average Benchmark</span>
-                <span className="text-blue-500 font-bold">{floorScore.toFixed(2)}</span>
+                <span className="text-blue-600 font-bold">{floorScore.toFixed(2)}</span>
               </div>
               <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(floorScore, 100)}%` }}></div>
@@ -158,7 +217,7 @@ export function OverviewTab() {
             <div>
               <div className="flex justify-between font-semibold mb-1">
                 <span>Configured Operational Target</span>
-                <span className="text-amber-500 font-bold">{targetScore}</span>
+                <span className="text-amber-600 font-bold">{targetScore}</span>
               </div>
               <div className="h-4 w-full bg-slate-500/10 rounded-full overflow-hidden">
                 <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.min(targetScore, 100)}%` }}></div>
@@ -194,18 +253,18 @@ export function OverviewTab() {
         </Card>
       </div>
 
-      {/* TABLES 2 & 3: TEAM PERFORMANCE & FLOOR AVERAGE (Side-by-Side) */}
+      {/* TABLES 2 & 3: TEAM PERFORMANCE & FLOOR AVERAGE (CLICKABLE ROWS) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* TABLE 2: TEAM PERFORMANCE */}
+        {/* TABLE 2: TEAM PERFORMANCE (CLICKABLE TO COMPARE WITH GRAPH) */}
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2 text-emerald-700">
                 <Users className="h-5 w-5" /> 2. Team Performance Table
               </span>
-              <Badge className="bg-emerald-100 text-emerald-800">Team Aggregate</Badge>
+              <Badge className="bg-emerald-100 text-emerald-800">Click Any Row To Compare</Badge>
             </CardTitle>
-            <CardDescription className="text-xs">Exact formulas mapped from Row 14 totals and Metrics K:L block</CardDescription>
+            <CardDescription className="text-xs">Clicking any row updates the Benchmark Comparison Chart above</CardDescription>
           </CardHeader>
           <CardContent>
             <Table className="text-xs">
@@ -216,24 +275,24 @@ export function OverviewTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow><TableCell className="font-semibold">CSAT</TableCell><TableCell className="text-right font-bold text-emerald-600">{totalCsat}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">KSCAT</TableCell><TableCell className="text-right font-bold text-blue-600">{totalKscat}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">DSAT</TableCell><TableCell className="text-right font-bold text-red-500">{totalDsat}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Total Count</TableCell><TableCell className="text-right font-bold">{totalCount}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Total w/o Karma</TableCell><TableCell className="text-right font-bold">{totalWoKarma}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">KSCAT %</TableCell><TableCell className="text-right font-bold text-blue-600">{totalKscatPct.toFixed(2)}%</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">CSAT %</TableCell><TableCell className="text-right font-bold text-emerald-600">{totalCsatPct.toFixed(2)}%</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Average Basket Time (ABT)</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Average basket time'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Productivity 8-hrs</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Productivity 8-hrs'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Productivity Online 8-hrs</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Productivity Online 8-hrs'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Escalation Rate %</TableCell><TableCell className="text-right text-amber-600 font-bold">{formatVal(teamMetrics['Escalation rate %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Deescalation Rate %</TableCell><TableCell className="text-right text-emerald-600 font-bold">{formatVal(teamMetrics['Deescalation rate %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Adherence %</TableCell><TableCell className="text-right text-purple-600 font-bold">{formatVal(teamMetrics['Adherence, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Average Group Basket Time</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Average group basket time'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Average Handling Time (AHT)</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Average handling time'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Closed After Resolution %</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Closed after resolution, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Closed Tickets %</TableCell><TableCell className="text-right">{formatVal(teamMetrics['Closed tickets, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">FCR %</TableCell><TableCell className="text-right">{formatVal(teamMetrics['FCR, %'], true)}</TableCell></TableRow>
+                {allMetricDefinitions.map((m) => {
+                  const val = teamMetrics[m.teamKey] || (m.teamKey === 'CSAT adjusted with calls, %' ? totalCsatPct : undefined);
+                  const isSelected = selectedMetric.label === m.label;
+
+                  return (
+                    <TableRow
+                      key={m.label}
+                      onClick={() => setSelectedMetric(m)}
+                      className={`cursor-pointer transition-all hover:bg-emerald-500/20 ${isSelected ? 'bg-emerald-500/20 font-bold border-l-4 border-emerald-500' : ''}`}
+                    >
+                      <TableCell className="font-semibold flex items-center gap-2">
+                        {isSelected && <Target className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                        {m.label}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-emerald-600">{formatVal(val, m.isPct)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
@@ -259,25 +318,24 @@ export function OverviewTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow><TableCell className="font-semibold">CSAT %</TableCell><TableCell className="text-right font-bold text-emerald-600">{formatVal(floorAverages['CSAT adjusted with calls, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Average Basket Time (ABT)</TableCell><TableCell className="text-right">{formatVal(floorAverages['Average basket time'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Productivity 8-hrs</TableCell><TableCell className="text-right">{formatVal(floorAverages['Productivity 8-hrs'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Productivity Online 8-hrs</TableCell><TableCell className="text-right">{formatVal(floorAverages['Productivity Online 8-hrs'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Escalation Rate %</TableCell><TableCell className="text-right text-amber-600 font-bold">{formatVal(floorAverages['Escalation rate %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Deescalation Rate %</TableCell><TableCell className="text-right text-emerald-600 font-bold">{formatVal(floorAverages['Deescalation rate %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Adherence %</TableCell><TableCell className="text-right text-purple-600 font-bold">{formatVal(floorAverages['Adherence, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Average Group Basket Time</TableCell><TableCell className="text-right">{formatVal(floorAverages['Average group basket time'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Average Handling Time (AHT)</TableCell><TableCell className="text-right">{formatVal(floorAverages['Average handling time'])}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Closed After Resolution %</TableCell><TableCell className="text-right">{formatVal(floorAverages['Closed after resolution, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">Closed Tickets %</TableCell><TableCell className="text-right">{formatVal(floorAverages['Closed tickets, %'], true)}</TableCell></TableRow>
-                <TableRow><TableCell className="font-semibold">FCR %</TableCell><TableCell className="text-right">{formatVal(floorAverages['FCR, %'], true)}</TableCell></TableRow>
+                {allMetricDefinitions.map((m) => {
+                  const val = floorAverages[m.floorKey];
+                  const isSelected = selectedMetric.label === m.label;
+
+                  return (
+                    <TableRow key={m.label} className={isSelected ? 'bg-blue-500/10 font-bold' : ''}>
+                      <TableCell className="font-semibold">{m.label}</TableCell>
+                      <TableCell className="text-right font-bold text-blue-600">{formatVal(val, m.isPct)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
       </div>
 
-      {/* TABLE 1: OVERALL PERFORMANCE TABLE (Full 22 Columns) */}
+      {/* TABLE 1: OVERALL PERFORMANCE TABLE */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
@@ -347,7 +405,7 @@ export function OverviewTab() {
                         <TableCell>{agent.idle_time_avg ? `${agent.idle_time_avg}h` : '-'}</TableCell>
                       </TableRow>
                     ))}
-                    {/* TOTAL ROW (Row 14) */}
+                    {/* TOTAL ROW */}
                     <TableRow className="bg-slate-500/10 font-bold text-xs border-t-2 border-emerald-500">
                       <TableCell colSpan={2}>Total</TableCell>
                       <TableCell>{totalCsat}</TableCell>
@@ -386,7 +444,7 @@ export function OverviewTab() {
         </CardContent>
       </Card>
 
-      {/* TABLE 4 & TABLE 5: CHAT & PHONE PERFORMANCE TABLES (Side-by-Side) */}
+      {/* TABLES 4 & 5: CHAT & PHONE PERFORMANCE TABLES */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* TABLE 4: CHAT PERFORMANCE */}
         <Card>
