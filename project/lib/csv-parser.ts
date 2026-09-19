@@ -21,53 +21,66 @@ const getColVal = (row: any, keys: string[], posIdx?: number): any => {
   return '';
 };
 
-// 1. Process KSCAT Calc File (Exact COUNTIFS + Full Email Preservation)
+// 1. Process KSCAT Calc File (Channel Aware & Exact COUNTIFS)
 export const processKSCATCalc = (rows: any[]) => {
-  const agentMap: Record<string, { csat: number; kscat: number; dsat: number }> = {};
+  const agentMap: Record<string, { csat: number; kscat: number; dsat: number; chatCsat: number; chatKscat: number; chatDsat: number; phoneCsat: number; phoneKscat: number; phoneDsat: number }> = {};
   let teamCsat = 0, teamKscat = 0, teamDsat = 0;
 
   rows.forEach((row) => {
     const assignee = String(getColVal(row, ['assignee', 'Assignee'], 2) || '').trim().toLowerCase();
     const resolver = String(getColVal(row, ['resolver', 'Resolver'], 0) || '').trim().toLowerCase();
     const csatStatus = String(getColVal(row, ['csat', 'CSAT'], 8) || '').trim().toLowerCase();
+    const channel = String(getColVal(row, ['ticket_channel', 'Channel'], 7) || '').trim().toLowerCase();
 
     if (!assignee) return;
 
     if (!agentMap[assignee]) {
-      agentMap[assignee] = { csat: 0, kscat: 0, dsat: 0 };
+      agentMap[assignee] = { csat: 0, kscat: 0, dsat: 0, chatCsat: 0, chatKscat: 0, chatDsat: 0, phoneCsat: 0, phoneKscat: 0, phoneDsat: 0 };
     }
 
     if (csatStatus === 'good') {
       agentMap[assignee].csat += 1;
       teamCsat += 1;
+      if (channel === 'chat') agentMap[assignee].chatCsat += 1;
+      if (channel === 'phone') agentMap[assignee].phoneCsat += 1;
     } else if (csatStatus === 'bad') {
       if (resolver !== assignee) {
         agentMap[assignee].kscat += 1;
         teamKscat += 1;
+        if (channel === 'chat') agentMap[assignee].chatKscat += 1;
+        if (channel === 'phone') agentMap[assignee].phoneKscat += 1;
       } else {
         agentMap[assignee].dsat += 1;
         teamDsat += 1;
+        if (channel === 'chat') agentMap[assignee].chatDsat += 1;
+        if (channel === 'phone') agentMap[assignee].phoneDsat += 1;
       }
     }
   });
 
   const agentResults: Record<string, any> = {};
   Object.keys(agentMap).forEach((email) => {
-    const { csat, kscat, dsat } = agentMap[email];
-    const totalCount = csat + kscat + dsat;
-    const totalWoKarma = csat + dsat;
-    const kscatPct = totalCount > 0 ? (csat / totalCount) * 100 : 0;
-    const csatPct = totalWoKarma > 0 ? (csat / totalWoKarma) * 100 : 0;
+    const a = agentMap[email];
+    const totalCount = a.csat + a.kscat + a.dsat;
+    const totalWoKarma = a.csat + a.dsat;
+    const kscatPct = totalCount > 0 ? (a.csat / totalCount) * 100 : 0;
+    const csatPct = totalWoKarma > 0 ? (a.csat / totalWoKarma) * 100 : 0;
 
     agentResults[email] = {
-      csat,
-      kscat,
-      dsat,
+      csat: a.csat,
+      kscat: a.kscat,
+      dsat: a.dsat,
       totalCount,
       totalWoKarma,
       kscatPercent: Number(kscatPct.toFixed(2)),
       csatPercent: Number(csatPct.toFixed(2)),
       variance: Number((csatPct - kscatPct).toFixed(2)),
+      chatCsat: a.chatCsat,
+      chatKscat: a.chatKscat,
+      chatDsat: a.chatDsat,
+      phoneCsat: a.phoneCsat,
+      phoneKscat: a.phoneKscat,
+      phoneDsat: a.phoneDsat,
     };
   });
 
