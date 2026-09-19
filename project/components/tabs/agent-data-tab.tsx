@@ -104,9 +104,9 @@ export function AgentDataTab() {
       });
       if (agentErr) throw agentErr;
 
-      // Save team & floor aggregates (combining Metrics sheet + Team KSCAT raw totals)
+      // Save team & floor aggregates cleanly typed
       const aggRecords: any[] = [];
-      const combinedTeam = { ...teamAverages, ...teamKscatTotals };
+      const combinedTeam: Record<string, any> = { ...teamAverages, ...teamKscatTotals };
 
       Object.keys(combinedTeam).forEach((key) => {
         aggRecords.push({
@@ -124,7 +124,7 @@ export function AgentDataTab() {
           level_type: 'Floor Average',
           team_or_floor_name: 'Floor 1',
           metric_key: key,
-          metric_value: floorAverages[key],
+          metric_value: (floorAverages as Record<string, any>)[key],
         });
       });
 
