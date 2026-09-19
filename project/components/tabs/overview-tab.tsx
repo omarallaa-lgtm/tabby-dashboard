@@ -7,7 +7,10 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Inbox, MessageSquare, Phone, Users, Globe, BarChart2, Target, Settings2, Sparkles, Check } from 'lucide-react';
+import { 
+  Inbox, MessageSquare, Phone, Users, Globe, BarChart2, Target, 
+  Settings2, Sparkles, Check, Clock, TrendingUp, ShieldAlert, Zap, Percent, Activity
+} from 'lucide-react';
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget } = useMetrics() as any;
@@ -24,6 +27,7 @@ export function OverviewTab() {
     floorKey: 'CSAT adjusted with calls, %',
     targetKey: 'csatPercent',
     defaultTarget: 85,
+    isPct: true,
   });
 
   // Target Modal State
@@ -31,7 +35,7 @@ export function OverviewTab() {
   const [targetMetricKey, setTargetMetricKey] = useState('csatPercent');
   const [tempTargetValue, setTempTargetValue] = useState('85');
 
-  // Format Helper
+  // Utility to format numbers, percentages, and fractions
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -50,23 +54,24 @@ export function OverviewTab() {
     return num <= 1 && num > 0 ? num * 100 : num;
   };
 
+  // Comprehensive Metric Definitions with Custom Icons
   const allMetricDefinitions = [
-    { label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', floorKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
-    { label: 'KSCAT %', teamKey: 'KSCAT %', floorKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35, isPct: true },
-    { label: 'Average Basket Time (ABT)', teamKey: 'Average basket time', floorKey: 'Average basket time', targetKey: 'abt', defaultTarget: 14, isPct: false },
-    { label: 'Productivity 8-hrs', teamKey: 'Productivity 8-hrs', floorKey: 'Productivity 8-hrs', targetKey: 'productivity8hrs', defaultTarget: 30, isPct: false },
-    { label: 'Productivity Online 8-hrs', teamKey: 'Productivity Online 8-hrs', floorKey: 'Productivity Online 8-hrs', targetKey: 'productivityOnline8hrs', defaultTarget: 40, isPct: false },
-    { label: 'Escalation Rate %', teamKey: 'Escalation rate %', floorKey: 'Escalation rate %', targetKey: 'escalationRate', defaultTarget: 4.5, isPct: true },
-    { label: 'Deescalation Rate %', teamKey: 'Deescalation rate %', floorKey: 'Deescalation rate %', targetKey: 'deescalationRate', defaultTarget: 4.0, isPct: true },
-    { label: 'Adherence %', teamKey: 'Adherence, %', floorKey: 'Adherence, %', targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
-    { label: 'Average Group Basket Time', teamKey: 'Average group basket time', floorKey: 'Average group basket time', targetKey: 'agbt', defaultTarget: 25, isPct: false },
-    { label: 'Average Handling Time (AHT)', teamKey: 'Average handling time', floorKey: 'Average handling time', targetKey: 'aht', defaultTarget: 5, isPct: false },
-    { label: 'Closed After Resolution %', teamKey: 'Closed after resolution, %', floorKey: 'Closed after resolution, %', targetKey: 'closedAfterRes', defaultTarget: 60, isPct: true },
-    { label: 'Closed Tickets %', teamKey: 'Closed tickets, %', floorKey: 'Closed tickets, %', targetKey: 'closedTickets', defaultTarget: 50, isPct: true },
-    { label: 'FCR %', teamKey: 'FCR, %', floorKey: 'FCR, %', targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
+    { label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', floorKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85, isPct: true, icon: Sparkles, color: 'text-emerald-500' },
+    { label: 'KSCAT %', teamKey: 'KSCAT %', floorKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, icon: Percent, color: 'text-blue-500' },
+    { label: 'Adherence %', teamKey: 'Adherence, %', floorKey: 'Adherence, %', targetKey: 'adherencePercent', defaultTarget: 90, isPct: true, icon: Target, color: 'text-purple-500' },
+    { label: 'Average Handling Time (AHT)', teamKey: 'Average handling time', floorKey: 'Average handling time', targetKey: 'aht', defaultTarget: 5, isPct: false, icon: Clock, color: 'text-amber-500' },
+    { label: 'Average Basket Time (ABT)', teamKey: 'Average basket time', floorKey: 'Average basket time', targetKey: 'abt', defaultTarget: 14, isPct: false, icon: Zap, color: 'text-teal-500' },
+    { label: 'Productivity 8-hrs', teamKey: 'Productivity 8-hrs', floorKey: 'Productivity 8-hrs', targetKey: 'productivity8hrs', defaultTarget: 30, isPct: false, icon: Activity, color: 'text-indigo-500' },
+    { label: 'Productivity Online 8-hrs', teamKey: 'Productivity Online 8-hrs', floorKey: 'Productivity Online 8-hrs', targetKey: 'productivityOnline8hrs', defaultTarget: 40, isPct: false, icon: Activity, color: 'text-sky-500' },
+    { label: 'Escalation Rate %', teamKey: 'Escalation rate %', floorKey: 'Escalation rate %', targetKey: 'escalationRate', defaultTarget: 4.5, isPct: true, icon: ShieldAlert, color: 'text-red-500' },
+    { label: 'Deescalation Rate %', teamKey: 'Deescalation rate %', floorKey: 'Deescalation rate %', targetKey: 'deescalationRate', defaultTarget: 4.0, isPct: true, icon: TrendingUp, color: 'text-emerald-500' },
+    { label: 'Average Group Basket Time', teamKey: 'Average group basket time', floorKey: 'Average group basket time', targetKey: 'agbt', defaultTarget: 25, isPct: false, icon: Zap, color: 'text-slate-500' },
+    { label: 'Closed After Resolution %', teamKey: 'Closed after resolution, %', floorKey: 'Closed after resolution, %', targetKey: 'closedAfterRes', defaultTarget: 60, isPct: true, icon: Check, color: 'text-emerald-600' },
+    { label: 'Closed Tickets %', teamKey: 'Closed tickets, %', floorKey: 'Closed tickets, %', targetKey: 'closedTickets', defaultTarget: 50, isPct: true, icon: Check, color: 'text-blue-600' },
+    { label: 'FCR %', teamKey: 'FCR, %', floorKey: 'FCR, %', targetKey: 'fcrPercent', defaultTarget: 70, isPct: true, icon: Target, color: 'text-emerald-500' },
   ];
 
-  // Deduplicate agent rows by agent_email to prevent repeated agent entries
+  // Deduplicate agent rows by agent_email
   const uniqueAgentMetrics = useMemo(() => {
     const map = new Map();
     agentMetrics.forEach((a: any) => {
@@ -154,7 +159,7 @@ export function OverviewTab() {
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-emerald-500" /> Customer Service Executive Overview
           </h2>
-          <p className="text-xs text-muted-foreground mt-1">Click the Gear Icon on Table 2 to select active roster agents and filter CSAT/DSAT scores</p>
+          <p className="text-xs text-muted-foreground mt-1">Click any horizontal metric icon chip below to compare Team vs. Floor Average and Targets</p>
         </div>
 
         <div className="flex items-center gap-2 text-xs">
@@ -231,14 +236,14 @@ export function OverviewTab() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center justify-between">
             <span className="flex items-center gap-2 text-emerald-600">
-              <BarChart2 className="h-5 w-5" /> Benchmark Comparison: {selectedMetric.label}
+              <BarChart2 className="h-5 w-5" /> Live Comparison Chart: {selectedMetric.label}
             </span>
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">
-              {activeRosterEmails.length} / {allAgentEmails.length} Agents Selected
+              {activeRosterEmails.length} / {allAgentEmails.length} Roster Agents Filtered
             </Badge>
           </CardTitle>
           <CardDescription className="text-xs">
-            Comparing Selected Team Roster Score ({teamScore.toFixed(2)}) vs Floor Average ({floorScore.toFixed(2)}) vs Target ({targetScore})
+            Comparing Selected Team Roster ({teamScore.toFixed(2)}) vs Floor Average ({floorScore.toFixed(2)}) vs Target ({targetScore})
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 text-xs">
@@ -274,150 +279,182 @@ export function OverviewTab() {
         </CardContent>
       </Card>
 
-      {/* TABLES 2 & 3: TEAM PERFORMANCE & FLOOR AVERAGE */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* TABLE 2: TEAM PERFORMANCE WITH GEAR ICON ROSTER SELECTOR */}
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2 text-emerald-700">
-                <Users className="h-5 w-5" /> 2. Team Performance Table
-              </span>
-              <button
-                onClick={() => setShowRosterGear(!showRosterGear)}
-                className="p-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 transition-all flex items-center gap-1 text-xs font-bold"
-                title="Select Agents for Team CSAT Calculation"
-              >
-                <Settings2 className="h-4 w-4" /> Agent Filter
-              </button>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              CSAT/DSAT totals dynamically recalculate based on agents selected via the gear icon
-            </CardDescription>
+      {/* HORIZONTAL VIEW: TABLE 2 - TEAM PERFORMANCE */}
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2 text-emerald-700">
+              <Users className="h-5 w-5" /> 2. Team Performance (Horizontal Icon View)
+            </span>
+            <button
+              onClick={() => setShowRosterGear(!showRosterGear)}
+              className="p-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 transition-all flex items-center gap-1 text-xs font-bold"
+              title="Select Agents for Team CSAT Calculation"
+            >
+              <Settings2 className="h-4 w-4" /> Agent Filter Gear
+            </button>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            CSAT/DSAT totals dynamically recalculate based on agents selected via the gear filter. Click any icon card to display its benchmark graph.
+          </CardDescription>
 
-            {/* Gear Icon Agent Selection Panel */}
-            {showRosterGear && (
-              <div className="p-3 mt-2 bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-lg space-y-2 text-xs animate-fade-in-up">
-                <div className="flex justify-between items-center font-bold text-emerald-700 border-b pb-1">
-                  <span>Select Agents for Team CSAT Matrix</span>
-                  <button onClick={handleSelectAllAgents} className="text-[10px] text-blue-600 hover:underline">Select All ({allAgentEmails.length})</button>
-                </div>
-                <div className="max-h-40 overflow-y-auto space-y-1.5 pt-1">
-                  {allAgentEmails.map((email: string) => {
-                    const isChecked = activeRosterEmails.includes(email);
-                    return (
-                      <label key={email} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleAgent(email)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
-                        />
-                        <span className="font-mono text-[11px]">{email}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+          {/* Gear Icon Agent Selection Panel */}
+          {showRosterGear && (
+            <div className="p-3 mt-2 bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-lg space-y-2 text-xs animate-fade-in-up">
+              <div className="flex justify-between items-center font-bold text-emerald-700 border-b pb-1">
+                <span>Select Roster Agents for Team CSAT Calculation</span>
+                <button onClick={handleSelectAllAgents} className="text-[10px] text-blue-600 hover:underline">Select All ({allAgentEmails.length})</button>
               </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <Table className="text-xs">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Metric Name</TableHead>
-                  <TableHead className="text-right">Team Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[0])} className="cursor-pointer hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">CSAT</TableCell>
-                  <TableCell className="text-right font-bold text-emerald-600">{teamTotalCsat}</TableCell>
-                </TableRow>
-                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[1])} className="cursor-pointer hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">KSCAT</TableCell>
-                  <TableCell className="text-right font-bold text-blue-600">{teamTotalKscat}</TableCell>
-                </TableRow>
-                <TableRow className="hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">DSAT</TableCell>
-                  <TableCell className="text-right font-bold text-red-500">{teamTotalDsat}</TableCell>
-                </TableRow>
-                <TableRow className="hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">Total Count</TableCell>
-                  <TableCell className="text-right font-bold">{teamTotalCount}</TableCell>
-                </TableRow>
-                <TableRow className="hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">Total w/o Karma</TableCell>
-                  <TableCell className="text-right font-bold">{teamTotalWoKarma}</TableCell>
-                </TableRow>
-                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[1])} className="cursor-pointer hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">KSCAT %</TableCell>
-                  <TableCell className="text-right font-bold text-blue-600">{teamTotalKscatPct.toFixed(2)}%</TableCell>
-                </TableRow>
-                <TableRow onClick={() => setSelectedMetric(allMetricDefinitions[0])} className="cursor-pointer hover:bg-emerald-500/20">
-                  <TableCell className="font-semibold">CSAT %</TableCell>
-                  <TableCell className="text-right font-bold text-emerald-600">{teamTotalCsatPct.toFixed(2)}%</TableCell>
-                </TableRow>
-
-                {allMetricDefinitions.slice(2).map((m) => {
-                  const val = teamMetrics[m.teamKey];
-                  const isSelected = selectedMetric.label === m.label;
-
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pt-1">
+                {allAgentEmails.map((email: string) => {
+                  const isChecked = activeRosterEmails.includes(email);
                   return (
-                    <TableRow
-                      key={m.label}
-                      onClick={() => setSelectedMetric(m)}
-                      className={`cursor-pointer transition-all hover:bg-emerald-500/20 ${isSelected ? 'bg-emerald-500/20 font-bold border-l-4 border-emerald-500' : ''}`}
-                    >
-                      <TableCell className="font-semibold flex items-center gap-2">
-                        {isSelected && <Target className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
-                        {m.label}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600">{formatVal(val, m.isPct)}</TableCell>
-                    </TableRow>
+                    <label key={email} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 p-1 rounded">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleAgent(email)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                      />
+                      <span className="font-mono text-[11px]">{email}</span>
+                    </label>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              </div>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {/* Horizontal Icon Grid for Team Performance */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {/* Raw Ticket Counts */}
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-emerald-500/30 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>CSAT</span>
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+              </div>
+              <div className="text-xl font-extrabold text-emerald-600 mt-1">{teamTotalCsat}</div>
+            </div>
 
-        {/* TABLE 3: FLOOR AVERAGE */}
-        <Card className="border-blue-500/30 bg-blue-500/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2 text-blue-700">
-                <BarChart2 className="h-5 w-5" /> 3. Floor Average Table
-              </span>
-              <Badge className="bg-blue-100 text-blue-800">Floor Benchmark</Badge>
-            </CardTitle>
-            <CardDescription className="text-xs">Extracted directly from Metrics sheet K:L block (Rows 25–46)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table className="text-xs">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Metric Name</TableHead>
-                  <TableHead className="text-right">Floor Average</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allMetricDefinitions.map((m) => {
-                  const val = floorAverages[m.floorKey];
-                  const isSelected = selectedMetric.label === m.label;
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-500/30 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>KSCAT</span>
+                <Percent className="h-3.5 w-3.5 text-blue-500" />
+              </div>
+              <div className="text-xl font-extrabold text-blue-600 mt-1">{teamTotalKscat}</div>
+            </div>
 
-                  return (
-                    <TableRow key={m.label} className={isSelected ? 'bg-blue-500/10 font-bold' : ''}>
-                      <TableCell className="font-semibold">{m.label}</TableCell>
-                      <TableCell className="text-right font-bold text-blue-600">{formatVal(val, m.isPct)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-red-500/30 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>DSAT</span>
+                <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
+              </div>
+              <div className="text-xl font-extrabold text-red-500 mt-1">{teamTotalDsat}</div>
+            </div>
+
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>Total Count</span>
+                <Globe className="h-3.5 w-3.5 text-slate-500" />
+              </div>
+              <div className="text-xl font-extrabold mt-1">{teamTotalCount}</div>
+            </div>
+
+            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>Total w/o Karma</span>
+                <Globe className="h-3.5 w-3.5 text-slate-500" />
+              </div>
+              <div className="text-xl font-extrabold mt-1">{teamTotalWoKarma}</div>
+            </div>
+
+            <div
+              onClick={() => setSelectedMetric(allMetricDefinitions[1])}
+              className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-500/30 shadow-xs flex flex-col justify-between cursor-pointer transition-all hover:scale-105 ${selectedMetric.label === 'KSCAT %' ? 'ring-2 ring-blue-500' : ''}`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>KSCAT %</span>
+                <Percent className="h-3.5 w-3.5 text-blue-500" />
+              </div>
+              <div className="text-xl font-extrabold text-blue-600 mt-1">{teamTotalKscatPct.toFixed(2)}%</div>
+            </div>
+
+            <div
+              onClick={() => setSelectedMetric(allMetricDefinitions[0])}
+              className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-emerald-500/30 shadow-xs flex flex-col justify-between cursor-pointer transition-all hover:scale-105 ${selectedMetric.label === 'CSAT %' ? 'ring-2 ring-emerald-500' : ''}`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                <span>CSAT %</span>
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+              </div>
+              <div className="text-xl font-extrabold text-emerald-600 mt-1">{teamTotalCsatPct.toFixed(2)}%</div>
+            </div>
+
+            {/* Additional Operational Metrics (Horizontal Chips) */}
+            {allMetricDefinitions.slice(2).map((m) => {
+              const IconComp = m.icon;
+              const val = teamMetrics[m.teamKey];
+              const isSelected = selectedMetric.label === m.label;
+
+              return (
+                <div
+                  key={m.label}
+                  onClick={() => setSelectedMetric(m)}
+                  className={`p-3 bg-white dark:bg-slate-800 rounded-xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all hover:scale-105 ${isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50/20' : ''}`}
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                    <span className="truncate">{m.label}</span>
+                    <IconComp className={`h-3.5 w-3.5 shrink-0 ${m.color}`} />
+                  </div>
+                  <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
+                    {formatVal(val, m.isPct)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* HORIZONTAL VIEW: TABLE 3 - FLOOR AVERAGE */}
+      <Card className="border-blue-500/30 bg-blue-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2 text-blue-700">
+              <BarChart2 className="h-5 w-5" /> 3. Floor Average (Horizontal Icon View)
+            </span>
+            <Badge className="bg-blue-100 text-blue-800">Floor Benchmark Reference</Badge>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Extracted directly from Metrics sheet K:L block (Rows 25–46). Click any metric card to load its floor benchmark into the chart.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {allMetricDefinitions.map((m) => {
+              const IconComp = m.icon;
+              const val = floorAverages[m.floorKey];
+              const isSelected = selectedMetric.label === m.label;
+
+              return (
+                <div
+                  key={m.label}
+                  onClick={() => setSelectedMetric(m)}
+                  className={`p-3 bg-white dark:bg-slate-800 rounded-xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all hover:scale-105 ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50/20' : ''}`}
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                    <span className="truncate">{m.label}</span>
+                    <IconComp className={`h-3.5 w-3.5 shrink-0 ${m.color}`} />
+                  </div>
+                  <div className="text-xl font-extrabold text-blue-600 mt-1">
+                    {formatVal(val, m.isPct)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* TABLE 1: OVERALL PERFORMANCE TABLE */}
       <Card>
