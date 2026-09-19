@@ -9,7 +9,6 @@ import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2 }
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {} } = useMetrics() as any;
 
-  // Utility to format decimals, fractions, and percentages
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -22,7 +21,7 @@ export function OverviewTab() {
 
   const hasData = agentMetrics.length > 0 || Object.keys(teamMetrics).length > 0;
 
-  // Calculate Overall Totals across Active Roster (Table 1 Total Row)
+  // Calculate Overall Totals (Table 1 Total Row)
   const totalCsat = agentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
   const totalKscat = agentMetrics.reduce((s: number, a: any) => s + (a.kscat || 0), 0);
   const totalDsat = agentMetrics.reduce((s: number, a: any) => s + (a.dsat || 0), 0);
@@ -33,16 +32,16 @@ export function OverviewTab() {
   const totalVariance = totalCsatPct - totalKscatPct;
 
   // Calculate Chat Totals (Table 4)
-  const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chatCsat || 0), 0);
-  const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chatKscat || 0), 0);
-  const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chatDsat || 0), 0);
+  const totalChatCsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
+  const totalChatKscat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_kscat || a.chatKscat || 0), 0);
+  const totalChatDsat = agentMetrics.reduce((s: number, a: any) => s + (a.chat_dsat || a.chatDsat || 0), 0);
   const totalChatCount = totalChatCsat + totalChatKscat + totalChatDsat;
   const totalChatWoKarma = totalChatCsat + totalChatDsat;
 
   // Calculate Phone Totals (Table 5)
-  const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phoneCsat || 0), 0);
-  const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phoneKscat || 0), 0);
-  const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phoneDsat || 0), 0);
+  const totalPhoneCsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_csat || a.phoneCsat || 0), 0);
+  const totalPhoneKscat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_kscat || a.phoneKscat || 0), 0);
+  const totalPhoneDsat = agentMetrics.reduce((s: number, a: any) => s + (a.phone_dsat || a.phoneDsat || 0), 0);
   const totalPhoneCount = totalPhoneCsat + totalPhoneKscat + totalPhoneDsat;
   const totalPhoneWoKarma = totalPhoneCsat + totalPhoneDsat;
 
@@ -62,9 +61,8 @@ export function OverviewTab() {
         </Card>
       )}
 
-      {/* TABLE 2 & TABLE 3: TEAM PERFORMANCE & FLOOR AVERAGE (Side-by-Side) */}
+      {/* TABLE 2 & TABLE 3: TEAM PERFORMANCE & FLOOR AVERAGE */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* TABLE 2: TEAM PERFORMANCE */}
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
@@ -73,7 +71,6 @@ export function OverviewTab() {
               </span>
               <Badge className="bg-emerald-100 text-emerald-800">Team Aggregate</Badge>
             </CardTitle>
-            <CardDescription className="text-xs">Exact formulas mapped from Row 14 totals and Metrics K:L block</CardDescription>
           </CardHeader>
           <CardContent>
             <Table className="text-xs">
@@ -107,7 +104,6 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        {/* TABLE 3: FLOOR AVERAGE */}
         <Card className="border-blue-500/30 bg-blue-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
@@ -116,7 +112,6 @@ export function OverviewTab() {
               </span>
               <Badge className="bg-blue-100 text-blue-800">Floor Benchmark</Badge>
             </CardTitle>
-            <CardDescription className="text-xs">Extracted directly from Metrics sheet K:L block (Rows 25–46)</CardDescription>
           </CardHeader>
           <CardContent>
             <Table className="text-xs">
@@ -145,7 +140,7 @@ export function OverviewTab() {
         </Card>
       </div>
 
-      {/* TABLE 1: OVERALL PERFORMANCE TABLE (Full 22 Columns) */}
+      {/* TABLE 1: OVERALL PERFORMANCE TABLE */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
@@ -215,7 +210,6 @@ export function OverviewTab() {
                         <TableCell>{agent.idle_time_avg ? `${agent.idle_time_avg}h` : '-'}</TableCell>
                       </TableRow>
                     ))}
-                    {/* TOTAL ROW (Row 14) */}
                     <TableRow className="bg-slate-500/10 font-bold text-xs border-t-2 border-emerald-500">
                       <TableCell colSpan={2}>Total</TableCell>
                       <TableCell>{totalCsat}</TableCell>
@@ -254,7 +248,7 @@ export function OverviewTab() {
         </CardContent>
       </Card>
 
-      {/* TABLE 4 & TABLE 5: CHAT & PHONE PERFORMANCE TABLES (Side-by-Side) */}
+      {/* TABLE 4 & TABLE 5: CHAT & PHONE PERFORMANCE TABLES */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* TABLE 4: CHAT PERFORMANCE */}
         <Card>
@@ -281,9 +275,9 @@ export function OverviewTab() {
                 </TableHeader>
                 <TableBody>
                   {agentMetrics.map((agent: any, idx: number) => {
-                    const c = agent.chatCsat || 0;
-                    const k = agent.chatKscat || 0;
-                    const d = agent.chatDsat || 0;
+                    const c = agent.chat_csat || agent.chatCsat || 0;
+                    const k = agent.chat_kscat || agent.chatKscat || 0;
+                    const d = agent.chat_dsat || agent.chatDsat || 0;
                     const t = c + k + d;
                     const cPct = c + d > 0 ? (c / (c + d)) * 100 : 0;
 
@@ -339,9 +333,9 @@ export function OverviewTab() {
                 </TableHeader>
                 <TableBody>
                   {agentMetrics.map((agent: any, idx: number) => {
-                    const c = agent.phoneCsat || 0;
-                    const k = agent.phoneKscat || 0;
-                    const d = agent.phoneDsat || 0;
+                    const c = agent.phone_csat || agent.phoneCsat || 0;
+                    const k = agent.phone_kscat || agent.phoneKscat || 0;
+                    const d = agent.phone_dsat || agent.phoneDsat || 0;
                     const t = c + k + d;
                     const cPct = c + d > 0 ? (c / (c + d)) * 100 : 0;
 
