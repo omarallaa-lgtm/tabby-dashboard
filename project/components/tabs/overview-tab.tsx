@@ -4,12 +4,12 @@ import { useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, ShieldAlert } from 'lucide-react';
+import { Inbox, LayoutDashboard, MessageSquare, Phone, Users, Globe, BarChart2 } from 'lucide-react';
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {} } = useMetrics() as any;
 
-  // Utility to format decimals, fractions, and clocks
+  // Utility to format decimals, fractions, and percentages
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
