@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
@@ -8,6 +8,23 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export type UserRole = 'Admin' | 'Team Leader' | 'Agent';
+
+export interface User {
+  email: string;
+  role: UserRole;
+  addedAt?: string;
+}
+
+export interface UserProfile {
+  id?: string;
+  user_email: string;
+  username: string;
+  role: UserRole;
+  team_name: string;
+  floor_name: string;
+  account_status: 'Active' | 'Disabled';
+  allowed_tabs: string[];
+}
 
 const MetricsContext = createContext<any>(null);
 
@@ -32,7 +49,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     const activeUser = user || currentUser;
 
     try {
-      // 1. Fetch Current Agent Metrics
+      // 1. Fetch Current Agent Metrics (Order created_at DESC)
       let query = supabase
         .from('agent_metrics')
         .select('*')
@@ -59,7 +76,6 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         const teamMap: Record<string, any> = {};
         const floorMap: Record<string, any> = {};
 
-        // Group by period_id/date for the Progress Graph
         const periodGrouped: Record<string, { period: string; teamMetrics: Record<string, number>; floorMetrics: Record<string, number> }> = {};
 
         aggData.forEach((item) => {
@@ -103,6 +119,19 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     ]);
   };
 
+  const logAuditAction = async (action: string, target: string, prevVal?: any, newVal?: any) => {
+    if (!currentUser) return;
+    await supabase.from('audit_logs').insert([
+      {
+        actor_email: currentUser.user_email,
+        action,
+        target_entity: target,
+        previous_value: prevVal || null,
+        new_value: newVal || null,
+      },
+    ]);
+  };
+
   return (
     <MetricsContext.Provider
       value={{
@@ -115,6 +144,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         updateTarget,
         dailyProgressData,
         refreshMetrics: fetchMetrics,
+        logAuditAction,
         loading,
       }}
     >
