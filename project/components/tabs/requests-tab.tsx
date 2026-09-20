@@ -4,197 +4,333 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { PlusCircle, CheckCircle2, XCircle, Clock, ExternalLink } from 'lucide-react';
-import { supabase, UserRole } from '@/lib/metrics-context';
+import { MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Filter } from 'lucide-react';
+import { supabase } from '@/lib/metrics-context';
 
-export function RequestsTab({ currentUser }: { currentUser: { email: string; role: UserRole } }) {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [requestType, setRequestType] = useState('Shift Swap');
-  const [ticketLink, setTicketLink] = useState('');
+export function RequestsTab({ currentUser }: { currentUser: any }) {
+  const [requestType, setRequestType] = useState('Score Review');
+  const [ticketId, setTicketId] = useState('');
   const [details, setDetails] = useState('');
-  const [commentMap, setCommentMap] = useState<Record<string, string>>({});
+  
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+  const [allRequests, setAllRequests] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState('All');
+  
+  const [statusMsg, setStatusMsg] = useState('');
+  const [isError, setIsError] = useState(false);
+  const [submitting, setLoading] = useState(false);
+
+  const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
   const fetchRequests = async () => {
-    let query = supabase.from('requests').select('*').order('created_at', { ascending: false });
-    if (currentUser.role === 'Agent') {
-      query = query.eq('agent_email', currentUser.email);
+    if (!currentUser?.user_email) return;
+
+    const userEmailClean = currentUser.user_email.trim().toLowerCase();
+
+    // 1. Fetch Agent's Personal Requests
+    const { data: myData, error: myErr } = await supabase
+      .from('requests')
+      .select('*')
+      .ilike('user_email', userEmailClean)
+      .order('created_at', { ascending: false });
+
+    if (!myErr && myData) {
+      setMyRequests(myData);
     }
-    const { data } = await query;
-    if (data) setRequests(data);
+
+    // 2. Fetch All Requests for Admin / Team Leader View
+    if (isAdminOrTL) {
+      let query = supabase.from('requests').select('*').order('created_at', { ascending: false });
+      if (statusFilter !== 'All') {
+        query = query.eq('status', statusFilter);
+      }
+      const { data: allData, error: allErr } = await query;
+      if (!allErr && allData) {
+        setAllRequests(allData);
+      }
+    }
   };
 
   useEffect(() => {
     fetchRequests();
-  }, [currentUser]);
+  }, [currentUser, statusFilter]);
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!details.trim()) return;
 
-    const newReqId = `REQ-${Math.floor(100000 + Math.random() * 900000)}`;
-    await supabase.from('requests').insert([
-      {
-        request_id: newReqId,
-        agent_email: currentUser.email,
-        request_type: requestType,
-        ticket_link: ticketLink,
-        details,
-        status: 'pending',
-      },
-    ]);
+    setLoading(true);
+    setIsError(false);
+    setStatusMsg('Submitting request...');
 
-    setDetails('');
-    setTicketLink('');
-    fetchRequests();
+    const userEmailClean = currentUser.user_email.trim().toLowerCase();
+
+    const newRequest = {
+      user_email: userEmailClean,
+      request_type: requestType,
+      ticket_id: ticketId.trim() || 'N/A',
+      details: details.trim(),
+      status: 'Pending',
+      created_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase.from('requests').insert([newRequest]).select();
+
+    setLoading(false);
+
+    if (error) {
+      setIsError(true);
+      setStatusMsg(`Error submitting request: ${error.message}`);
+    } else {
+      setIsError(false);
+      setStatusMsg('✓ Request submitted successfully!');
+      setTicketId('');
+      setDetails('');
+      fetchRequests(); // Immediately refresh state
+    }
   };
 
-  const handleAction = async (id: string, newStatus: 'approved' | 'declined') => {
-    const comment = commentMap[id] || '';
+  const handleUpdateStatus = async (requestId: string, newStatus: string) => {
     await supabase
       .from('requests')
-      .update({
-        status: newStatus,
-        approver_email: currentUser.email,
-        approver_comment: comment,
-        updated_at: new Date().toISOString(),
+      .update({ 
+        status: newStatus, 
+        reviewed_by: currentUser.user_email,
+        reviewed_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', requestId);
 
     fetchRequests();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Requests & Discrepancy Module</h2>
-        <p className="text-xs text-muted-foreground">Submit, review, and track operational requests with audit logs</p>
+        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <MessageSquarePlus className="h-6 w-6 text-emerald-500" /> Operational Requests & Discrepancies
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1">Submit score reviews, time adjustments, or dispute metrics for leadership approval</p>
       </div>
 
-      {/* Agent Submit Request Form */}
-      {currentUser.role === 'Agent' && (
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* SUBMIT REQUEST FORM */}
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <PlusCircle className="h-5 w-5 text-emerald-600" /> Create New Request
+              <Send className="h-4 w-4 text-emerald-500" /> New Request Form
             </CardTitle>
-            <CardDescription className="text-xs">Submit shift swaps, time-off requests, or metric recalculation disputes</CardDescription>
+            <CardDescription className="text-xs">Submit a dispute or request to team leaders</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmitRequest} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Request Type</label>
-                  <select
-                    value={requestType}
-                    onChange={(e) => setRequestType(e.target.value)}
-                    className="w-full h-9 rounded-md border text-xs px-3"
-                  >
-                    <option value="Shift Swap">Shift Swap</option>
-                    <option value="Time Off">Time Off</option>
-                    <option value="CSAT Dispute">CSAT Dispute</option>
-                    <option value="Overtime Approval">Overtime Approval</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">CRM Ticket Link (Optional)</label>
-                  <Input
-                    placeholder="https://crm.tabby.ai/object/ticket/..."
-                    value={ticketLink}
-                    onChange={(e) => setTicketLink(e.target.value)}
-                    className="text-xs h-9"
-                  />
-                </div>
+            <form onSubmit={handleSubmitRequest} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Request Type</label>
+                <select
+                  value={requestType}
+                  onChange={(e) => setRequestType(e.target.value)}
+                  className="w-full h-9 rounded-md border text-xs px-2 bg-white dark:bg-slate-900"
+                >
+                  <option value="Score Review">CSAT / DSAT Score Review</option>
+                  <option value="Karma Exclusion">Karma / Exclusion Request</option>
+                  <option value="Attendance / Tardy Adjustment">Tardy / Time Adjustment</option>
+                  <option value="General Query">General Metric Query</option>
+                </select>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium">Request Details</label>
-                <textarea
-                  placeholder="Provide specific details..."
+                <label className="font-semibold text-slate-700 dark:text-slate-300">CRM Ticket ID (Optional)</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. 2cc32e4a-77d5..."
+                  value={ticketId}
+                  onChange={(e) => setTicketId(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Discrepancy Details & Justification</label>
+                <Textarea
+                  placeholder="Explain why this score or time record should be reviewed..."
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
-                  className="w-full rounded-md border p-2 text-xs h-20"
+                  className="text-xs min-h-[100px]"
                   required
                 />
               </div>
 
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
-                Submit Operational Request
+              {statusMsg && (
+                <div className={`p-2.5 rounded-md text-[11px] flex items-center gap-2 ${isError ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>
+                  {isError ? <AlertCircle className="h-4 w-4 text-red-600 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
+                  <span>{statusMsg}</span>
+                </div>
+              )}
+
+              <Button type="submit" disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 text-xs gap-2">
+                <Send className="h-3.5 w-3.5" /> Submit Discrepancy Request
               </Button>
             </form>
           </CardContent>
         </Card>
-      )}
 
-      {/* Request Audit Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Request History & Audit Log</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border overflow-x-auto">
-            <Table className="text-xs">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Request ID</TableHead>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Details</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Approver / Timestamp</TableHead>
-                  {currentUser.role !== 'Agent' && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {requests.map((req) => (
-                  <TableRow key={req.id}>
-                    <TableCell className="font-bold">{req.request_id}</TableCell>
-                    <TableCell>{req.agent_email}</TableCell>
-                    <TableCell><Badge variant="outline">{req.request_type}</Badge></TableCell>
-                    <TableCell className="max-w-xs truncate">{req.details}</TableCell>
-                    <TableCell>
-                      {req.status === 'pending' && <Badge className="bg-amber-100 text-amber-800">Pending</Badge>}
-                      {req.status === 'approved' && <Badge className="bg-emerald-100 text-emerald-800">Approved</Badge>}
-                      {req.status === 'declined' && <Badge className="bg-red-100 text-red-800">Declined</Badge>}
-                    </TableCell>
-                    <TableCell>
-                      {req.approver_email ? (
-                        <div>
-                          <div className="font-medium">{req.approver_email}</div>
-                          <div className="text-[10px] text-muted-foreground">{new Date(req.updated_at).toLocaleString()}</div>
-                          {req.approver_comment && <div className="italic text-[10px]">"{req.approver_comment}"</div>}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    {currentUser.role !== 'Agent' && (
-                      <TableCell className="text-right space-y-1">
-                        {req.status === 'pending' && (
-                          <div className="flex flex-col items-end gap-1">
-                            <Input
-                              placeholder="Review comment..."
-                              value={commentMap[req.id] || ''}
-                              onChange={(e) => setCommentMap({ ...commentMap, [req.id]: e.target.value })}
-                              className="text-[10px] h-6 w-32"
-                            />
-                            <div className="flex gap-1">
-                              <Button size="sm" onClick={() => handleAction(req.id, 'approved')} className="h-6 px-2 bg-emerald-600 text-white text-[10px]">Approve</Button>
-                              <Button size="sm" onClick={() => handleAction(req.id, 'declined')} className="h-6 px-2 bg-red-600 text-white text-[10px]">Decline</Button>
-                            </div>
-                          </div>
-                        )}
-                      </TableCell>
-                    )}
+        {/* AGENT REQUEST HISTORY */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-emerald-500" /> My Submitted Request History
+              </span>
+              <Badge variant="outline">{myRequests.length} Submissions</Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">Live status of your submitted requests</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border overflow-x-auto">
+              <Table className="text-xs">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Ticket ID</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {myRequests.length > 0 ? (
+                    myRequests.map((req) => (
+                      <TableRow key={req.id} className="hover:bg-slate-500/5">
+                        <TableCell className="font-mono text-[10px]">{new Date(req.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-semibold">{req.request_type}</TableCell>
+                        <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
+                        <TableCell className="max-w-[200px] truncate text-slate-600 dark:text-slate-400">{req.details}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge className={
+                            req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                            req.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-amber-100 text-amber-800'
+                          }>
+                            {req.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        You have not submitted any requests yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ADMIN & TEAM LEADER APPROVAL WORKFLOW PANEL */}
+      {isAdminOrTL && (
+        <Card className="border-emerald-500/30">
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2 text-emerald-600">
+                  <Filter className="h-5 w-5" /> Team Leader Approval Management Queue
+                </CardTitle>
+                <CardDescription className="text-xs">Review and approve agent discrepancy submissions across all teams</CardDescription>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <label className="font-semibold">Filter Status:</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-8 rounded-md border text-xs px-2 bg-white dark:bg-slate-900 font-bold"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Pending">Pending Only</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border overflow-x-auto">
+              <Table className="text-xs">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agent Email</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Ticket ID</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead>Submitted At</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allRequests.length > 0 ? (
+                    allRequests.map((req) => (
+                      <TableRow key={req.id} className="hover:bg-slate-500/5">
+                        <TableCell className="font-semibold text-emerald-600">{req.user_email}</TableCell>
+                        <TableCell>{req.request_type}</TableCell>
+                        <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
+                        <TableCell className="max-w-[250px] text-slate-600 dark:text-slate-400">{req.details}</TableCell>
+                        <TableCell className="text-[10px]">{new Date(req.created_at).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge className={
+                            req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                            req.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-amber-100 text-amber-800'
+                          }>
+                            {req.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {req.status === 'Pending' ? (
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => handleUpdateStatus(req.id, 'Approved')}
+                                className="h-7 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                              >
+                                <CheckCircle2 className="h-3 w-3" /> Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleUpdateStatus(req.id, 'Rejected')}
+                                className="h-7 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50 gap-1"
+                              >
+                                <XCircle className="h-3 w-3" /> Reject
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">
+                              Reviewed by {req.reviewed_by || 'TL'}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No requests found matching status filter "{statusFilter}".
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
