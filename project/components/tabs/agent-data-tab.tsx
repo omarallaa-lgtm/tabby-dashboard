@@ -199,7 +199,7 @@ export function AgentDataTab() {
             <div className="border-2 border-dashed rounded-lg p-5 text-center hover:border-emerald-500 flex flex-col items-center justify-between min-h-[160px]">
               <FileSpreadsheet className="h-8 w-8 text-emerald-600 mb-1" />
               <div className="text-xs font-semibold">3. Metrics.csv</div>
-              <input type="file" ref={metricsRef} accept=".csv" onChange={(e) => setMetricsFile(e.target.files?.[0] || null)} className="hidden" />
+              <input type="file" ref={metricsRef} accept=".csv" onChange={(e) => setMetricsRef(e.target.files?.[0] || null)} className="hidden" />
               <Button type="button" variant="outline" size="sm" onClick={() => metricsRef.current?.click()} className="text-xs mt-2">Select File</Button>
               {metricsFile && <p className="text-[10px] text-emerald-600 mt-2 truncate max-w-[200px]">✓ {metricsFile.name}</p>}
             </div>
