@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { ShieldCheck, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, UserPlus, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { supabase, UserRole } from '@/lib/metrics-context';
 
 export function AdminSettingsTab() {
@@ -63,11 +63,18 @@ export function AdminSettingsTab() {
     fetchUsers();
   };
 
+  const handleDeleteUser = async (userEmail: string) => {
+    if (confirm(`Are you sure you want to revoke and delete credentials for ${userEmail}?`)) {
+      await supabase.from('user_profiles').delete().eq('user_email', userEmail);
+      fetchUsers();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Admin User Control & Tab Permissions</h2>
-        <p className="text-xs text-muted-foreground">Provision accounts, inspect user custom passwords, and toggle individual tab permissions per user</p>
+        <p className="text-xs text-muted-foreground">Provision accounts, inspect user custom passwords, manage access, or revoke user credentials</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -120,11 +127,12 @@ export function AdminSettingsTab() {
                     <TableHead>Role</TableHead>
                     <TableHead>Password Reflection</TableHead>
                     <TableHead>Allowed Tabs</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((u) => (
-                    <TableRow key={u.id}>
+                    <TableRow key={u.id || u.user_email}>
                       <TableCell className="font-medium">{u.user_email}</TableCell>
                       <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
                       <TableCell>
@@ -152,6 +160,17 @@ export function AdminSettingsTab() {
                             );
                           })}
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteUser(u.user_email)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 px-2"
+                          title="Revoke Credentials"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
