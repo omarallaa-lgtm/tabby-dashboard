@@ -11,7 +11,7 @@ import { MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Fil
 import { supabase } from '@/lib/metrics-context';
 
 export function RequestsTab({ currentUser }: { currentUser: any }) {
-  const [requestType, setRequestType] = useState('Score Review');
+  const [requestType, setRequestType] = useState('Annual request');
   const [ticketId, setTicketId] = useState('');
   const [details, setDetails] = useState('');
 
@@ -144,7 +144,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <MessageSquarePlus className="h-6 w-6 text-emerald-500" /> Operational Requests & Discrepancies
         </h2>
-        <p className="text-xs text-muted-foreground mt-1">Submit score reviews, time adjustments, or dispute metrics for leadership approval</p>
+        <p className="text-xs text-muted-foreground mt-1">Submit leave requests, activities, or Jira ticket queries for leadership approval</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -154,7 +154,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
             <CardTitle className="text-base flex items-center gap-2">
               <Send className="h-4 w-4 text-emerald-500" /> New Request Form
             </CardTitle>
-            <CardDescription className="text-xs">Submit a dispute or request to team leaders</CardDescription>
+            <CardDescription className="text-xs">Submit a request to team leaders</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmitRequest} className="space-y-4 text-xs">
@@ -165,15 +165,18 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                   onChange={(e) => setRequestType(e.target.value)}
                   className="w-full h-9 rounded-md border text-xs px-2 bg-white dark:bg-slate-900"
                 >
-                  <option value="Score Review">CSAT / DSAT Score Review</option>
-                  <option value="Karma Exclusion">Karma / Exclusion Request</option>
-                  <option value="Attendance / Tardy Adjustment">Tardy / Time Adjustment</option>
-                  <option value="General Query">General Metric Query</option>
+                  <option value="Annual request">Annual request</option>
+                  <option value="Casual request">Casual request</option>
+                  <option value="Sick leave">Sick leave</option>
+                  <option value="Early leave">Early leave</option>
+                  <option value="Activity">Activity</option>
+                  <option value="General inquiry">General inquiry</option>
+                  <option value="Jira">Jira</option>
                 </select>
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">CRM Ticket ID (Optional)</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-300">CRM / Jira Ticket Link or ID (Optional)</label>
                 <Input
                   type="text"
                   placeholder="e.g. https://crm.tabby.ai/queue/ticket/..."
@@ -184,9 +187,9 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Discrepancy Details & Justification</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Request Details & Justification</label>
                 <Textarea
-                  placeholder="Explain why this score or time record should be reviewed..."
+                  placeholder="Provide justification or details for this request..."
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
                   className="text-xs min-h-[100px]"
@@ -202,7 +205,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               )}
 
               <Button type="submit" disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 text-xs gap-2">
-                <Send className="h-3.5 w-3.5" /> Submit Discrepancy Request
+                <Send className="h-3.5 w-3.5" /> Submit Request
               </Button>
             </form>
           </CardContent>
@@ -277,7 +280,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                 <CardTitle className="text-base flex items-center gap-2 text-emerald-600">
                   <Filter className="h-5 w-5" /> Team Leader Approval Management Queue
                 </CardTitle>
-                <CardDescription className="text-xs">Review and approve agent discrepancy submissions across all teams</CardDescription>
+                <CardDescription className="text-xs">Review and approve agent submissions across all teams</CardDescription>
               </div>
 
               <div className="flex items-center gap-2 text-xs">
@@ -380,7 +383,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               <CardTitle className="text-base flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5 text-emerald-500" />
-                  {reviewAction === 'Approved' ? 'Approve Agent Discrepancy' : 'Reject Agent Discrepancy'}
+                  {reviewAction === 'Approved' ? 'Approve Request' : 'Reject Request'}
                 </span>
                 <button onClick={() => setSelectedRequest(null)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">
                   <X className="h-4 w-4 text-slate-500" />
@@ -407,8 +410,8 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                 <Textarea
                   placeholder={
                     reviewAction === 'Approved'
-                      ? 'e.g. Approved. Score excluded from monthly CSAT matrix...'
-                      : 'e.g. Declined. Ticket resolution confirmed accurate per QA guidelines...'
+                      ? 'e.g. Approved. Leave granted...'
+                      : 'e.g. Declined. Invalid ticket ID...'
                   }
                   value={leadershipComment}
                   onChange={(e) => setLeadershipComment(e.target.value)}
