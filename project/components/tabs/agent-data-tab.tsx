@@ -28,8 +28,30 @@ export function AgentDataTab() {
   const metricsRef = useRef<HTMLInputElement>(null);
 
   const fetchHistory = async () => {
-    const { data } = await supabase.from('upload_history').select('*').order('created_at', { ascending: false });
-    if (data) setUploadLogs(data);
+    // Fetch upload history from upload_history table or distinct period_ids from agent_metrics
+    const { data: histData } = await supabase.from('upload_history').select('*').order('created_at', { ascending: false });
+    
+    if (histData && histData.length > 0) {
+      setUploadLogs(histData);
+    } else {
+      // Fallback query over agent_metrics distinct periods
+      const { data: metricsData } = await supabase.from('agent_metrics').select('period_id, created_at').order('created_at', { ascending: false });
+      if (metricsData) {
+        const periodMap = new Map();
+        metricsData.forEach((row) => {
+          if (!periodMap.has(row.period_id)) {
+            periodMap.set(row.period_id, {
+              id: row.period_id,
+              period_id: row.period_id,
+              uploaded_by: 'Admin',
+              records_count: 1,
+              created_at: row.created_at,
+            });
+          }
+        });
+        setUploadLogs(Array.from(periodMap.values()));
+      }
+    }
   };
 
   useEffect(() => {
@@ -131,14 +153,14 @@ export function AgentDataTab() {
 
       await supabase.from('level_aggregates').upsert(aggRecords, { onConflict: 'period_id,level_type,team_or_floor_name,metric_key' });
 
-      await supabase.from('upload_history').insert([
+      await supabase.from('upload_history').upsert([
         {
           period_id: periodId,
           uploaded_by: currentUser?.user_email || 'admin',
           records_count: combinedRecords.length,
           files_uploaded: [kscatFile.name, pvfFile.name, metricsFile.name],
         },
-      ]);
+      ], { onConflict: 'period_id' });
 
       setIsError(false);
       setStatusMsg(`✓ Success! Saved ${combinedRecords.length} records for date period ${periodId}.`);
@@ -156,7 +178,7 @@ export function AgentDataTab() {
   const handleDeleteBackup = async (historyId: string, targetPeriod: string) => {
     await supabase.from('agent_metrics').delete().eq('period_id', targetPeriod);
     await supabase.from('level_aggregates').delete().eq('period_id', targetPeriod);
-    await supabase.from('upload_history').delete().eq('id', historyId);
+    await supabase.from('upload_history').delete().filter('period_id', 'eq', targetPeriod);
 
     fetchHistory();
     if (typeof refreshMetrics === 'function') refreshMetrics();
@@ -239,24 +261,32 @@ export function AgentDataTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {uploadLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="font-bold">{log.period_id}</TableCell>
-                    <TableCell>{log.uploaded_by}</TableCell>
-                    <TableCell>{log.records_count} rows</TableCell>
-                    <TableCell>{new Date(log.created_at).toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteBackup(log.id, log.period_id)}
-                        className="text-red-500 hover:text-red-700 h-6 px-2 text-[10px]"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Purge Backup
-                      </Button>
+                {uploadLogs.length > 0 ? (
+                  uploadLogs.map((log) => (
+                    <TableRow key={log.id || log.period_id}>
+                      <TableCell className="font-bold">{log.period_id}</TableCell>
+                      <TableCell>{log.uploaded_by || 'Admin'}</TableCell>
+                      <TableCell>{log.records_count ? `${log.records_count} rows` : 'Active Period'}</TableCell>
+                      <TableCell>{log.created_at ? new Date(log.created_at).toLocaleString() : '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteBackup(log.id, log.period_id)}
+                          className="text-red-500 hover:text-red-700 h-6 px-2 text-[10px]"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Purge Backup
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                      No backups found. Upload operational files above to create period snapshots.
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
