@@ -30,25 +30,25 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
 
     const userEmailClean = currentUser.user_email.trim().toLowerCase();
 
-    // 1. Fetch Agent's Personal Requests
-    const { data: myData, error: myErr } = await supabase
+    // 1. Fetch Personal Submissions
+    const { data: myData } = await supabase
       .from('requests')
       .select('*')
       .ilike('user_email', userEmailClean)
       .order('created_at', { ascending: false });
 
-    if (!myErr && myData) {
+    if (myData) {
       setMyRequests(myData);
     }
 
-    // 2. Fetch All Requests for Admin / Team Leader View
+    // 2. Fetch Queue for Admin / Team Leaders
     if (isAdminOrTL) {
       let query = supabase.from('requests').select('*').order('created_at', { ascending: false });
       if (statusFilter !== 'All') {
         query = query.eq('status', statusFilter);
       }
-      const { data: allData, error: allErr } = await query;
-      if (!allErr && allData) {
+      const { data: allData } = await query;
+      if (allData) {
         setAllRequests(allData);
       }
     }
@@ -77,7 +77,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
       created_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('requests').insert([newRequest]).select();
+    const { error } = await supabase.from('requests').insert([newRequest]);
 
     setLoading(false);
 
@@ -89,7 +89,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
       setStatusMsg('✓ Request submitted successfully!');
       setTicketId('');
       setDetails('');
-      fetchRequests(); // Immediately refresh state
+      fetchRequests();
     }
   };
 
@@ -232,7 +232,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         </Card>
       </div>
 
-      {/* ADMIN & TEAM LEADER APPROVAL WORKFLOW PANEL */}
+      {/* ADMIN & TEAM LEADER APPROVAL WORKFLOW QUEUE */}
       {isAdminOrTL && (
         <Card className="border-emerald-500/30">
           <CardHeader>
