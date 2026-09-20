@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound } from 'lucide-react';
+import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
@@ -23,7 +23,7 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Profile Password Settings Drawer
+  // Password Settings State
   const [showProfile, setShowProfile] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
@@ -87,8 +87,9 @@ export default function Home() {
       .update({ password_hash: newPassword, is_temporary_password: false })
       .eq('user_email', currentUser.user_email);
 
-    setProfileMsg('✓ Password updated successfully! Live reflection updated on Admin Panel.');
+    setProfileMsg('✓ Password updated successfully!');
     setNewPassword('');
+    setTimeout(() => setProfileMsg(''), 3000);
   };
 
   if (!currentUser) {
@@ -250,17 +251,23 @@ export default function Home() {
           </nav>
         </div>
 
-        <div className="space-y-2">
-          <button
-            onClick={() => setShowProfile(!showProfile)}
-            className="w-full text-left p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors flex items-center justify-between"
-          >
+        {/* Lower Left Profile & Visible Password Controls */}
+        <div className="space-y-2 border-t pt-3">
+          <div className="p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 space-y-2">
             <div className="truncate">
-              <div className="font-bold text-xs truncate">{currentUser.user_email}</div>
-              <div className="text-[10px] text-emerald-500 font-bold uppercase">{currentUser.role}</div>
+              <div className="font-bold text-xs truncate text-emerald-600">{currentUser.user_email}</div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase">{currentUser.role}</div>
             </div>
-            <KeyRound className="h-4 w-4 text-emerald-500 shrink-0" />
-          </button>
+
+            {/* Always Visible Update Password Action */}
+            <button
+              onClick={() => setShowProfile(!showProfile)}
+              className="w-full text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-white dark:bg-slate-800 border border-emerald-500/30 rounded py-1 px-2 flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+            >
+              <KeyRound className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Update Password</span>
+            </button>
+          </div>
 
           <button
             onClick={() => setCurrentUser(null)}
@@ -291,11 +298,12 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Password Reset Profile Drawer */}
+        {/* Password Update Drawer */}
         {showProfile && (
-          <div className="p-6 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
-            <div className="font-bold flex items-center gap-2 text-emerald-600">
-              <KeyRound className="h-4 w-4" /> Security & Profile Settings for {currentUser.user_email}
+          <div className="p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
+            <div className="font-bold flex items-center justify-between text-emerald-600">
+              <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Update Permanent Password for {currentUser.user_email}</span>
+              <button onClick={() => setShowProfile(false)} className="text-slate-500 text-xs font-bold hover:underline">Close</button>
             </div>
             <form onSubmit={handleUpdatePassword} className="flex gap-2 max-w-md">
               <Input
@@ -306,9 +314,11 @@ export default function Home() {
                 className="h-8 text-xs bg-white text-gray-900"
                 required
               />
-              <Button type="submit" size="sm" className="h-8 bg-emerald-600 text-white text-xs">Update Password</Button>
+              <Button type="submit" size="sm" className="h-8 bg-emerald-600 text-white text-xs gap-1 font-bold">
+                <Check className="h-3.5 w-3.5" /> Save
+              </Button>
             </form>
-            {profileMsg && <p className="text-emerald-600 font-medium">{profileMsg}</p>}
+            {profileMsg && <p className="text-emerald-600 font-bold">{profileMsg}</p>}
           </div>
         )}
 
