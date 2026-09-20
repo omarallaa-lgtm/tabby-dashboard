@@ -9,12 +9,6 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export type UserRole = 'Admin' | 'Team Leader' | 'Agent';
 
-export interface User {
-  email: string;
-  role: UserRole;
-  addedAt?: string;
-}
-
 export interface UserProfile {
   id?: string;
   user_email: string;
@@ -46,27 +40,25 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
 
   const fetchMetrics = async (user?: any) => {
     setLoading(true);
-    const activeUser = user || currentUser;
 
     try {
-      // 1. Fetch Current Agent Metrics (Order created_at DESC)
-      let query = supabase
+      // 1. Always fetch all agent metrics across team so totals match for all roles
+      const { data: agentData } = await supabase
         .from('agent_metrics')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (activeUser && activeUser.role === 'Agent') {
-        query = query.eq('agent_email', activeUser.user_email);
-      }
-
-      const { data: agentData } = await query;
       if (agentData) {
         const uniqueMap = new Map();
-        agentData.forEach((r) => { if (!uniqueMap.has(r.agent_email)) uniqueMap.set(r.agent_email, r); });
+        agentData.forEach((row) => {
+          if (!uniqueMap.has(row.agent_email)) {
+            uniqueMap.set(row.agent_email, row);
+          }
+        });
         setAgentMetrics(Array.from(uniqueMap.values()));
       }
 
-      // 2. Fetch Aggregates & Build Daily Progress Timeline for Team vs Floor
+      // 2. Fetch Level Aggregates (Team & Floor)
       const { data: aggData } = await supabase
         .from('level_aggregates')
         .select('*')
@@ -75,7 +67,6 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
       if (aggData) {
         const teamMap: Record<string, any> = {};
         const floorMap: Record<string, any> = {};
-
         const periodGrouped: Record<string, { period: string; teamMetrics: Record<string, number>; floorMetrics: Record<string, number> }> = {};
 
         aggData.forEach((item) => {
@@ -106,7 +97,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         setKpiTargets((prev) => ({ ...prev, ...tMap }));
       }
     } catch (e) {
-      console.error('Error fetching dashboard context:', e);
+      console.error('Error fetching metrics context:', e);
     } finally {
       setLoading(false);
     }
