@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
   MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
-  Sparkles, Eye, EyeOff, Orbit, ArrowRight 
+  Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -28,6 +29,14 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Forgot Password Modal State
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotDetails, setForgotDetails] = useState('');
+  const [forgotStatusMsg, setForgotStatusMsg] = useState('');
+  const [forgotIsError, setForgotIsError] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   // Password Settings Drawer State
   const [showProfile, setShowProfile] = useState(false);
@@ -90,7 +99,48 @@ export default function Home() {
     }
 
     setIsSubmitting(false);
-    setErrorMessage("Gravitational Anomaly: Invalid email or passcode!");
+    setErrorMessage("Invalid email or password!");
+  };
+
+  const handleRaiseForgotPasswordRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+
+    setForgotSubmitting(true);
+    setForgotStatusMsg('Submitting request to Admin...');
+    setForgotIsError(false);
+
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+    const generatedUUID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+
+    const requestPayload = {
+      request_id: generatedUUID,
+      agent_email: cleanEmail,
+      user_email: cleanEmail,
+      request_type: 'Password Reset',
+      ticket_id: 'PASSWORD-RESET',
+      details: forgotDetails.trim() || 'User requested password reset from login page.',
+      status: 'Pending',
+      created_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('requests').insert([requestPayload]);
+
+    setForgotSubmitting(false);
+
+    if (error) {
+      setForgotIsError(true);
+      setForgotStatusMsg(`Error sending request: ${error.message}`);
+    } else {
+      setForgotIsError(false);
+      setForgotStatusMsg('✓ Password reset request submitted! An Admin will review it on their dashboard queue.');
+      setTimeout(() => {
+        setShowForgotModal(false);
+        setForgotEmail('');
+        setForgotDetails('');
+        setForgotStatusMsg('');
+      }, 2500);
+    }
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -107,121 +157,192 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE
+  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE (HORIZONTAL CARD WITH FORGOT PASSWORD MODAL)
   if (!currentUser) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative">
+      <div className="min-h-screen w-full flex items-end justify-center pb-8 md:pb-12 bg-[#020208] font-sans select-none overflow-hidden relative">
         
-        {/* BLACK HOLE YOUTUBE BACKGROUND VIDEO (0Z_u1HPfy-8) */}
+        {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
           <iframe
             src="https://www.youtube.com/embed/0Z_u1HPfy-8?autoplay=1&mute=1&controls=0&loop=1&playlist=0Z_u1HPfy-8&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
             title="Black Hole Background Video"
             allow="autoplay; encrypted-media"
-            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-80 filter brightness-95 contrast-110"
+            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-90 filter brightness-100 contrast-105"
           />
-          {/* Cosmic Dark Vignette Gradients */}
-          <div className="absolute inset-0 bg-radial from-transparent via-[#020208]/40 to-[#020208]/90"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/20 to-transparent pointer-events-none"></div>
         </div>
 
-        {/* COSMIC BLACK HOLE GLASSMORPHIC LOGIN CARD */}
-        <div className="w-full max-w-md relative z-10 px-4">
-          
-          {/* Glowing Accretion Disk Ring Effect */}
-          <div className="absolute -inset-1.5 rounded-[32px] bg-gradient-to-r from-amber-500/20 via-purple-600/30 to-blue-500/20 blur-xl opacity-80 animate-pulse pointer-events-none"></div>
-
-          <div className="relative bg-[#050814]/80 border border-amber-500/30 backdrop-blur-3xl rounded-[28px] p-8 shadow-[0_0_100px_rgba(0,0,0,0.95)]">
+        {/* HORIZONTAL SLEEK LOGIN CONTAINER */}
+        <div className="w-full max-w-4xl relative z-10 px-4">
+          <div className="bg-slate-950/75 border border-white/15 backdrop-blur-md rounded-2xl p-6 shadow-2xl text-white">
             
-            {/* Black Hole Emblem & Title */}
-            <div className="text-center space-y-3 pb-6 border-b border-white/10">
-              <div className="mx-auto h-16 w-16 rounded-full bg-gradient-to-tr from-amber-500 via-purple-600 to-indigo-900 p-0.5 shadow-2xl shadow-amber-500/20">
-                <div className="h-full w-full bg-[#03050E] rounded-full flex items-center justify-center text-amber-400">
-                  <Orbit className="h-8 w-8 animate-spin" style={{ animationDuration: '12s' }} />
+            {/* Header Title */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-lg">
+                  T
+                </div>
+                <div>
+                  <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
+                    Tabby.ai Hub <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                  </h1>
+                  <p className="text-[11px] text-slate-400 font-medium">Customer Service Performance Workspace</p>
                 </div>
               </div>
 
-              <div>
-                <h1 className="text-2xl font-black tracking-wider text-white flex items-center justify-center gap-2 uppercase">
-                  Tabby.ai Portal <Sparkles className="h-4 w-4 text-amber-400" />
-                </h1>
-                <p className="text-[11px] text-amber-400/80 font-bold uppercase tracking-widest mt-1">
-                  Event Horizon Performance Hub
-                </p>
+              <div className="hidden sm:block text-[11px] text-slate-400">
+                Official Portal Access
               </div>
             </div>
 
-            {/* Login Form */}
-            <form onSubmit={handleLogin} className="space-y-5 pt-6 text-xs">
+            {/* Horizontal Form Layout */}
+            <form onSubmit={handleLogin} className="space-y-4 text-xs">
               {errorMessage && (
-                <div className="p-3.5 bg-red-950/80 border border-red-500/50 text-red-300 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
+                <div className="p-2.5 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-300 text-[11px] tracking-wider uppercase">Email Address</label>
-                <Input
-                  type="email"
-                  placeholder="user@tabby.ai"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 text-xs bg-[#03050F]/90 border-white/10 text-white placeholder:text-slate-600 rounded-2xl focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 font-medium px-4 transition-all"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-300 text-[11px] tracking-wider uppercase">Passcode</label>
-                <div className="relative">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Email Field */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-300 text-[11px]">Email Address</label>
                   <Input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 text-xs bg-[#03050F]/90 border-white/10 text-white placeholder:text-slate-600 rounded-2xl pr-12 font-medium px-4 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                    type="email"
+                    placeholder="user@tabby.ai"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-10 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium px-3"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-3.5 text-slate-400 hover:text-amber-400 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5 text-amber-400" /> : <Eye className="h-5 w-5" />}
-                  </button>
+                </div>
+
+                {/* Password Field */}
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-300 text-[11px]">Passcode</label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-10 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl pr-10 font-medium px-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4 text-emerald-400" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs pt-1">
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-400">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-white/10 bg-slate-900 text-amber-500 focus:ring-amber-500 h-4 w-4"
-                  />
-                  <span>Remember Session</span>
-                </label>
-                <button type="button" className="font-bold text-amber-400 hover:underline">
-                  Forgot Password?
-                </button>
+              {/* Actions & Submit Row */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-4 text-xs text-slate-400">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 h-3.5 w-3.5"
+                    />
+                    <span>Remember Session</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email);
+                      setShowForgotModal(true);
+                    }}
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold hover:underline flex items-center gap-1"
+                  >
+                    <Key className="h-3 w-3" /> Forgot Password?
+                  </button>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto px-8 bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-10 rounded-xl text-xs gap-2 transition-all shadow-md shadow-emerald-600/20"
+                >
+                  <span>{isSubmitting ? 'Authenticating...' : 'Enter Dashboard'}</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
               </div>
-
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-gradient-to-r from-amber-500 via-purple-600 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-extrabold h-12 rounded-2xl text-xs uppercase tracking-widest shadow-[0_0_30px_rgba(245,158,11,0.25)] hover:shadow-[0_0_40px_rgba(245,158,11,0.4)] transition-all duration-300 gap-2 mt-2"
-              >
-                <span>{isSubmitting ? 'Authenticating...' : 'Enter Dashboard'}</span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
             </form>
-
-            <div className="text-center text-[11px] text-slate-500 pt-4 border-t border-white/10 mt-4 font-medium">
-              Having trouble logging in? Contact <span className="font-bold text-amber-400 underline cursor-pointer">Admin Support</span>
-            </div>
           </div>
         </div>
+
+        {/* MODAL: FORGOT PASSWORD REQUEST POPUP */}
+        {showForgotModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+            <Card className="w-full max-w-md border-slate-800 bg-slate-900 text-slate-100 shadow-2xl rounded-2xl">
+              <CardHeader className="border-b border-slate-800 pb-3">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-emerald-400">
+                    <HelpCircle className="h-5 w-5" /> Request Password Reset from Admin
+                  </span>
+                  <button onClick={() => setShowForgotModal(false)} className="p-1 hover:bg-slate-800 rounded">
+                    <X className="h-4 w-4 text-slate-400" />
+                  </button>
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-400">
+                  Submit a request to Admin Support to reset your account credentials
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="pt-4 space-y-4 text-xs">
+                <form onSubmit={handleRaiseForgotPasswordRequest} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-300">Your Tabby Email Address</label>
+                    <Input
+                      type="email"
+                      placeholder="user@tabby.ai"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="h-10 text-xs bg-slate-950 border-slate-800 text-white"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-300">Additional Details / Notes (Optional)</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Forgot password / temporary password expired"
+                      value={forgotDetails}
+                      onChange={(e) => setForgotDetails(e.target.value)}
+                      className="h-10 text-xs bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  {forgotStatusMsg && (
+                    <div className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${forgotIsError ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'}`}>
+                      {forgotIsError ? <AlertCircle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
+                      <span>{forgotStatusMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setShowForgotModal(false)} className="h-9 text-xs">
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={forgotSubmitting} size="sm" className="h-9 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5">
+                      <Send className="h-3.5 w-3.5" /> Raise Password Reset Request
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     );
   }
@@ -245,12 +366,12 @@ export default function Home() {
       <div className={`w-64 border-r p-4 flex flex-col justify-between shrink-0 ${isDarkMode ? 'bg-[#050814] border-white/10' : 'bg-white border-slate-200/80 shadow-xs'}`}>
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-1">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white font-black text-xl shadow-md">
               T
             </div>
             <div>
               <div className="font-extrabold tracking-tight text-sm">Tabby.ai</div>
-              <div className="text-[10px] text-amber-500 font-bold uppercase tracking-wider flex items-center gap-1">
+              <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="h-2.5 w-2.5" /> {currentUser.role}
               </div>
             </div>
@@ -268,11 +389,11 @@ export default function Home() {
                   onClick={() => setActiveTab(item.key)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-amber-500/10 text-amber-400 border-l-4 border-amber-500 shadow-xs'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-l-4 border-emerald-500 shadow-xs'
                       : 'text-slate-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-amber-500' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
                   <span>{item.label}</span>
                 </button>
               );
@@ -282,17 +403,17 @@ export default function Home() {
 
         {/* Lower Left Profile Badge */}
         <div className="space-y-2 border-t border-white/10 pt-3">
-          <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-2">
+          <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-2">
             <div className="truncate">
-              <div className="font-bold text-xs truncate text-amber-400">{currentUser.user_email}</div>
+              <div className="font-bold text-xs truncate text-emerald-400">{currentUser.user_email}</div>
               <div className="text-[10px] text-slate-500 font-bold uppercase">{currentUser.role}</div>
             </div>
 
             <button
               onClick={() => setShowProfile(!showProfile)}
-              className="w-full text-xs font-bold text-amber-400 hover:bg-amber-500/10 bg-white/5 border border-amber-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+              className="w-full text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 bg-white/5 border border-emerald-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
             >
-              <KeyRound className="h-3.5 w-3.5 text-amber-500" />
+              <KeyRound className="h-3.5 w-3.5 text-emerald-400" />
               <span>Update Password</span>
             </button>
           </div>
@@ -310,8 +431,8 @@ export default function Home() {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Header Bar */}
         <header className={`h-16 border-b px-8 flex items-center justify-between backdrop-blur-md shrink-0 ${isDarkMode ? 'bg-[#050814]/80 border-white/10' : 'bg-white/80 border-slate-200/80'}`}>
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-amber-400">
-            <Clock className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+          <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-400">
+            <Clock className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
             <span>{currentTime || 'Syncing live clock...'}</span>
           </div>
 
@@ -328,8 +449,8 @@ export default function Home() {
 
         {/* Password Update Drawer */}
         {showProfile && (
-          <div className="p-5 bg-amber-500/10 border-b border-amber-500/30 text-xs space-y-3 animate-fade-in-up">
-            <div className="font-bold flex items-center justify-between text-amber-400">
+          <div className="p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
+            <div className="font-bold flex items-center justify-between text-emerald-400">
               <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Update Permanent Password for {currentUser.user_email}</span>
               <button onClick={() => setShowProfile(false)} className="text-slate-500 text-xs font-bold hover:underline">Close</button>
             </div>
@@ -342,11 +463,11 @@ export default function Home() {
                 className="h-8 text-xs bg-slate-900 text-white"
                 required
               />
-              <Button type="submit" size="sm" className="h-8 bg-amber-600 text-white text-xs gap-1 font-bold">
+              <Button type="submit" size="sm" className="h-8 bg-emerald-600 text-white text-xs gap-1 font-bold">
                 <Check className="h-3.5 w-3.5" /> Save
               </Button>
             </form>
-            {profileMsg && <p className="text-amber-400 font-bold">{profileMsg}</p>}
+            {profileMsg && <p className="text-emerald-400 font-bold">{profileMsg}</p>}
           </div>
         )}
 
