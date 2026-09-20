@@ -14,11 +14,11 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
   const [requestType, setRequestType] = useState('Score Review');
   const [ticketId, setTicketId] = useState('');
   const [details, setDetails] = useState('');
-  
+
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('All');
-  
+
   const [statusMsg, setStatusMsg] = useState('');
   const [isError, setIsError] = useState(false);
   const [submitting, setLoading] = useState(false);
@@ -66,7 +66,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     setIsError(false);
     setStatusMsg('Submitting request...');
 
-    const userEmailClean = currentUser.user_email.trim().toLowerCase();
+    const userEmailClean = (currentUser?.user_email || 'omar.allaa@tabby.ai').trim().toLowerCase();
 
     const newRequest = {
       user_email: userEmailClean,
@@ -96,10 +96,10 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
   const handleUpdateStatus = async (requestId: string, newStatus: string) => {
     await supabase
       .from('requests')
-      .update({ 
-        status: newStatus, 
-        reviewed_by: currentUser.user_email,
-        reviewed_at: new Date().toISOString()
+      .update({
+        status: newStatus,
+        reviewed_by: currentUser?.user_email || 'TL',
+        reviewed_at: new Date().toISOString(),
       })
       .eq('id', requestId);
 
