@@ -35,7 +35,7 @@ export function OverviewTab() {
   const [targetMetricKey, setTargetMetricKey] = useState('csatPercent');
   const [tempTargetValue, setTempTargetValue] = useState('85');
 
-  // Utility to format numbers, percentages, and fractions
+  // Format Helper
   const formatVal = (val: any, isPct = false) => {
     if (val === undefined || val === null || val === '') return '-';
     const num = typeof val === 'number' ? val : parseFloat(String(val).replace('%', ''));
@@ -54,7 +54,7 @@ export function OverviewTab() {
     return num <= 1 && num > 0 ? num * 100 : num;
   };
 
-  // Comprehensive Metric Definitions with Custom Icons
+  // Comprehensive Metric Definitions
   const allMetricDefinitions = [
     { label: 'CSAT %', teamKey: 'CSAT adjusted with calls, %', floorKey: 'CSAT adjusted with calls, %', targetKey: 'csatPercent', defaultTarget: 85, isPct: true, icon: Sparkles, color: 'text-emerald-500' },
     { label: 'KSCAT %', teamKey: 'KSCAT %', floorKey: 'KSCAT %', targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, icon: Percent, color: 'text-blue-500' },
@@ -325,9 +325,7 @@ export function OverviewTab() {
           )}
         </CardHeader>
         <CardContent>
-          {/* Horizontal Icon Grid for Team Performance */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {/* Raw Ticket Counts */}
             <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-emerald-500/30 shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>CSAT</span>
@@ -390,7 +388,6 @@ export function OverviewTab() {
               <div className="text-xl font-extrabold text-emerald-600 mt-1">{teamTotalCsatPct.toFixed(2)}%</div>
             </div>
 
-            {/* Additional Operational Metrics (Horizontal Chips) */}
             {allMetricDefinitions.slice(2).map((m) => {
               const IconComp = m.icon;
               const val = teamMetrics[m.teamKey];
