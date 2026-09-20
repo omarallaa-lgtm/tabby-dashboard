@@ -157,7 +157,7 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE (CENTERED HORIZONTAL CARD)
+  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE (COMPACT CENTERED HORIZONTAL CARD)
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
@@ -173,84 +173,84 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/20 to-transparent pointer-events-none"></div>
         </div>
 
-        {/* HORIZONTAL CENTERED LOGIN CONTAINER */}
-        <div className="w-full max-w-4xl relative z-10 px-4">
-          <div className="bg-slate-950/75 border border-white/15 backdrop-blur-md rounded-2xl p-6 shadow-2xl text-white">
+        {/* HORIZONTAL COMPACT CENTERED LOGIN CONTAINER */}
+        <div className="w-full max-w-2xl relative z-10 px-2">
+          <div className="bg-slate-950/75 border border-white/15 backdrop-blur-md rounded-2xl p-5 shadow-2xl text-white">
             
-            {/* Header Title */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-lg">
+            {/* Compact Header Title */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-base">
                   T
                 </div>
                 <div>
-                  <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
-                    Tabby.ai Hub <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                  <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
+                    Tabby.ai Hub <Sparkles className="h-3 w-3 text-emerald-400" />
                   </h1>
-                  <p className="text-[11px] text-slate-400 font-medium">Customer Service Performance Workspace</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Customer Service Performance Workspace</p>
                 </div>
               </div>
 
-              <div className="hidden sm:block text-[11px] text-slate-400">
-                Official Portal Access
+              <div className="hidden sm:block text-[10px] text-slate-400">
+                Official Portal
               </div>
             </div>
 
             {/* Horizontal Form Layout */}
-            <form onSubmit={handleLogin} className="space-y-4 text-xs">
+            <form onSubmit={handleLogin} className="space-y-3.5 text-xs">
               {errorMessage && (
-                <div className="p-2.5 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                <div className="p-2 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-[11px] font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Email Field */}
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-300 text-[11px]">Email Address</label>
+                  <label className="font-semibold text-slate-300 text-[10px]">Email Address</label>
                   <Input
                     type="email"
                     placeholder="user@tabby.ai"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-10 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium px-3"
+                    className="h-9 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium px-3"
                     required
                   />
                 </div>
 
                 {/* Password Field */}
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-300 text-[11px]">Passcode</label>
+                  <label className="font-semibold text-slate-300 text-[10px]">Passcode</label>
                   <div className="relative">
                     <Input
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="h-10 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl pr-10 font-medium px-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      className="h-9 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl pr-9 font-medium px-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                      className="absolute right-3 top-2 text-slate-400 hover:text-emerald-400 transition-colors"
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4 text-emerald-400" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? <EyeOff className="h-3.5 w-3.5 text-emerald-400" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                   </div>
                 </div>
               </div>
 
               {/* Actions & Submit Row */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                <div className="flex items-center gap-4 text-xs text-slate-400">
-                  <label className="flex items-center gap-2 cursor-pointer font-medium">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-1">
+                <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium">
                     <input
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 h-3.5 w-3.5"
+                      className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 h-3 w-3"
                     />
                     <span>Remember Session</span>
                   </label>
@@ -261,7 +261,7 @@ export default function Home() {
                       setForgotEmail(email);
                       setShowForgotModal(true);
                     }}
-                    className="text-emerald-400 hover:text-emerald-300 font-semibold hover:underline flex items-center gap-1"
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold hover:underline flex items-center gap-1 text-[11px]"
                   >
                     <Key className="h-3 w-3" /> Forgot Password?
                   </button>
@@ -270,7 +270,7 @@ export default function Home() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full sm:w-auto px-8 bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-10 rounded-xl text-xs gap-2 transition-all shadow-md shadow-emerald-600/20"
+                  className="w-full sm:w-auto px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 rounded-xl text-xs gap-1.5 transition-all shadow-md shadow-emerald-600/20"
                 >
                   <span>{isSubmitting ? 'Authenticating...' : 'Enter Dashboard'}</span>
                   <ArrowRight className="h-3.5 w-3.5" />
