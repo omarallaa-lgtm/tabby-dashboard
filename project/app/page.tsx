@@ -24,21 +24,21 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Password Settings Drawer State
+  // Password Settings State
   const [showProfile, setShowProfile] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
-  // Anime Sequence States
+  // Anime Sequence & Input Focus States
   const [entrancePhase, setEntrancePhase] = useState<'fireball' | 'revealed'>('fireball');
   const [focusedField, setFocusedField] = useState<'none' | 'email' | 'password'>('none');
   const [jutsuState, setJutsuState] = useState<'idle' | 'genjutsu_error' | 'rasengan_burst'>('idle');
 
-  // Launch Fireball Entrance Animation
+  // Entrance Fireball Timer (1.8s)
   useEffect(() => {
     const timer = setTimeout(() => {
       setEntrancePhase('revealed');
-    }, 1800); // 1.8 second Fireball Jutsu explosion reveal
+    }, 1800);
     return () => clearTimeout(timer);
   }, []);
 
@@ -59,7 +59,7 @@ export default function Home() {
     setErrorMessage('');
     const cleanEmail = email.trim().toLowerCase();
 
-    // Admin Credentials
+    // Admin Fallback Check
     if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
       setJutsuState('rasengan_burst');
       setTimeout(() => {
@@ -97,9 +97,8 @@ export default function Home() {
       console.error('Supabase auth error:', err);
     }
 
-    // Trigger Genjutsu Error Flash
     setJutsuState('genjutsu_error');
-    setErrorMessage("Tsukuyomi Genjutsu: Invalid email or password!");
+    setErrorMessage("Chakra Disruption: Invalid email or password!");
     setTimeout(() => setJutsuState('idle'), 2200);
   };
 
@@ -117,58 +116,67 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // SHIPPUDEN CINEMATIC LOGIN SCREEN
+  // FULL-SCREEN VIDEO BACKGROUND LOGIN PAGE
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#03060E] font-sans select-none overflow-hidden relative">
         
-        {/* BACKGROUND ANIMATED BATTLE SCENE OVERLAY */}
-        <div className="absolute inset-0 z-0 bg-cover bg-center opacity-40 scale-105 transition-transform duration-10000 hover:scale-100" style={{
-          backgroundImage: `url('https://images.alphacoders.com/605/thumb-1920-605592.png')`
-        }}></div>
+        {/* 1. BACKGROUND VIDEO LAYER (NARUTO VS SASUKE BATTLE LOOP) */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover opacity-50 scale-105"
+          >
+            <source
+              src="https://assets.mixkit.co/videos/preview/mixkit-fire-flames-burning-slowly-42823-large.mp4"
+              type="video/mp4"
+            />
+          </video>
+          {/* Overlay Dark Gradients for Content Legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#03060E] via-[#03060E]/60 to-[#03060E]/90"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-600/20 via-transparent to-purple-600/20"></div>
+        </div>
 
-        {/* Ambient Dark Ninja Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#03060E] via-transparent to-[#03060E]/90 z-0"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-orange-600/10 via-transparent to-purple-600/10 z-0 pointer-events-none"></div>
-
-        {/* STAGE 1: FIREBALL JUTSU ENTRANCE ANIMATION */}
+        {/* 2. FIREBALL JUTSU ENTRANCE ANIMATION (KATON: GŌKAKYŪ NO JUTSU) */}
         {entrancePhase === 'fireball' && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#03060E] pointer-events-none">
             <div className="relative flex items-center justify-center">
-              {/* Expanding Fireball Sphere */}
-              <div className="w-48 h-48 rounded-full bg-gradient-to-tr from-amber-500 via-orange-600 to-red-600 blur-xl animate-ping"></div>
-              <div className="w-64 h-64 rounded-full bg-gradient-to-tr from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_120px_#f97316] flex items-center justify-center animate-spin">
-                <Flame className="h-32 w-32 text-amber-200 animate-pulse" />
+              <div className="w-56 h-56 rounded-full bg-gradient-to-tr from-amber-500 via-orange-600 to-red-600 blur-2xl animate-ping"></div>
+              <div className="w-72 h-72 rounded-full bg-gradient-to-tr from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_140px_#f97316] flex items-center justify-center animate-spin">
+                <Flame className="h-36 w-36 text-amber-200 animate-pulse" />
               </div>
-              <div className="absolute font-black text-amber-300 text-2xl tracking-widest uppercase animate-pulse">
+              <div className="absolute font-black text-amber-300 text-3xl tracking-widest uppercase animate-pulse">
                 火遁・豪火球の術
               </div>
             </div>
           </div>
         )}
 
-        {/* STAGE 2: REVEALED LOGIN FORM CARD */}
-        <div className={`w-full max-w-lg relative z-20 transition-all duration-1000 ${
+        {/* 3. GLASSMORPHIC LOGIN CARD */}
+        <div className={`w-full max-w-md relative z-20 transition-all duration-1000 ${
           entrancePhase === 'revealed' ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
         }`}>
           
-          {/* Tsukuyomi Genjutsu Error Flash Overlay */}
+          {/* Error Flash Overlay */}
           {jutsuState === 'genjutsu_error' && (
-            <div className="absolute -inset-10 z-30 bg-red-600/20 rounded-3xl blur-2xl animate-pulse pointer-events-none"></div>
+            <div className="absolute -inset-10 z-30 bg-red-600/30 rounded-3xl blur-2xl animate-pulse pointer-events-none"></div>
           )}
 
-          {/* Rasengan Victory Burst Overlay */}
+          {/* Victory Burst Overlay */}
           {jutsuState === 'rasengan_burst' && (
-            <div className="absolute -inset-10 z-30 bg-cyan-500/30 rounded-3xl blur-3xl animate-ping pointer-events-none"></div>
+            <div className="absolute -inset-10 z-30 bg-cyan-500/40 rounded-3xl blur-3xl animate-ping pointer-events-none"></div>
           )}
 
-          <div className={`relative bg-[#080D1A]/80 border-2 backdrop-blur-2xl rounded-3xl p-8 shadow-[0_0_80px_rgba(0,0,0,0.8)] transition-all duration-300 ${
-            focusedField === 'email' ? 'border-amber-500/80 shadow-[0_0_40px_rgba(245,158,11,0.3)]' :
-            focusedField === 'password' ? 'border-purple-500/80 shadow-[0_0_40px_rgba(168,85,247,0.3)]' :
+          <div className={`relative bg-[#080D1A]/85 border-2 backdrop-blur-2xl rounded-3xl p-8 shadow-[0_0_90px_rgba(0,0,0,0.9)] transition-all duration-300 ${
+            focusedField === 'email' ? 'border-amber-500/80 shadow-[0_0_50px_rgba(245,158,11,0.4)]' :
+            focusedField === 'password' ? 'border-purple-500/80 shadow-[0_0_50px_rgba(168,85,247,0.4)]' :
             'border-slate-800'
           }`}>
             
-            {/* Top Shinobi Emblem & Title */}
+            {/* Top Emblem & Title */}
             <div className="text-center space-y-3 pb-6 border-b border-slate-800/80">
               <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-purple-600 p-0.5 shadow-xl shadow-amber-500/20">
                 <div className="h-full w-full bg-[#080D1A] rounded-[14px] flex items-center justify-center font-black text-amber-400 text-2xl">
@@ -186,7 +194,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Login Form */}
+            {/* Form Fields */}
             <form onSubmit={handleLogin} className="space-y-5 pt-6 text-xs">
               {errorMessage && (
                 <div className="p-3.5 bg-red-950/80 border border-red-500/50 text-red-300 rounded-2xl text-xs font-bold flex items-center gap-2 animate-shake">
@@ -195,7 +203,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Email Input Field with Rasengan Swirl Focus */}
               <div className="space-y-1.5">
                 <label className="font-extrabold text-slate-300 text-[11px] tracking-wider uppercase flex items-center justify-between">
                   <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-amber-500" /> Shinobi Identification</span>
@@ -213,7 +220,6 @@ export default function Home() {
                 />
               </div>
 
-              {/* Password Field with Chidori Lightning Focus */}
               <div className="space-y-1.5">
                 <label className="font-extrabold text-slate-300 text-[11px] tracking-wider uppercase flex items-center justify-between">
                   <span className="flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-purple-400" /> Secret Chakra Passcode</span>
@@ -251,7 +257,7 @@ export default function Home() {
                   <span>Persist Shinobi Session</span>
                 </label>
                 <button type="button" className="font-bold text-amber-400 hover:underline">
-                  Sharingan Reset?
+                  Reset Passcode?
                 </button>
               </div>
 
