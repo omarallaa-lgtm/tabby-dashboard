@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
   MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
-  Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2
+  Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2,
+  Snowflake, Zap
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -30,6 +31,14 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Tab Flip Animation Trigger State
+  const [isFlipping, setIsFlipping] = useState(false);
+
+  // Freeze / Ice Break Idle System State
+  const [isFrozen, setIsFrozen] = useState(false);
+  const [iceShattered, setIceShattered] = useState(false);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Forgot Password Modal State
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -43,6 +52,7 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
+  // Clock Timer
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -55,13 +65,60 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  // Idle Timer for Freezing (30 Seconds Inactivity Trigger)
+  const resetIdleTimer = () => {
+    if (isFrozen) {
+      // Trigger Ice Break Shatter Effect
+      setIceShattered(true);
+      setTimeout(() => {
+        setIsFrozen(false);
+        setIceShattered(false);
+      }, 500);
+    }
+
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+
+    // Freeze after 30 seconds of inactivity if logged in
+    idleTimerRef.current = setTimeout(() => {
+      if (currentUser) {
+        setIsFrozen(true);
+      }
+    }, 30000);
+  };
+
+  useEffect(() => {
+    const handleActivity = () => resetIdleTimer();
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+
+    resetIdleTimer();
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [currentUser, isFrozen]);
+
+  // Tab Transition Switch with 3D Page Flip Animation
+  const handleTabChange = (tabKey: string) => {
+    if (tabKey === activeTab) return;
+    setIsFlipping(true);
+    setTimeout(() => {
+      setActiveTab(tabKey);
+      setTimeout(() => setIsFlipping(false), 300);
+    }, 200);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setIsSubmitting(true);
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Direct Admin Fallback Check
     if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
       setTimeout(() => {
         const adminUser = {
@@ -79,7 +136,6 @@ export default function Home() {
       return;
     }
 
-    // 2. Supabase Query
     try {
       const { data: userProfile } = await supabase
         .from('user_profiles')
@@ -157,7 +213,7 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE (COMPACT CENTERED HORIZONTAL CARD)
+  // FULL-SCREEN LOGIN PAGE
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
@@ -173,11 +229,9 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/20 to-transparent pointer-events-none"></div>
         </div>
 
-        {/* HORIZONTAL COMPACT CENTERED LOGIN CONTAINER */}
+        {/* COMPACT CENTERED LOGIN CONTAINER */}
         <div className="w-full max-w-2xl relative z-10 px-2">
           <div className="bg-slate-950/75 border border-white/15 backdrop-blur-md rounded-2xl p-5 shadow-2xl text-white">
-            
-            {/* Compact Header Title */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-base">
@@ -196,7 +250,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Horizontal Form Layout */}
             <form onSubmit={handleLogin} className="space-y-3.5 text-xs">
               {errorMessage && (
                 <div className="p-2 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-[11px] font-semibold flex items-center gap-2">
@@ -206,7 +259,6 @@ export default function Home() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Email Field */}
                 <div className="space-y-1">
                   <label className="font-semibold text-slate-300 text-[10px]">Email Address</label>
                   <Input
@@ -219,7 +271,6 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Password Field */}
                 <div className="space-y-1">
                   <label className="font-semibold text-slate-300 text-[10px]">Passcode</label>
                   <div className="relative">
@@ -242,7 +293,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Actions & Submit Row */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-1">
                 <div className="flex items-center gap-3 text-[11px] text-slate-400">
                   <label className="flex items-center gap-1.5 cursor-pointer font-medium">
@@ -280,7 +330,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MODAL: FORGOT PASSWORD REQUEST POPUP */}
+        {/* FORGOT PASSWORD MODAL */}
         {showForgotModal && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
             <Card className="w-full max-w-md border-slate-800 bg-slate-900 text-slate-100 shadow-2xl rounded-2xl">
@@ -361,18 +411,59 @@ export default function Home() {
   ];
 
   return (
-    <div className={`min-h-screen flex font-sans ${isDarkMode ? 'bg-[#020208] text-slate-100' : 'bg-slate-50/80 text-slate-900'}`}>
-      {/* Sidebar Navigation */}
-      <div className={`w-64 border-r p-4 flex flex-col justify-between shrink-0 ${isDarkMode ? 'bg-[#050814] border-white/10' : 'bg-white border-slate-200/80 shadow-xs'}`}>
+    <div className={`min-h-screen flex font-sans relative overflow-hidden ${isDarkMode ? 'bg-[#030712] text-cyan-50' : 'bg-slate-50 text-slate-900'}`}>
+      
+      {/* WINTER THEME: FALLING SNOWFLAKES */}
+      <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden opacity-40">
+        <div className="absolute -top-10 left-1/10 text-cyan-200 animate-bounce duration-1000"><Snowflake className="h-4 w-4" /></div>
+        <div className="absolute -top-10 left-1/4 text-cyan-100 animate-pulse duration-700"><Snowflake className="h-3 w-3" /></div>
+        <div className="absolute -top-10 left-1/2 text-sky-200 animate-bounce duration-1000"><Snowflake className="h-5 w-5" /></div>
+        <div className="absolute -top-10 left-3/4 text-cyan-300 animate-pulse duration-700"><Snowflake className="h-4 w-4" /></div>
+        <div className="absolute -top-10 left-9/10 text-cyan-100 animate-bounce duration-1000"><Snowflake className="h-3 w-3" /></div>
+      </div>
+
+      {/* IDLE FREEZE SCREEN & ICE BREAK OVERLAY */}
+      {isFrozen && (
+        <div
+          onClick={resetIdleTimer}
+          className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-cyan-950/70 cursor-pointer transition-all duration-300 ${
+            iceShattered ? 'scale-110 opacity-0' : 'opacity-100 scale-100'
+          }`}
+        >
+          {/* Frost / Ice Texture Graphic */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(186,230,253,0.3),rgba(8,47,73,0.85))] pointer-events-none"></div>
+          <div className="absolute inset-0 border-[16px] border-cyan-200/40 rounded-3xl pointer-events-none"></div>
+
+          <div className="relative z-10 text-center space-y-3 p-8 bg-slate-950/80 border-2 border-cyan-300/60 rounded-3xl backdrop-blur-2xl shadow-[0_0_80px_rgba(56,189,248,0.5)] max-w-sm animate-pulse">
+            <div className="mx-auto h-16 w-16 rounded-full bg-cyan-500/20 border-2 border-cyan-300 flex items-center justify-center text-cyan-200">
+              <Snowflake className="h-8 w-8 animate-spin" style={{ animationDuration: '10s' }} />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold tracking-tight text-cyan-200 uppercase">Dashboard Frozen</h2>
+              <p className="text-xs text-sky-300/80 mt-1 font-medium">System entered idle freeze state</p>
+            </div>
+            <div className="pt-2 text-[11px] font-bold text-cyan-400 uppercase tracking-widest bg-cyan-950/60 border border-cyan-400/30 rounded-full py-1.5 px-4 inline-block">
+              ❄️ Move mouse or tap to shatter ice
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WINTER SIDEBAR NAVIGATION */}
+      <div className={`w-64 border-r p-4 flex flex-col justify-between shrink-0 backdrop-blur-xl z-20 ${
+        isDarkMode ? 'bg-[#080E1E]/90 border-cyan-900/40' : 'bg-white/90 border-slate-200 shadow-xs'
+      }`}>
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-1">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white font-black text-xl shadow-md">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-sky-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-md shadow-cyan-500/20">
               T
             </div>
             <div>
-              <div className="font-extrabold tracking-tight text-sm">Tabby.ai</div>
-              <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                <Sparkles className="h-2.5 w-2.5" /> {currentUser.role}
+              <div className="font-extrabold tracking-tight text-sm flex items-center gap-1.5 text-cyan-400">
+                Tabby.ai <Snowflake className="h-3.5 w-3.5 text-sky-300 animate-pulse" />
+              </div>
+              <div className="text-[10px] text-sky-300 font-bold uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="h-2.5 w-2.5" /> Winter Theme
               </div>
             </div>
           </div>
@@ -386,14 +477,14 @@ export default function Home() {
               return (
                 <button
                   key={item.key}
-                  onClick={() => setActiveTab(item.key)}
+                  onClick={() => handleTabChange(item.key)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-emerald-500/10 text-emerald-400 border-l-4 border-emerald-500 shadow-xs'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                      ? 'bg-cyan-500/15 text-cyan-300 border-l-4 border-cyan-400 shadow-xs'
+                      : 'text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-200'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
                   <span>{item.label}</span>
                 </button>
               );
@@ -401,45 +492,53 @@ export default function Home() {
           </nav>
         </div>
 
-        {/* Lower Left Profile Badge */}
-        <div className="space-y-2 border-t border-white/10 pt-3">
-          <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-2">
+        {/* LOWER LEFT PROFILE BADGE */}
+        <div className="space-y-2 border-t border-cyan-900/40 pt-3">
+          <div className="p-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 space-y-2">
             <div className="truncate">
-              <div className="font-bold text-xs truncate text-emerald-400">{currentUser.user_email}</div>
-              <div className="text-[10px] text-slate-500 font-bold uppercase">{currentUser.role}</div>
+              <div className="font-bold text-xs truncate text-cyan-300">{currentUser.user_email}</div>
+              <div className="text-[10px] text-sky-400 font-bold uppercase">{currentUser.role}</div>
             </div>
 
             <button
               onClick={() => setShowProfile(!showProfile)}
-              className="w-full text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 bg-white/5 border border-emerald-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+              className="w-full text-xs font-bold text-cyan-300 hover:bg-cyan-500/10 bg-white/5 border border-cyan-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
             >
-              <KeyRound className="h-3.5 w-3.5 text-emerald-400" />
+              <KeyRound className="h-3.5 w-3.5 text-cyan-400" />
               <span>Update Password</span>
             </button>
           </div>
 
           <button
             onClick={() => setCurrentUser(null)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
           >
             <LogOut className="h-4 w-4" /> Log Out
           </button>
         </div>
       </div>
 
-      {/* Main Content Workspace */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header Bar */}
-        <header className={`h-16 border-b px-8 flex items-center justify-between backdrop-blur-md shrink-0 ${isDarkMode ? 'bg-[#050814]/80 border-white/10' : 'bg-white/80 border-slate-200/80'}`}>
-          <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-400">
-            <Clock className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+      {/* MAIN CONTENT WORKSPACE WITH 3D FLIP ANIMATION */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden z-10">
+        
+        {/* TOP WINTER HEADER BAR */}
+        <header className={`h-16 border-b px-8 flex items-center justify-between backdrop-blur-md shrink-0 ${
+          isDarkMode ? 'bg-[#080E1E]/80 border-cyan-900/40' : 'bg-white/80 border-slate-200'
+        }`}>
+          <div className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-cyan-300">
+            <Clock className="h-3.5 w-3.5 text-cyan-400 animate-pulse" />
             <span>{currentTime || 'Syncing live clock...'}</span>
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-sky-500/10 border border-sky-400/20 rounded-full text-[11px] font-semibold text-sky-300">
+              <Snowflake className="h-3.5 w-3.5 text-sky-300" />
+              <span>Winter Active</span>
+            </div>
+
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 rounded-xl border border-white/10 hover:bg-white/5 transition-colors text-xs flex items-center gap-2 font-semibold"
+              className="p-2 rounded-xl border border-cyan-900/40 hover:bg-cyan-500/10 transition-colors text-xs flex items-center gap-2 font-semibold"
             >
               {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-600" />}
               <span>{isDarkMode ? 'Light' : 'Dark'}</span>
@@ -447,12 +546,12 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Password Update Drawer */}
+        {/* PASSWORD UPDATE DRAWER */}
         {showProfile && (
-          <div className="p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
-            <div className="font-bold flex items-center justify-between text-emerald-400">
+          <div className="p-5 bg-cyan-500/10 border-b border-cyan-500/30 text-xs space-y-3 animate-fade-in-up">
+            <div className="font-bold flex items-center justify-between text-cyan-300">
               <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Update Permanent Password for {currentUser.user_email}</span>
-              <button onClick={() => setShowProfile(false)} className="text-slate-500 text-xs font-bold hover:underline">Close</button>
+              <button onClick={() => setShowProfile(false)} className="text-slate-400 text-xs font-bold hover:underline">Close</button>
             </div>
             <form onSubmit={handleUpdatePassword} className="flex gap-2 max-w-md">
               <Input
@@ -460,18 +559,21 @@ export default function Home() {
                 placeholder="Enter new permanent password..."
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="h-8 text-xs bg-slate-900 text-white"
+                className="h-8 text-xs bg-slate-950 text-white"
                 required
               />
-              <Button type="submit" size="sm" className="h-8 bg-emerald-600 text-white text-xs gap-1 font-bold">
+              <Button type="submit" size="sm" className="h-8 bg-cyan-600 text-white text-xs gap-1 font-bold">
                 <Check className="h-3.5 w-3.5" /> Save
               </Button>
             </form>
-            {profileMsg && <p className="text-emerald-400 font-bold">{profileMsg}</p>}
+            {profileMsg && <p className="text-cyan-300 font-bold">{profileMsg}</p>}
           </div>
         )}
 
-        <main className="flex-1 p-8 overflow-y-auto">
+        {/* MAIN TAB CONTENT WITH 3D FLIP TRANSITION */}
+        <main className={`flex-1 p-8 overflow-y-auto transition-all duration-300 origin-center ${
+          isFlipping ? 'rotate-y-90 opacity-0 scale-95' : 'rotate-y-0 opacity-100 scale-100'
+        }`}>
           {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
           {activeTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
           {activeTab === 'team' && isTabAllowed('team') && <TeamTab />}
