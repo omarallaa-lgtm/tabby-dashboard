@@ -65,7 +65,6 @@ export function TeamTab() {
     const teamNum = getNumVal(d.teamMetrics || {}, currentMetricDef.keys);
     const floorNum = getNumVal(d.floorMetrics || {}, currentMetricDef.keys);
 
-    // Map value 0..100 to y coordinates
     const yTeam = SVG_HEIGHT - PADDING_Y - (Math.min(Math.max(teamNum, 0), 100) / 100) * USABLE_HEIGHT;
     const yFloor = SVG_HEIGHT - PADDING_Y - (Math.min(Math.max(floorNum, 0), 100) / 100) * USABLE_HEIGHT;
 
