@@ -30,11 +30,11 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
 
     const userEmailClean = currentUser.user_email.trim().toLowerCase();
 
-    // 1. Fetch Personal Submissions
+    // 1. Fetch Personal Submissions (queries both user_email and agent_email)
     const { data: myData } = await supabase
       .from('requests')
       .select('*')
-      .ilike('user_email', userEmailClean)
+      .or(`user_email.ilike.${userEmailClean},agent_email.ilike.${userEmailClean}`)
       .order('created_at', { ascending: false });
 
     if (myData) {
@@ -69,9 +69,10 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     const userEmailClean = (currentUser?.user_email || 'omar.allaa@tabby.ai').trim().toLowerCase();
     const generatedUUID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
-    // Payload includes both request_id and id to fulfill all schema constraints
+    // Payload includes BOTH agent_email and user_email to fulfill all DB constraints
     const newRequest = {
       request_id: generatedUUID,
+      agent_email: userEmailClean,
       user_email: userEmailClean,
       request_type: requestType,
       ticket_id: ticketId.trim() || 'N/A',
@@ -280,7 +281,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                   {allRequests.length > 0 ? (
                     allRequests.map((req, idx) => (
                       <TableRow key={req.id || req.request_id || idx} className="hover:bg-slate-500/5">
-                        <TableCell className="font-semibold text-emerald-600">{req.user_email}</TableCell>
+                        <TableCell className="font-semibold text-emerald-600">{req.agent_email || req.user_email}</TableCell>
                         <TableCell>{req.request_type}</TableCell>
                         <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
                         <TableCell className="max-w-[250px] text-slate-600 dark:text-slate-400">{req.details}</TableCell>
