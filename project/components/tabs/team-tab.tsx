@@ -36,7 +36,6 @@ export function TeamTab() {
   const hasData = Object.keys(teamMetrics).length > 0;
   const currentMetricDef = comparisons.find((c) => c.name === graphMetricKey) || comparisons[0];
 
-  // Robust Number Parser for Graph Scaling
   const getRawNum = (sourceMap: Record<string, any>, keys: string[], isPct: boolean) => {
     if (!sourceMap) return 0;
     for (const k of keys) {
@@ -51,18 +50,17 @@ export function TeamTab() {
     return 0;
   };
 
-  // SVG Graph Layout Parameters
-  const SVG_WIDTH = 800;
-  const SVG_HEIGHT = 260;
-  const PADDING_LEFT = 60;
-  const PADDING_RIGHT = 40;
-  const PADDING_TOP = 40;
+  // Google Charts Canvas Parameters
+  const SVG_WIDTH = 650;
+  const SVG_HEIGHT = 280;
+  const PADDING_LEFT = 50;
+  const PADDING_RIGHT = 30;
+  const PADDING_TOP = 20;
   const PADDING_BOTTOM = 40;
 
   const DRAW_WIDTH = SVG_WIDTH - PADDING_LEFT - PADDING_RIGHT;
   const DRAW_HEIGHT = SVG_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
-  // Extract Numerical Values Across Daily Backups
   const targetVal = kpiTargets[currentMetricDef.targetKey] || currentMetricDef.defaultTarget;
   const dataPointsRaw = dailyProgressData.map((d: any) => ({
     period: d.period,
@@ -73,11 +71,18 @@ export function TeamTab() {
   const allNums = dataPointsRaw.flatMap((d: any) => [d.teamNum, d.floorNum]).filter((v: number) => v > 0);
   allNums.push(targetVal);
 
-  const minVal = allNums.length > 0 ? Math.max(0, Math.min(...allNums) * 0.8) : 0;
-  const maxVal = allNums.length > 0 ? Math.max(...allNums) * 1.2 : 100;
+  const minVal = allNums.length > 0 ? Math.max(0, Math.floor(Math.min(...allNums) * 0.8)) : 0;
+  const maxVal = allNums.length > 0 ? Math.ceil(Math.max(...allNums) * 1.15) : 100;
   const range = maxVal - minVal > 0 ? maxVal - minVal : 1;
 
-  // Map Coordinates (y = 0 is TOP, so higher values have smaller y values)
+  // Compute 5 horizontal grid ticks
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => {
+    const val = minVal + pct * range;
+    const y = PADDING_TOP + (1 - pct) * DRAW_HEIGHT;
+    return { val, y };
+  });
+
+  // SVG Line Coordinates
   const chartPoints = dataPointsRaw.map((d: any, idx: number) => {
     const totalPoints = Math.max(dataPointsRaw.length - 1, 1);
     const x = PADDING_LEFT + (idx / totalPoints) * DRAW_WIDTH;
@@ -111,7 +116,7 @@ export function TeamTab() {
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Users2 className="h-6 w-6 text-emerald-500" /> Team vs. Floor Benchmark Overview
         </h2>
-        <p className="text-xs text-muted-foreground mt-1">Everyday trajectory progress analysis comparing Team Score against Floor Average across daily backups</p>
+        <p className="text-xs text-muted-foreground mt-1">Multi-series progress tracking comparing Team performance trajectory against Floor averages across daily backups</p>
       </div>
 
       {!hasData ? (
@@ -122,97 +127,79 @@ export function TeamTab() {
         </Card>
       ) : (
         <>
-          {/* TWO-SERIES PROGRESS LINE GRAPH */}
-          <Card className="border-emerald-500/30">
-            <CardHeader className="pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <LineChart className="h-5 w-5 text-emerald-600" /> Progress Analysis Graph: {graphMetricKey}
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Multi-series progress tracking Team Score (Blue Line) vs Floor Average (Amber Line) across daily backups
-                  </CardDescription>
-                </div>
+          {/* GOOGLE CHARTS STYLE LINE GRAPH */}
+          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+            <CardHeader className="pb-2 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg font-normal text-slate-700 dark:text-slate-200">
+                  {graphMetricKey} Progress Trajectory
+                </CardTitle>
+              </div>
 
-                <div className="flex items-center gap-2 text-xs">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Metric Trajectory:</label>
-                  <select
-                    value={graphMetricKey}
-                    onChange={(e) => setGraphMetricKey(e.target.value)}
-                    className="h-8 rounded-md border text-xs px-2 bg-white dark:bg-slate-900 font-bold text-emerald-600"
-                  >
-                    {comparisons.map((c) => (
-                      <option key={c.name} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex items-center gap-2 text-xs">
+                <label className="font-medium text-slate-500">Metric:</label>
+                <select
+                  value={graphMetricKey}
+                  onChange={(e) => setGraphMetricKey(e.target.value)}
+                  className="h-8 rounded-md border text-xs px-2 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200"
+                >
+                  {comparisons.map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
             </CardHeader>
 
-            <CardContent className="pt-4 space-y-4">
-              {/* Legend matching provided reference */}
-              <div className="flex items-center justify-center gap-6 text-xs font-bold border-b pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-blue-500 inline-block shadow-sm"></span>
-                  <span className="text-blue-600">Team Score Trajectory</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-amber-500 inline-block shadow-sm"></span>
-                  <span className="text-amber-600">Floor Average Trajectory</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-emerald-500 inline-block shadow-sm"></span>
-                  <span className="text-emerald-600">Target Benchmark ({targetVal}{currentMetricDef.isPct ? '%' : ''})</span>
-                </div>
-              </div>
+            <CardContent className="pt-2">
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                {/* Minimal SVG Plot Area */}
+                <div className="w-full lg:w-4/5 h-72 relative">
+                  <svg viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} className="w-full h-full">
+                    {/* Horizontal Grid Lines */}
+                    {yTicks.map((t, idx) => (
+                      <g key={idx}>
+                        <line x1={PADDING_LEFT} y1={t.y} x2={SVG_WIDTH - PADDING_RIGHT} y2={t.y} stroke="#e2e8f0" strokeWidth="1" />
+                        <text x={PADDING_LEFT - 8} y={t.y + 3} textAnchor="end" fill="#94a3b8" fontSize="10" fontFamily="sans-serif">
+                          {t.val.toFixed(0)}{currentMetricDef.isPct ? '%' : ''}
+                        </text>
+                      </g>
+                    ))}
 
-              {/* Scaled Responsive Graph Area */}
-              <div className="h-80 w-full relative bg-slate-500/5 rounded-xl border p-2">
-                <svg viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} className="w-full h-full overflow-visible">
-                  {/* Grid Lines */}
-                  <line x1={PADDING_LEFT} y1={PADDING_TOP} x2={SVG_WIDTH - PADDING_RIGHT} y2={PADDING_TOP} stroke="#cbd5e1" strokeDasharray="3" strokeWidth="1" />
-                  <line x1={PADDING_LEFT} y1={PADDING_TOP + DRAW_HEIGHT / 2} x2={SVG_WIDTH - PADDING_RIGHT} y2={PADDING_TOP + DRAW_HEIGHT / 2} stroke="#cbd5e1" strokeDasharray="3" strokeWidth="1" />
-                  <line x1={PADDING_LEFT} y1={SVG_HEIGHT - PADDING_BOTTOM} x2={SVG_WIDTH - PADDING_RIGHT} y2={SVG_HEIGHT - PADDING_BOTTOM} stroke="#cbd5e1" strokeDasharray="3" strokeWidth="1" />
+                    {/* Target Benchmark Line */}
+                    {!isNaN(yTarget) && yTarget >= PADDING_TOP && yTarget <= SVG_HEIGHT - PADDING_BOTTOM && (
+                      <line x1={PADDING_LEFT} y1={yTarget} x2={SVG_WIDTH - PADDING_RIGHT} y2={yTarget} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth="1.5" />
+                    )}
 
-                  {/* Target Benchmark Dashed Line */}
-                  {!isNaN(yTarget) && yTarget >= PADDING_TOP && yTarget <= SVG_HEIGHT - PADDING_BOTTOM && (
-                    <g>
-                      <line x1={PADDING_LEFT} y1={yTarget} x2={SVG_WIDTH - PADDING_RIGHT} y2={yTarget} stroke="#10b981" strokeDasharray="4 4" strokeWidth="2" />
-                      <text x={SVG_WIDTH - PADDING_RIGHT + 5} y={yTarget + 4} fill="#059669" fontSize="10" fontWeight="bold">
-                        Target ({targetVal}{currentMetricDef.isPct ? '%' : ''})
-                      </text>
-                    </g>
-                  )}
+                    {/* Team Line (Google Blue) */}
+                    {teamLineD && <path d={teamLineD} fill="none" stroke="#4285f4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
 
-                  {/* Team Line (Blue) */}
-                  {teamLineD && <path d={teamLineD} fill="none" stroke="#3b82f6" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
+                    {/* Floor Line (Google Red) */}
+                    {floorLineD && <path d={floorLineD} fill="none" stroke="#ea4335" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
 
-                  {/* Floor Line (Amber) */}
-                  {floorLineD && <path d={floorLineD} fill="none" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
-
-                  {/* Data Points and Value Annotations */}
-                  {chartPoints.map((pt: any, i: number) => (
-                    <g key={i}>
-                      {/* Team Circle & Tag */}
-                      <circle cx={pt.x} cy={pt.yTeam} r="5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
-                      <text x={pt.x} y={pt.yTeam - 9} textAnchor="middle" fill="#1d4ed8" fontSize="10" fontWeight="bold">
-                        {pt.teamVal.toFixed(1)}{currentMetricDef.isPct ? '%' : ''}
-                      </text>
-
-                      {/* Floor Circle & Tag */}
-                      <circle cx={pt.x} cy={pt.yFloor} r="5" fill="#f59e0b" stroke="#ffffff" strokeWidth="2" />
-                      <text x={pt.x} y={pt.yFloor + 16} textAnchor="middle" fill="#b45309" fontSize="10" fontWeight="bold">
-                        {pt.floorVal.toFixed(1)}{currentMetricDef.isPct ? '%' : ''}
-                      </text>
-
-                      {/* X-Axis Period Label */}
-                      <text x={pt.x} y={SVG_HEIGHT - PADDING_BOTTOM + 20} textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="bold">
+                    {/* X-Axis Date Labels */}
+                    {chartPoints.map((pt: any, i: number) => (
+                      <text key={i} x={pt.x} y={SVG_HEIGHT - 10} textAnchor="middle" fill="#94a3b8" fontSize="10" fontFamily="sans-serif">
                         {pt.period}
                       </text>
-                    </g>
-                  ))}
-                </svg>
+                    ))}
+                  </svg>
+                </div>
+
+                {/* Right-Side Google Charts Style Square Legend */}
+                <div className="w-full lg:w-1/5 flex lg:flex-col flex-wrap justify-center gap-4 text-xs font-medium text-slate-600 dark:text-slate-300 pl-4 border-l border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 rounded-xs bg-[#4285f4] inline-block shrink-0"></span>
+                    <span>Team Score</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 rounded-xs bg-[#ea4335] inline-block shrink-0"></span>
+                    <span>Floor Average</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 rounded-xs bg-[#f59e0b] inline-block shrink-0"></span>
+                    <span>Target ({targetVal}{currentMetricDef.isPct ? '%' : ''})</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
