@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock, ArrowRight, AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
@@ -110,11 +109,11 @@ export default function Home() {
 
   // Helper calculation for eye pupil offset relative to mouse
   const calcPupilPos = (eyeX: number, eyeY: number) => {
-    if (isTypingPassword) return { x: 0, y: -4 }; // Look away/up when entering password
+    if (isTypingPassword) return { x: 0, y: -6 }; // Look up/away when entering password
     const dx = mousePos.x - eyeX;
     const dy = mousePos.y - eyeY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const maxOffset = 5;
+    const maxOffset = 8;
     if (dist === 0) return { x: 0, y: 0 };
     return {
       x: (dx / dist) * Math.min(dist, maxOffset),
@@ -122,142 +121,140 @@ export default function Home() {
     };
   };
 
-  // SPLIT-SCREEN ANIMATED CHARACTER LOGIN PAGE
+  // FULL-SCREEN ANIMATED CHARACTER SPLIT-SCREEN LOGIN PAGE
   if (!currentUser) {
-    const pEye = calcPupilPos(300, 300);
+    const pEye = calcPupilPos(400, 400);
 
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#18181B] p-4 font-sans select-none">
-        <div className="w-full max-w-4xl bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[520px]">
-          {/* LEFT PANEL: ANIMATED EYE-TRACKING CHARACTERS */}
-          <div className="w-full md:w-1/2 bg-[#E4E4E7] p-8 flex items-end justify-center relative overflow-hidden min-h-[260px] md:min-h-auto">
-            <div className="relative w-full max-w-[320px] h-64 flex items-end justify-center">
-              {/* Orange Dome Character */}
-              <div className="absolute left-2 bottom-0 w-32 h-24 bg-[#F97316] rounded-t-full flex items-center justify-center gap-3 pt-2 shadow-md">
-                <div className="w-3 h-3 bg-black rounded-full relative">
-                  <div className="w-1.5 h-1.5 bg-white rounded-full absolute top-0.5 left-0.5" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
+      <div className="min-h-screen w-full flex bg-[#18181B] font-sans select-none overflow-hidden">
+        {/* LEFT PANEL: WIDE FULL-HEIGHT ANIMATED EYE-TRACKING CHARACTERS */}
+        <div className="w-full md:w-1/2 bg-[#E4E4E7] p-12 flex items-end justify-center relative overflow-hidden min-h-[300px] md:min-h-screen">
+          <div className="relative w-full max-w-[480px] h-[380px] flex items-end justify-center">
+            {/* Orange Dome Character */}
+            <div className="absolute left-0 bottom-0 w-48 h-36 bg-[#F97316] rounded-t-full flex items-center justify-center gap-5 pt-3 shadow-xl">
+              <div className="w-5 h-5 bg-black rounded-full relative flex items-center justify-center">
+                <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${pEye.x * 0.6}px, ${pEye.y * 0.6}px)` }} />
+              </div>
+              <div className="w-5 h-5 bg-black rounded-full relative flex items-center justify-center">
+                <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${pEye.x * 0.6}px, ${pEye.y * 0.6}px)` }} />
+              </div>
+            </div>
+
+            {/* Purple Pillar Character */}
+            <div className="absolute left-24 bottom-0 w-32 h-80 bg-[#7C3AED] rounded-t-3xl flex flex-col items-center pt-10 gap-3 shadow-2xl z-10">
+              <div className="flex gap-4">
+                <div className="w-5 h-5 bg-white rounded-full relative flex items-center justify-center">
+                  <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
                 </div>
-                <div className="w-3 h-3 bg-black rounded-full relative">
-                  <div className="w-1.5 h-1.5 bg-white rounded-full absolute top-0.5 left-0.5" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
+                <div className="w-5 h-5 bg-white rounded-full relative flex items-center justify-center">
+                  <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
                 </div>
               </div>
+            </div>
 
-              {/* Purple Pillar Character */}
-              <div className="absolute left-16 bottom-0 w-20 h-52 bg-[#7C3AED] rounded-t-2xl flex flex-col items-center pt-6 gap-2 shadow-lg z-10">
-                <div className="flex gap-3">
-                  <div className="w-3.5 h-3.5 bg-white rounded-full relative flex items-center justify-center">
-                    <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
-                  </div>
-                  <div className="w-3.5 h-3.5 bg-white rounded-full relative flex items-center justify-center">
-                    <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
-                  </div>
+            {/* Black Tall Character */}
+            <div className="absolute left-48 bottom-0 w-24 h-64 bg-[#18181B] rounded-t-2xl flex flex-col items-center pt-6 gap-3 shadow-2xl z-20">
+              <div className="flex gap-3">
+                <div className="w-4 h-4 bg-white rounded-full relative flex items-center justify-center">
+                  <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
+                </div>
+                <div className="w-4 h-4 bg-white rounded-full relative flex items-center justify-center">
+                  <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
                 </div>
               </div>
+            </div>
 
-              {/* Black Tall Character */}
-              <div className="absolute left-32 bottom-0 w-16 h-44 bg-[#18181B] rounded-t-xl flex flex-col items-center pt-4 gap-2 shadow-lg z-20">
-                <div className="flex gap-2">
-                  <div className="w-2.5 h-2.5 bg-white rounded-full relative flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
-                  </div>
-                  <div className="w-2.5 h-2.5 bg-white rounded-full relative flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
-                  </div>
+            {/* Yellow Pillar Character */}
+            <div className="absolute right-4 bottom-0 w-24 h-52 bg-[#FACC15] rounded-t-2xl flex flex-col items-center pt-8 gap-3 shadow-xl z-30">
+              <div className="flex gap-3">
+                <div className="w-4 h-4 bg-black rounded-full relative flex items-center justify-center">
+                  <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
                 </div>
-              </div>
-
-              {/* Yellow Pillar Character */}
-              <div className="absolute right-4 bottom-0 w-16 h-36 bg-[#FACC15] rounded-t-xl flex flex-col items-center pt-5 gap-2 shadow-md z-30">
-                <div className="flex gap-2">
-                  <div className="w-2.5 h-2.5 bg-black rounded-full relative">
-                    <div className="w-1 h-1 bg-white rounded-full absolute top-0.5 left-0.5" style={{ transform: `translate(${pEye.x * 0.4}px, ${pEye.y * 0.4}px)` }} />
-                  </div>
-                  <div className="w-2.5 h-2.5 bg-black rounded-full relative">
-                    <div className="w-1 h-1 bg-white rounded-full absolute top-0.5 left-0.5" style={{ transform: `translate(${pEye.x * 0.4}px, ${pEye.y * 0.4}px)` }} />
-                  </div>
+                <div className="w-4 h-4 bg-black rounded-full relative flex items-center justify-center">
+                  <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* RIGHT PANEL: LOGIN FORM */}
-          <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white text-slate-900">
-            <div className="space-y-6 max-w-sm mx-auto w-full">
-              <div className="space-y-1 text-center md:text-left">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome back!</h1>
-                <p className="text-xs text-slate-500">Please enter your details</p>
+        {/* RIGHT PANEL: WIDE FULL-HEIGHT LOGIN FORM */}
+        <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center bg-white text-slate-900 min-h-screen">
+          <div className="space-y-8 max-w-md mx-auto w-full">
+            <div className="space-y-2 text-center md:text-left">
+              <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Welcome back!</h1>
+              <p className="text-sm text-slate-500 font-medium">Please enter your Tabby credentials to continue</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5 text-sm">
+              {errorMessage && (
+                <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 text-xs tracking-wide">Email Address</label>
+                <Input
+                  type="email"
+                  placeholder="omar.allaa@tabby.ai"
+                  value={email}
+                  onFocus={() => setIsTypingPassword(false)}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-12 text-sm border-slate-200 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 rounded-2xl font-medium px-4"
+                  required
+                />
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-4 text-xs">
-                {errorMessage && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-medium flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{errorMessage}</span>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-700 text-xs">Email</label>
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 text-xs tracking-wide">Password</label>
+                <div className="relative">
                   <Input
-                    type="email"
-                    placeholder="anna@gmail.com"
-                    value={email}
-                    onFocus={() => setIsTypingPassword(false)}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-10 text-xs border-slate-200 focus:border-slate-900 focus:ring-0 rounded-xl font-medium"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onFocus={() => setIsTypingPassword(true)}
+                    onBlur={() => setIsTypingPassword(false)}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 text-sm border-slate-200 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 rounded-2xl pr-12 font-medium px-4"
                     required
                   />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-700 text-xs">Password</label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      value={password}
-                      onFocus={() => setIsTypingPassword(true)}
-                      onBlur={() => setIsTypingPassword(false)}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="h-10 text-xs border-slate-200 focus:border-slate-900 focus:ring-0 rounded-xl pr-10 font-medium"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-slate-300 text-slate-900 focus:ring-0 h-3.5 w-3.5"
-                    />
-                    <span>Remember for 30 days</span>
-                  </label>
-                  <button type="button" className="font-semibold text-slate-900 hover:underline">
-                    Forgot password?
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-10 rounded-xl text-xs shadow-md transition-all mt-2"
-                >
-                  Log in
-                </Button>
-              </form>
-
-              <div className="text-center text-[11px] text-slate-500 pt-2">
-                Don't have an account? <span className="font-bold text-slate-900 cursor-pointer hover:underline">Sign up</span>
               </div>
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-slate-300 text-slate-900 focus:ring-0 h-4 w-4"
+                  />
+                  <span>Remember for 30 days</span>
+                </label>
+                <button type="button" className="font-bold text-slate-900 hover:underline">
+                  Forgot password?
+                </button>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-2xl text-sm shadow-lg hover:shadow-xl transition-all mt-3"
+              >
+                Log in to Dashboard
+              </Button>
+            </form>
+
+            <div className="text-center text-xs text-slate-500 pt-2 font-medium">
+              Having issues logging in? Contact <span className="font-bold text-slate-900 underline cursor-pointer">Support Leadership</span>
             </div>
           </div>
         </div>
