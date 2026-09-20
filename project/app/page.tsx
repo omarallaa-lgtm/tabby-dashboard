@@ -34,7 +34,7 @@ export default function Home() {
   // Tab Flip Transition State
   const [isFlipping, setIsFlipping] = useState(false);
 
-  // Snow & Freeze Inactivity Timer State (Triggered after 100 seconds of no mouse activity)
+  // Snow & Freeze Inactivity Timer State
   const [showSnow, setShowSnow] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [iceShattered, setIceShattered] = useState(false);
@@ -66,7 +66,7 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  // Idle Timer for Snow Activation (1-2 minutes inactivity: 100s)
+  // Idle Timer for Freezing (100 Seconds)
   const resetIdleTimer = () => {
     if (showSnow) setShowSnow(false);
     if (isFrozen) {
@@ -84,7 +84,7 @@ export default function Home() {
         setShowSnow(true);
         setIsFrozen(true);
       }
-    }, 100000); // 100 seconds (between 1 and 2 minutes)
+    }, 100000);
   };
 
   useEffect(() => {
@@ -214,20 +214,20 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE (TABBY - GABRINO TEAM)
+  // FULL-SCREEN LOGIN PAGE (VIDEO BACKGROUND: iYbfNHkXxqU)
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
         
-        {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO */}
+        {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO (iYbfNHkXxqU) */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
           <iframe
-            src="https://www.youtube.com/embed/0Z_u1HPfy-8?autoplay=1&mute=1&controls=0&loop=1&playlist=0Z_u1HPfy-8&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
-            title="Black Hole Background Video"
+            src="https://www.youtube.com/embed/iYbfNHkXxqU?autoplay=1&mute=1&controls=0&loop=1&playlist=iYbfNHkXxqU&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
+            title="Dashboard Background Video"
             allow="autoplay; encrypted-media"
-            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-90 filter brightness-100 contrast-105"
+            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-85 filter brightness-95 contrast-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/20 to-transparent pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/30 to-transparent pointer-events-none"></div>
         </div>
 
         {/* HORIZONTAL COMPACT CENTERED LOGIN CONTAINER */}
@@ -416,10 +416,21 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen flex font-sans relative overflow-hidden transition-colors duration-300 ${
-      isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-slate-100 text-slate-900'
+      isDarkMode ? 'bg-[#020208] text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
-      {/* SNOW ACCENT (ACTIVATED UPON 1-2 MINUTES OF INACTIVITY IN DARK MODE) */}
+      {/* BACKGROUND VIDEO INSIDE DASHBOARD WORKSPACE */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125 opacity-25">
+        <iframe
+          src="https://www.youtube.com/embed/iYbfNHkXxqU?autoplay=1&mute=1&controls=0&loop=1&playlist=iYbfNHkXxqU&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
+          title="Dashboard Inner Background Video"
+          allow="autoplay; encrypted-media"
+          className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none filter brightness-90 contrast-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#020208] via-transparent to-[#020208]"></div>
+      </div>
+
+      {/* SNOW ACCENT ON INACTIVITY */}
       {showSnow && isDarkMode && (
         <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden opacity-50 animate-fade-in">
           <div className="absolute -top-10 left-1/10 text-cyan-200 animate-bounce duration-1000"><Snowflake className="h-4 w-4" /></div>
@@ -456,7 +467,7 @@ export default function Home() {
 
       {/* SIDEBAR NAVIGATION */}
       <div className={`w-64 border-r p-4 flex flex-col justify-between shrink-0 backdrop-blur-xl z-20 ${
-        isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+        isDarkMode ? 'bg-[#080E1E]/90 border-slate-800' : 'bg-white/90 border-slate-200 shadow-xs'
       }`}>
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-1">
@@ -527,7 +538,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MAIN CONTENT WORKSPACE WITH DEDICATED DARK / LIGHT MODE STYLING */}
+      {/* MAIN CONTENT WORKSPACE */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden z-10">
         
         {/* HEADER BAR */}
