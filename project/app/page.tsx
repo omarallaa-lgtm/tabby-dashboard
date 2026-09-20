@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, Sparkles, Eye, EyeOff, Zap, Flame, ShieldAlert } from 'lucide-react';
+import { 
+  AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
+  MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
+  Sparkles, Eye, EyeOff, Shield, ShieldAlert, ArrowRight, Zap 
+} from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
@@ -12,6 +17,14 @@ import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
 import { supabase, useMetrics } from '@/lib/metrics-context';
+
+// Video URLs for Reactive States
+const BACKGROUND_VIDEOS = {
+  idle: "https://assets.mixkit.co/videos/preview/mixkit-abstract-fast-lines-of-blue-light-41525-large.mp4",
+  failMild: "https://assets.mixkit.co/videos/preview/mixkit-smoke-and-fire-particles-in-the-dark-41538-large.mp4",
+  failSevere: "https://assets.mixkit.co/videos/preview/mixkit-red-abstract-motion-lines-41536-large.mp4",
+  success: "https://assets.mixkit.co/videos/preview/mixkit-tunnel-of-futuristic-neon-lights-41551-large.mp4",
+};
 
 export default function Home() {
   const { currentUser, setCurrentUser, refreshMetrics } = useMetrics() as any;
@@ -24,23 +37,19 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Password Settings State
+  // Password Settings Drawer State
   const [showProfile, setShowProfile] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
-  // Anime Sequence & Input Focus States
-  const [entrancePhase, setEntrancePhase] = useState<'fireball' | 'revealed'>('fireball');
-  const [focusedField, setFocusedField] = useState<'none' | 'email' | 'password'>('none');
-  const [jutsuState, setJutsuState] = useState<'idle' | 'genjutsu_error' | 'rasengan_burst'>('idle');
+  // Dynamic Video Login States
+  const [videoState, setVideoState] = useState<'idle' | 'failMild' | 'failSevere' | 'success'>('idle');
+  const [attempts, setAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Entrance Fireball Timer (1.8s)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setEntrancePhase('revealed');
-    }, 1800);
-    return () => clearTimeout(timer);
-  }, []);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -54,52 +63,86 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  // Handle Video Transition
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.src = BACKGROUND_VIDEOS[videoState];
+      videoRef.current.load();
+      videoRef.current.play();
+    }
+  }, [videoState]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage('');
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Admin Credentials Check
-    if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
-      setJutsuState('rasengan_burst');
-      setTimeout(() => {
-        const adminUser = {
-          user_email: cleanEmail,
-          username: 'omar.allaa',
-          role: 'Admin' as const,
-          team_name: 'Support Tier 1',
-          floor_name: 'Floor 1',
-          account_status: 'Active' as const,
-          allowed_tabs: ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data', 'admin'],
-        };
-        setCurrentUser(adminUser);
-        if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
-      }, 1200);
+    if (isLocked) {
+      setErrorMessage("System Locked: Maximum failed attempts exceeded!");
       return;
     }
 
-    try {
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_email', cleanEmail)
-        .single();
+    setErrorMessage('');
+    setIsSubmitting(true);
+    const cleanEmail = email.trim().toLowerCase();
 
-      if (userProfile && userProfile.password_hash === password) {
-        setJutsuState('rasengan_burst');
+    setTimeout(async () => {
+      // 1. Check Fallback Direct Admin Credentials
+      if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
+        setVideoState('success');
         setTimeout(() => {
-          setCurrentUser(userProfile);
-          if (typeof refreshMetrics === 'function') refreshMetrics(userProfile);
+          const adminUser = {
+            user_email: cleanEmail,
+            username: 'omar.allaa',
+            role: 'Admin' as const,
+            team_name: 'Support Tier 1',
+            floor_name: 'Floor 1',
+            account_status: 'Active' as const,
+            allowed_tabs: ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data', 'admin'],
+          };
+          setCurrentUser(adminUser);
+          if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
         }, 1200);
         return;
       }
-    } catch (err) {
-      console.error('Supabase auth error:', err);
-    }
 
-    setJutsuState('genjutsu_error');
-    setErrorMessage("Chakra Disruption: Invalid email or password!");
-    setTimeout(() => setJutsuState('idle'), 2200);
+      // 2. Query Supabase User Profiles
+      try {
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_email', cleanEmail)
+          .single();
+
+        if (userProfile && userProfile.password_hash === password) {
+          setVideoState('success');
+          setTimeout(() => {
+            setCurrentUser(userProfile);
+            if (typeof refreshMetrics === 'function') refreshMetrics(userProfile);
+          }, 1200);
+          return;
+        }
+      } catch (err) {
+        console.error('Supabase auth error:', err);
+      }
+
+      // 3. Handle Failure Logic & State Video Reactions
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 600);
+
+      if (newAttempts >= 3) {
+        setIsLocked(true);
+        setVideoState('failSevere');
+        setErrorMessage("System Locked: Maximum attempts reached (3/3).");
+      } else if (newAttempts === 1) {
+        setVideoState('failMild');
+        setErrorMessage(`Invalid credentials. Attempt ${newAttempts}/3.`);
+      } else {
+        setVideoState('failSevere');
+        setErrorMessage(`Invalid credentials. Attempt ${newAttempts}/3.`);
+      }
+
+      setIsSubmitting(false);
+    }, 800);
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -116,157 +159,131 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN YOUTUBE BACKGROUND LOGIN PAGE
+  // FULL DYNAMIC VIDEO LOGIN PAGE
   if (!currentUser) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#03060E] font-sans select-none overflow-hidden relative">
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#0B0F17] font-sans select-none overflow-hidden relative">
         
-        {/* YOUTUBE BACKGROUND VIDEO IFRAME EMBED (flxZd7EFhSo) */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
-          <iframe
-            src="https://www.youtube.com/embed/flxZd7EFhSo?autoplay=1&mute=1&controls=0&loop=1&playlist=flxZd7EFhSo&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
-            title="Naruto vs Sasuke Background Video"
-            allow="autoplay; encrypted-media"
-            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-60 filter brightness-90 contrast-110"
-          />
-          {/* Ambient Dark Overlays for Text Legibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#03060E] via-[#03060E]/50 to-[#03060E]/80"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-amber-600/10 via-transparent to-purple-600/10"></div>
+        {/* REACTIVE VIDEO BACKGROUND */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <video
+            ref={videoRef}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover transition-opacity duration-700 opacity-60 scale-105"
+          >
+            <source src={BACKGROUND_VIDEOS.idle} type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/60 to-[#0B0F17]/80"></div>
         </div>
 
-        {/* FIREBALL JUTSU ENTRANCE ANIMATION */}
-        {entrancePhase === 'fireball' && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#03060E] pointer-events-none">
-            <div className="relative flex items-center justify-center">
-              <div className="w-56 h-56 rounded-full bg-gradient-to-tr from-amber-500 via-orange-600 to-red-600 blur-2xl animate-ping"></div>
-              <div className="w-72 h-72 rounded-full bg-gradient-to-tr from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_140px_#f97316] flex items-center justify-center animate-spin">
-                <Flame className="h-36 w-36 text-amber-200 animate-pulse" />
-              </div>
-              <div className="absolute font-black text-amber-300 text-3xl tracking-widest uppercase animate-pulse">
-                火遁・豪火球の術
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* GLASSMORPHIC LOGIN CARD */}
-        <div className={`w-full max-w-md relative z-20 transition-all duration-1000 ${
-          entrancePhase === 'revealed' ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+        {/* SPLIT-SCREEN GLASSMORPHISM CONTAINER */}
+        <div className={`w-full max-w-4xl min-h-[540px] relative z-10 flex flex-col md:flex-row rounded-[28px] overflow-hidden border border-white/10 bg-[#121826]/75 backdrop-blur-2xl shadow-2xl transition-all duration-300 ${
+          isShaking ? 'animate-shake border-red-500/80 shadow-red-500/20' : ''
         }`}>
           
-          {/* Error Flash Overlay */}
-          {jutsuState === 'genjutsu_error' && (
-            <div className="absolute -inset-10 z-30 bg-red-600/30 rounded-3xl blur-2xl animate-pulse pointer-events-none"></div>
-          )}
-
-          {/* Victory Burst Overlay */}
-          {jutsuState === 'rasengan_burst' && (
-            <div className="absolute -inset-10 z-30 bg-cyan-500/40 rounded-3xl blur-3xl animate-ping pointer-events-none"></div>
-          )}
-
-          <div className={`relative bg-[#080D1A]/85 border-2 backdrop-blur-2xl rounded-3xl p-8 shadow-[0_0_90px_rgba(0,0,0,0.9)] transition-all duration-300 ${
-            focusedField === 'email' ? 'border-amber-500/80 shadow-[0_0_50px_rgba(245,158,11,0.4)]' :
-            focusedField === 'password' ? 'border-purple-500/80 shadow-[0_0_50px_rgba(168,85,247,0.4)]' :
-            'border-slate-800'
-          }`}>
-            
-            {/* Top Emblem & Title */}
-            <div className="text-center space-y-3 pb-6 border-b border-slate-800/80">
-              <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-purple-600 p-0.5 shadow-xl shadow-amber-500/20">
-                <div className="h-full w-full bg-[#080D1A] rounded-[14px] flex items-center justify-center font-black text-amber-400 text-2xl">
-                  木
-                </div>
+          {/* LEFT HERO BRAND PANEL */}
+          <div className="w-full md:w-5/12 bg-gradient-to-br from-indigo-500/20 via-purple-500/20 to-emerald-500/10 p-10 flex flex-col justify-between border-b md:border-b-0 md:border-r border-white/10 text-white">
+            <div className="space-y-4">
+              <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-indigo-500/30">
+                <Zap className="h-7 w-7" />
               </div>
-
               <div>
-                <h1 className="text-2xl font-black tracking-wider text-white flex items-center justify-center gap-2 uppercase">
-                  SHINOBI PORTAL <Sparkles className="h-4 w-4 text-amber-400" />
-                </h1>
-                <p className="text-xs text-amber-500/80 font-bold uppercase tracking-widest mt-1">
-                  Tabby.ai Shippuden Execution Workspace
+                <h1 className="text-3xl font-extrabold tracking-tight">Tabby.ai Hub</h1>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed font-medium">
+                  Dynamic state-reactive login experience with real-time video feedback.
                 </p>
               </div>
             </div>
 
-            {/* Form Fields */}
-            <form onSubmit={handleLogin} className="space-y-5 pt-6 text-xs">
+            <div className="pt-6">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-slate-300">
+                <Shield className="h-4 w-4 text-indigo-400" />
+                <span>Attempts: {attempts}/3</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT LOGIN FORM PANEL */}
+          <div className="w-full md:w-7/12 p-8 md:p-12 flex flex-col justify-center bg-black/30 text-white">
+            <div className="space-y-6 max-w-sm mx-auto w-full">
+              
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Welcome Back</h2>
+                <p className="text-xs text-slate-400 mt-1">Please enter your credentials to log in.</p>
+              </div>
+
+              {/* Alert Feedback Banner */}
               {errorMessage && (
-                <div className="p-3.5 bg-red-950/80 border border-red-500/50 text-red-300 rounded-2xl text-xs font-bold flex items-center gap-2 animate-shake">
+                <div className="p-3.5 bg-red-500/15 border border-red-500/40 text-red-300 rounded-xl text-xs font-semibold flex items-center gap-2 animate-fade-in">
                   <ShieldAlert className="h-4 w-4 shrink-0 text-red-400" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="font-extrabold text-slate-300 text-[11px] tracking-wider uppercase flex items-center justify-between">
-                  <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5 text-amber-500" /> Shinobi Identification</span>
-                  {focusedField === 'email' && <span className="text-[10px] text-amber-400 font-mono">Rasengan Aura Active</span>}
-                </label>
-                <Input
-                  type="email"
-                  placeholder="omar.allaa@tabby.ai"
-                  value={email}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField('none')}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 text-xs bg-[#040711]/90 border-slate-800 text-slate-100 placeholder:text-slate-600 rounded-2xl focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 font-semibold px-4 transition-all"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-extrabold text-slate-300 text-[11px] tracking-wider uppercase flex items-center justify-between">
-                  <span className="flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-purple-400" /> Secret Chakra Passcode</span>
-                  {focusedField === 'password' && <span className="text-[10px] text-purple-400 font-mono">Chidori Spark Active</span>}
-                </label>
-                <div className="relative">
+              <form onSubmit={handleLogin} className="space-y-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-300 text-[11px] tracking-wider uppercase">Email Address</label>
                   <Input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField('none')}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 text-xs bg-[#040711]/90 border-slate-800 text-slate-100 placeholder:text-slate-600 rounded-2xl pr-12 font-semibold px-4 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    type="email"
+                    placeholder="omar.allaa@tabby.ai"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-11 text-xs bg-white/5 border-white/10 text-white placeholder:text-slate-500 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-medium px-4"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-3.5 text-slate-400 hover:text-amber-400 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5 text-amber-400" /> : <Eye className="h-5 w-5" />}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-300 text-[11px] tracking-wider uppercase">Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-11 text-xs bg-white/5 border-white/10 text-white placeholder:text-slate-500 rounded-xl pr-12 font-medium px-4 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-3 text-slate-400 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded border-white/20 bg-slate-900 text-indigo-500 focus:ring-0 h-4 w-4"
+                    />
+                    <span>Remember me</span>
+                  </label>
+                  <button type="button" className="font-semibold text-indigo-400 hover:underline">
+                    Forgot password?
                   </button>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between text-xs pt-1">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-400">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-slate-800 text-amber-500 focus:ring-amber-500 h-4 w-4 bg-slate-900"
-                  />
-                  <span>Persist Shinobi Session</span>
-                </label>
-                <button type="button" className="font-bold text-amber-400 hover:underline">
-                  Reset Passcode?
-                </button>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-purple-600 hover:from-amber-600 hover:to-purple-700 text-slate-950 font-black h-12 rounded-2xl text-xs uppercase tracking-widest shadow-[0_0_30px_rgba(245,158,11,0.3)] hover:shadow-[0_0_40px_rgba(245,158,11,0.5)] transition-all duration-300 mt-2"
-              >
-                Unleash Chakra & Enter Hub
-              </Button>
-            </form>
-
-            <div className="text-center text-[11px] text-slate-500 pt-4 border-t border-slate-800/80 mt-4">
-              Need access? Contact <span className="font-bold text-amber-400 underline cursor-pointer">Hokage Leadership</span>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || isLocked}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11 rounded-xl text-xs gap-2 shadow-lg shadow-indigo-500/25 transition-all mt-2"
+                >
+                  <span>{isSubmitting ? 'Authenticating...' : 'Sign In'}</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </form>
             </div>
           </div>
+
         </div>
       </div>
     );
@@ -286,17 +303,17 @@ export default function Home() {
   ];
 
   return (
-    <div className={`min-h-screen flex font-sans ${isDarkMode ? 'bg-[#03060E] text-slate-100' : 'bg-slate-50/80 text-slate-900'}`}>
+    <div className={`min-h-screen flex font-sans ${isDarkMode ? 'bg-[#0B0F17] text-slate-100' : 'bg-slate-50/80 text-slate-900'}`}>
       {/* Sidebar Navigation */}
-      <div className={`w-64 border-r p-4 flex flex-col justify-between shrink-0 ${isDarkMode ? 'bg-[#080D1A] border-slate-800' : 'bg-white border-slate-200/80 shadow-xs'}`}>
+      <div className={`w-64 border-r p-4 flex flex-col justify-between shrink-0 ${isDarkMode ? 'bg-[#121826] border-white/10' : 'bg-white border-slate-200/80 shadow-xs'}`}>
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-1">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-amber-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-black text-xl shadow-md">
               T
             </div>
             <div>
               <div className="font-extrabold tracking-tight text-sm">Tabby.ai</div>
-              <div className="text-[10px] text-amber-500 font-bold uppercase tracking-wider flex items-center gap-1">
+              <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="h-2.5 w-2.5" /> {currentUser.role}
               </div>
             </div>
@@ -314,11 +331,11 @@ export default function Home() {
                   onClick={() => setActiveTab(item.key)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-l-4 border-amber-500 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-500/10 hover:text-slate-900 dark:hover:text-slate-100'
+                      ? 'bg-indigo-500/10 text-indigo-400 border-l-4 border-indigo-500 shadow-xs'
+                      : 'text-slate-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-amber-500' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
                   <span>{item.label}</span>
                 </button>
               );
@@ -327,18 +344,18 @@ export default function Home() {
         </div>
 
         {/* Lower Left Profile Badge */}
-        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-          <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-2">
+        <div className="space-y-2 border-t border-white/10 pt-3">
+          <div className="p-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2">
             <div className="truncate">
-              <div className="font-bold text-xs truncate text-amber-600 dark:text-amber-400">{currentUser.user_email}</div>
+              <div className="font-bold text-xs truncate text-indigo-400">{currentUser.user_email}</div>
               <div className="text-[10px] text-slate-500 font-bold uppercase">{currentUser.role}</div>
             </div>
 
             <button
               onClick={() => setShowProfile(!showProfile)}
-              className="w-full text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 bg-white dark:bg-slate-800 border border-amber-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+              className="w-full text-xs font-bold text-indigo-400 hover:bg-indigo-500/10 bg-white/5 border border-indigo-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
             >
-              <KeyRound className="h-3.5 w-3.5 text-amber-500" />
+              <KeyRound className="h-3.5 w-3.5 text-indigo-400" />
               <span>Update Password</span>
             </button>
           </div>
@@ -355,16 +372,16 @@ export default function Home() {
       {/* Main Content Workspace */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Header Bar */}
-        <header className={`h-16 border-b px-8 flex items-center justify-between backdrop-blur-md shrink-0 ${isDarkMode ? 'bg-[#080D1A]/80 border-slate-800' : 'bg-white/80 border-slate-200/80'}`}>
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-amber-600 dark:text-amber-400">
-            <Clock className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+        <header className={`h-16 border-b px-8 flex items-center justify-between backdrop-blur-md shrink-0 ${isDarkMode ? 'bg-[#121826]/80 border-white/10' : 'bg-white/80 border-slate-200/80'}`}>
+          <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-indigo-400">
+            <Clock className="h-3.5 w-3.5 text-indigo-400 animate-pulse" />
             <span>{currentTime || 'Syncing live clock...'}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-500/10 transition-colors text-xs flex items-center gap-2 font-semibold"
+              className="p-2 rounded-xl border border-white/10 hover:bg-white/5 transition-colors text-xs flex items-center gap-2 font-semibold"
             >
               {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-600" />}
               <span>{isDarkMode ? 'Light' : 'Dark'}</span>
@@ -374,8 +391,8 @@ export default function Home() {
 
         {/* Password Update Drawer */}
         {showProfile && (
-          <div className="p-5 bg-amber-500/10 border-b border-amber-500/30 text-xs space-y-3 animate-fade-in-up">
-            <div className="font-bold flex items-center justify-between text-amber-600 dark:text-amber-400">
+          <div className="p-5 bg-indigo-500/10 border-b border-indigo-500/30 text-xs space-y-3 animate-fade-in-up">
+            <div className="font-bold flex items-center justify-between text-indigo-400">
               <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Update Permanent Password for {currentUser.user_email}</span>
               <button onClick={() => setShowProfile(false)} className="text-slate-500 text-xs font-bold hover:underline">Close</button>
             </div>
@@ -385,14 +402,14 @@ export default function Home() {
                 placeholder="Enter new permanent password..."
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="h-8 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                className="h-8 text-xs bg-slate-900 text-white"
                 required
               />
-              <Button type="submit" size="sm" className="h-8 bg-amber-600 text-white text-xs gap-1 font-bold">
+              <Button type="submit" size="sm" className="h-8 bg-indigo-600 text-white text-xs gap-1 font-bold">
                 <Check className="h-3.5 w-3.5" /> Save
               </Button>
             </form>
-            {profileMsg && <p className="text-amber-600 font-bold">{profileMsg}</p>}
+            {profileMsg && <p className="text-indigo-400 font-bold">{profileMsg}</p>}
           </div>
         )}
 
