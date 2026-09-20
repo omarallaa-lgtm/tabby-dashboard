@@ -24,38 +24,29 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Password Settings State
+  // Password Drawer State
   const [showProfile, setShowProfile] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
-  // Interactive Character States
+  // Dribbble Character & Mouse Animation States
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [isTypingPassword, setIsTypingPassword] = useState(false);
-  const [loginState, setLoginState] = useState<'idle' | 'wrong' | 'success'>('idle');
+  const [focusedField, setFocusedField] = useState<'none' | 'email' | 'password'>('none');
+  const [animState, setAnimState] = useState<'idle' | 'wrong' | 'success'>('idle');
 
-  // Interactive Cat State
-  const [catPos, setCatPos] = useState(50); // percentage across top border
-  const [catIsStaring, setCatIsStaring] = useState(false);
+  // Cat position tracking along login box top border
+  const [catPos, setCatPos] = useState(50);
   const formBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePos({ x: e.clientX, y: e.clientY });
 
-      // Cat movement logic along the top border
       if (formBoxRef.current) {
         const rect = formBoxRef.current.getBoundingClientRect();
-        if (e.clientY >= rect.top - 60 && e.clientY <= rect.top + 40) {
+        if (e.clientY >= rect.top - 80 && e.clientY <= rect.top + 60) {
           const relX = ((e.clientX - rect.left) / rect.width) * 100;
-          const clampedX = Math.max(5, Math.min(95, relX));
-          setCatPos(clampedX);
-
-          if (clampedX >= 90 || clampedX <= 10) {
-            setCatIsStaring(true);
-          } else {
-            setCatIsStaring(false);
-          }
+          setCatPos(Math.max(5, Math.min(95, relX)));
         }
       }
     };
@@ -81,9 +72,8 @@ export default function Home() {
     setErrorMessage('');
     const cleanEmail = email.trim().toLowerCase();
 
-    // Direct Admin Fallback Check
     if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
-      setLoginState('success');
+      setAnimState('success');
       setTimeout(() => {
         const adminUser = {
           user_email: cleanEmail,
@@ -96,7 +86,7 @@ export default function Home() {
         };
         setCurrentUser(adminUser);
         if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
-      }, 1000);
+      }, 900);
       return;
     }
 
@@ -108,21 +98,21 @@ export default function Home() {
         .single();
 
       if (userProfile && userProfile.password_hash === password) {
-        setLoginState('success');
+        setAnimState('success');
         setTimeout(() => {
           setCurrentUser(userProfile);
           if (typeof refreshMetrics === 'function') refreshMetrics(userProfile);
-        }, 1000);
+        }, 900);
         return;
       }
     } catch (err) {
       console.error('Supabase auth error:', err);
     }
 
-    // Wrong Password Reaction
-    setLoginState('wrong');
+    // Trigger Error Head-Shake
+    setAnimState('wrong');
     setErrorMessage("Invalid credentials. Please verify your email or password.");
-    setTimeout(() => setLoginState('idle'), 2000);
+    setTimeout(() => setAnimState('idle'), 1800);
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -139,14 +129,13 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // Pupil Position Calculation
-  const calcPupilPos = (eyeX: number, eyeY: number) => {
-    if (showPassword) return { x: 8, y: -8 }; // Look away when password is shown
-    if (isTypingPassword) return { x: 0, y: -6 }; // Look up/away when typing password
+  // Pupil position calculation for eye-tracking
+  const calcPupils = (eyeX: number, eyeY: number) => {
+    if (focusedField === 'password' || showPassword) return { x: 8, y: -8 };
     const dx = mousePos.x - eyeX;
     const dy = mousePos.y - eyeY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const maxOffset = 8;
+    const maxOffset = 7;
     if (dist === 0) return { x: 0, y: 0 };
     return {
       x: (dx / dist) * Math.min(dist, maxOffset),
@@ -154,42 +143,42 @@ export default function Home() {
     };
   };
 
-  // FULL-SCREEN INTERACTIVE LOGIN SCREEN
+  // DRIBBBLE CONCEPT LOGIN PAGE
   if (!currentUser) {
-    const pEye = calcPupilPos(400, 400);
+    const eyeOffset = calcPupils(400, 400);
 
     return (
-      <div className="min-h-screen w-full flex bg-[#12141D] font-sans select-none overflow-hidden">
-        {/* LEFT PANEL: ANIMATED INTERACTIVE CHARACTERS */}
+      <div className="min-h-screen w-full flex bg-[#18181B] font-sans select-none overflow-hidden">
+        {/* LEFT PANEL: DRIBBBLE CHARACTER ANIMATIONS */}
         <div className="w-full md:w-1/2 bg-[#E4E4E7] p-12 flex items-end justify-center relative overflow-hidden min-h-[320px] md:min-h-screen">
-          <div className="relative w-full max-w-[500px] h-[400px] flex items-end justify-center">
+          <div className="relative w-full max-w-[480px] h-[380px] flex items-end justify-center">
             
-            {/* Orange Dome Character (Bounces & Shakes on Wrong Password) */}
+            {/* Orange Dome Character */}
             <div
-              className={`absolute left-0 bottom-0 w-48 h-36 bg-[#F97316] rounded-t-full flex items-center justify-center gap-5 pt-3 shadow-xl transition-transform duration-300 ${
-                loginState === 'wrong' ? 'animate-bounce text-red-500' : 'animate-pulse'
-              } ${showPassword ? '-rotate-12 translate-y-2' : ''}`}
+              className={`absolute left-0 bottom-0 w-48 h-36 bg-[#F97316] rounded-t-full flex items-center justify-center gap-5 pt-3 shadow-xl transition-all duration-300 ${
+                animState === 'wrong' ? 'animate-bounce' : 'animate-pulse'
+              } ${focusedField === 'password' ? 'rotate-12 translate-y-2' : ''}`}
             >
               <div className="w-5 h-5 bg-black rounded-full relative flex items-center justify-center">
-                <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${pEye.x * 0.6}px, ${pEye.y * 0.6}px)` }} />
+                <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${eyeOffset.x * 0.6}px, ${eyeOffset.y * 0.6}px)` }} />
               </div>
               <div className="w-5 h-5 bg-black rounded-full relative flex items-center justify-center">
-                <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${pEye.x * 0.6}px, ${pEye.y * 0.6}px)` }} />
+                <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${eyeOffset.x * 0.6}px, ${eyeOffset.y * 0.6}px)` }} />
               </div>
             </div>
 
-            {/* Purple Pillar Character (Look away or happy jump) */}
+            {/* Purple Pillar Character */}
             <div
               className={`absolute left-24 bottom-0 w-32 h-80 bg-[#7C3AED] rounded-t-3xl flex flex-col items-center pt-10 gap-3 shadow-2xl z-10 transition-all duration-300 ${
-                loginState === 'wrong' ? 'rotate-6' : ''
-              } ${loginState === 'success' ? '-translate-y-8' : ''}`}
+                animState === 'wrong' ? '-rotate-12' : ''
+              } ${animState === 'success' ? '-translate-y-12' : ''}`}
             >
               <div className="flex gap-4">
                 <div className="w-5 h-5 bg-white rounded-full relative flex items-center justify-center">
-                  <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
+                  <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)` }} />
                 </div>
                 <div className="w-5 h-5 bg-white rounded-full relative flex items-center justify-center">
-                  <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
+                  <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)` }} />
                 </div>
               </div>
             </div>
@@ -197,15 +186,15 @@ export default function Home() {
             {/* Black Tall Character */}
             <div
               className={`absolute left-48 bottom-0 w-24 h-64 bg-[#18181B] rounded-t-2xl flex flex-col items-center pt-6 gap-3 shadow-2xl z-20 transition-all duration-300 ${
-                showPassword ? 'translate-x-4 rotate-12' : ''
+                focusedField === 'password' ? 'translate-x-6 rotate-12' : ''
               }`}
             >
               <div className="flex gap-3">
                 <div className="w-4 h-4 bg-white rounded-full relative flex items-center justify-center">
-                  <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
+                  <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)` }} />
                 </div>
                 <div className="w-4 h-4 bg-white rounded-full relative flex items-center justify-center">
-                  <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
+                  <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)` }} />
                 </div>
               </div>
             </div>
@@ -213,49 +202,43 @@ export default function Home() {
             {/* Yellow Pillar Character */}
             <div
               className={`absolute right-4 bottom-0 w-24 h-52 bg-[#FACC15] rounded-t-2xl flex flex-col items-center pt-8 gap-3 shadow-xl z-30 transition-all duration-300 ${
-                loginState === 'wrong' ? '-rotate-12' : ''
+                animState === 'wrong' ? 'rotate-12' : ''
               }`}
             >
               <div className="flex gap-3">
                 <div className="w-4 h-4 bg-black rounded-full relative flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
+                  <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${eyeOffset.x * 0.5}px, ${eyeOffset.y * 0.5}px)` }} />
                 </div>
                 <div className="w-4 h-4 bg-black rounded-full relative flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
+                  <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${eyeOffset.x * 0.5}px, ${eyeOffset.y * 0.5}px)` }} />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT PANEL: FORM WITH PLAYFUL CAT ON TOP */}
+        {/* RIGHT PANEL: FULL-HEIGHT FORM WITH MASCOT/CAT */}
         <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center bg-white text-slate-900 min-h-screen relative">
-          
-          <div ref={formBoxRef} className="space-y-8 max-w-md mx-auto w-full relative pt-10">
+          <div ref={formBoxRef} className="space-y-8 max-w-md mx-auto w-full relative pt-8">
             
-            {/* PLAYFUL CAT SITTING & MOVING ON TOP OF FORM */}
+            {/* Playful Cat Sitting on Top Border */}
             <div
-              className="absolute -top-6 transition-all duration-200 pointer-events-auto cursor-pointer"
+              className="absolute -top-7 transition-all duration-150 pointer-events-auto cursor-pointer"
               style={{ left: `${catPos}%`, transform: 'translateX(-50%)' }}
-              title="Click or move cursor across the box to play with me!"
             >
               <div className="relative flex flex-col items-center">
-                {/* Cat Ears */}
                 <div className="flex justify-between w-8 -mb-1">
                   <div className="w-2.5 h-2.5 bg-slate-900 rotate-45"></div>
                   <div className="w-2.5 h-2.5 bg-slate-900 rotate-45"></div>
                 </div>
-                {/* Cat Head */}
                 <div className="w-10 h-8 bg-slate-900 rounded-full flex items-center justify-center gap-1.5 shadow-md">
-                  {/* Cat Eyes */}
                   <div className="w-2 h-2 bg-amber-400 rounded-full flex items-center justify-center">
-                    <div className={`w-1 h-1 bg-black rounded-full ${catIsStaring ? 'scale-125' : ''}`}></div>
+                    <div className="w-1 h-1 bg-black rounded-full"></div>
                   </div>
                   <div className="w-2 h-2 bg-amber-400 rounded-full flex items-center justify-center">
-                    <div className={`w-1 h-1 bg-black rounded-full ${catIsStaring ? 'scale-125' : ''}`}></div>
+                    <div className="w-1 h-1 bg-black rounded-full"></div>
                   </div>
                 </div>
-                {/* Cat Paws Resting On Border */}
                 <div className="flex gap-3 -mt-1">
                   <div className="w-2 h-2 bg-slate-800 rounded-full"></div>
                   <div className="w-2 h-2 bg-slate-800 rounded-full"></div>
@@ -270,7 +253,7 @@ export default function Home() {
 
             <form onSubmit={handleLogin} className="space-y-5 text-sm">
               {errorMessage && (
-                <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
+                <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
@@ -282,7 +265,8 @@ export default function Home() {
                   type="email"
                   placeholder="omar.allaa@tabby.ai"
                   value={email}
-                  onFocus={() => setIsTypingPassword(false)}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField('none')}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-12 text-sm border-slate-200 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 rounded-2xl font-medium px-4"
                   required
@@ -296,8 +280,8 @@ export default function Home() {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
-                    onFocus={() => setIsTypingPassword(true)}
-                    onBlur={() => setIsTypingPassword(false)}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField('none')}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-12 text-sm border-slate-200 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 rounded-2xl pr-12 font-medium px-4"
                     required
