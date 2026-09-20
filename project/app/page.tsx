@@ -8,11 +8,14 @@ import {
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
   MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
   Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2,
-  Snowflake
+  Snowflake, Calculator, MessageSquare, Mail
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
+import { KnetCalculatorTab } from '@/components/tabs/knet-calculator-tab';
+import { ChatMacrosTab } from '@/components/tabs/chat-macros-tab';
+import { EmailTemplatesTab } from '@/components/tabs/email-templates-tab';
 import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
@@ -129,7 +132,7 @@ export default function Home() {
           team_name: 'Support Tier 1',
           floor_name: 'Floor 1',
           account_status: 'Active' as const,
-          allowed_tabs: ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data', 'admin'],
+          allowed_tabs: ['overview', 'metrics', 'team', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
         };
         setCurrentUser(adminUser);
         if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
@@ -214,12 +217,12 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE (VIDEO BACKGROUND: iYbfNHkXxqU)
+  // FULL-SCREEN LOGIN PAGE
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
         
-        {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO (iYbfNHkXxqU) */}
+        {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
           <iframe
             src="https://www.youtube.com/embed/iYbfNHkXxqU?autoplay=1&mute=1&controls=0&loop=1&playlist=iYbfNHkXxqU&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
@@ -408,6 +411,9 @@ export default function Home() {
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
     { key: 'metrics', label: 'Performance Analytics', icon: BarChart3 },
     { key: 'team', label: 'Team & Floor Insights', icon: Users2 },
+    { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
+    { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
+    { key: 'email-templates', label: 'Email Escalations', icon: Mail },
     { key: 'requests', label: 'Requests', icon: MessageSquarePlus },
     { key: 'announcements', label: 'Announcements', icon: Megaphone },
     { key: 'agent-data', label: 'Data & Backups', icon: Database },
@@ -592,6 +598,9 @@ export default function Home() {
           {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
           {activeTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
           {activeTab === 'team' && isTabAllowed('team') && <TeamTab />}
+          {activeTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
+          {activeTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
+          {activeTab === 'email-templates' && isTabAllowed('email-templates') && <EmailTemplatesTab />}
           {activeTab === 'requests' && isTabAllowed('requests') && <RequestsTab currentUser={currentUser} />}
           {activeTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
           {activeTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}
