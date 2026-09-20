@@ -67,8 +67,11 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     setStatusMsg('Submitting request...');
 
     const userEmailClean = (currentUser?.user_email || 'omar.allaa@tabby.ai').trim().toLowerCase();
+    const generatedUUID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
+    // Payload includes both request_id and id to fulfill all schema constraints
     const newRequest = {
+      request_id: generatedUUID,
       user_email: userEmailClean,
       request_type: requestType,
       ticket_id: ticketId.trim() || 'N/A',
@@ -101,7 +104,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         reviewed_by: currentUser?.user_email || 'TL',
         reviewed_at: new Date().toISOString(),
       })
-      .eq('id', requestId);
+      .or(`id.eq.${requestId},request_id.eq.${requestId}`);
 
     fetchRequests();
   };
@@ -201,8 +204,8 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                 </TableHeader>
                 <TableBody>
                   {myRequests.length > 0 ? (
-                    myRequests.map((req) => (
-                      <TableRow key={req.id} className="hover:bg-slate-500/5">
+                    myRequests.map((req, idx) => (
+                      <TableRow key={req.id || req.request_id || idx} className="hover:bg-slate-500/5">
                         <TableCell className="font-mono text-[10px]">{new Date(req.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="font-semibold">{req.request_type}</TableCell>
                         <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
@@ -275,8 +278,8 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                 </TableHeader>
                 <TableBody>
                   {allRequests.length > 0 ? (
-                    allRequests.map((req) => (
-                      <TableRow key={req.id} className="hover:bg-slate-500/5">
+                    allRequests.map((req, idx) => (
+                      <TableRow key={req.id || req.request_id || idx} className="hover:bg-slate-500/5">
                         <TableCell className="font-semibold text-emerald-600">{req.user_email}</TableCell>
                         <TableCell>{req.request_type}</TableCell>
                         <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
@@ -296,7 +299,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                             <div className="flex justify-end gap-1">
                               <Button
                                 size="sm"
-                                onClick={() => handleUpdateStatus(req.id, 'Approved')}
+                                onClick={() => handleUpdateStatus(req.id || req.request_id, 'Approved')}
                                 className="h-7 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                               >
                                 <CheckCircle2 className="h-3 w-3" /> Approve
@@ -304,7 +307,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleUpdateStatus(req.id, 'Rejected')}
+                                onClick={() => handleUpdateStatus(req.id || req.request_id, 'Rejected')}
                                 className="h-7 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50 gap-1"
                               >
                                 <XCircle className="h-3 w-3" /> Reject
