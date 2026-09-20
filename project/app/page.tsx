@@ -131,7 +131,7 @@ export default function Home() {
             className="w-full h-full object-cover opacity-50 scale-105"
           >
             <source
-              src="https://assets.mixkit.co/videos/preview/mixkit-fire-flames-burning-slowly-42823-large.mp4"
+              src="https://youtu.be/flxZd7EFhSo?si=sduv-_EF3m6045ZH"
               type="video/mp4"
             />
           </video>
