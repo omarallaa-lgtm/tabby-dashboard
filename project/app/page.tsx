@@ -157,10 +157,10 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE (HORIZONTAL CARD WITH FORGOT PASSWORD MODAL)
+  // FULL-SCREEN BLACK HOLE VIDEO LOGIN PAGE (CENTERED HORIZONTAL CARD)
   if (!currentUser) {
     return (
-      <div className="min-h-screen w-full flex items-end justify-center pb-8 md:pb-12 bg-[#020208] font-sans select-none overflow-hidden relative">
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
         
         {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
@@ -173,7 +173,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/20 to-transparent pointer-events-none"></div>
         </div>
 
-        {/* HORIZONTAL SLEEK LOGIN CONTAINER */}
+        {/* HORIZONTAL CENTERED LOGIN CONTAINER */}
         <div className="w-full max-w-4xl relative z-10 px-4">
           <div className="bg-slate-950/75 border border-white/15 backdrop-blur-md rounded-2xl p-6 shadow-2xl text-white">
             
