@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Filter } from 'lucide-react';
+import { MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Filter, MessageSquare, Check, X } from 'lucide-react';
 import { supabase } from '@/lib/metrics-context';
 
 export function RequestsTab({ currentUser }: { currentUser: any }) {
@@ -23,6 +23,12 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
   const [isError, setIsError] = useState(false);
   const [submitting, setLoading] = useState(false);
 
+  // Modal Review State
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [reviewAction, setReviewAction] = useState<'Approved' | 'Rejected'>('Approved');
+  const [leadershipComment, setLeadershipComment] = useState('');
+  const [reviewing, setReviewing] = useState(false);
+
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
   const fetchRequests = async () => {
@@ -30,7 +36,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
 
     const userEmailClean = currentUser.user_email.trim().toLowerCase();
 
-    // 1. Fetch Personal Submissions (queries both user_email and agent_email)
+    // 1. Fetch Personal Submissions
     const { data: myData } = await supabase
       .from('requests')
       .select('*')
@@ -69,7 +75,6 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     const userEmailClean = (currentUser?.user_email || 'omar.allaa@tabby.ai').trim().toLowerCase();
     const generatedUUID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
-    // Payload includes BOTH agent_email and user_email to fulfill all DB constraints
     const newRequest = {
       request_id: generatedUUID,
       agent_email: userEmailClean,
@@ -97,16 +102,39 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     }
   };
 
-  const handleUpdateStatus = async (requestId: string, newStatus: string) => {
-    await supabase
-      .from('requests')
-      .update({
-        status: newStatus,
-        reviewed_by: currentUser?.user_email || 'TL',
-        reviewed_at: new Date().toISOString(),
-      })
-      .or(`id.eq.${requestId},request_id.eq.${requestId}`);
+  const handleOpenReviewModal = (req: any, action: 'Approved' | 'Rejected') => {
+    setSelectedRequest(req);
+    setReviewAction(action);
+    setLeadershipComment('');
+  };
 
+  const handleConfirmReview = async () => {
+    if (!selectedRequest) return;
+
+    setReviewing(true);
+    const targetId = selectedRequest.id || selectedRequest.request_id;
+
+    const updatePayload = {
+      status: reviewAction,
+      leadership_comment: leadershipComment.trim() || (reviewAction === 'Approved' ? 'Approved by Team Leader' : 'Declined by Team Leader'),
+      reviewed_by: currentUser?.user_email || 'TL',
+      reviewed_at: new Date().toISOString(),
+    };
+
+    let { error } = await supabase
+      .from('requests')
+      .update(updatePayload)
+      .eq('id', targetId);
+
+    if (error && selectedRequest.request_id) {
+      await supabase
+        .from('requests')
+        .update(updatePayload)
+        .eq('request_id', selectedRequest.request_id);
+    }
+
+    setReviewing(false);
+    setSelectedRequest(null);
     fetchRequests();
   };
 
@@ -148,7 +176,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                 <label className="font-semibold text-slate-700 dark:text-slate-300">CRM Ticket ID (Optional)</label>
                 <Input
                   type="text"
-                  placeholder="e.g. 2cc32e4a-77d5..."
+                  placeholder="e.g. https://crm.tabby.ai/queue/ticket/..."
                   value={ticketId}
                   onChange={(e) => setTicketId(e.target.value)}
                   className="h-9 text-xs"
@@ -189,7 +217,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               </span>
               <Badge variant="outline">{myRequests.length} Submissions</Badge>
             </CardTitle>
-            <CardDescription className="text-xs">Live status of your submitted requests</CardDescription>
+            <CardDescription className="text-xs">Live status & team leader feedback on your submissions</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rounded-lg border overflow-x-auto">
@@ -200,6 +228,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                     <TableHead>Type</TableHead>
                     <TableHead>Ticket ID</TableHead>
                     <TableHead>Details</TableHead>
+                    <TableHead>Leadership Comment</TableHead>
                     <TableHead className="text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -209,13 +238,16 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                       <TableRow key={req.id || req.request_id || idx} className="hover:bg-slate-500/5">
                         <TableCell className="font-mono text-[10px]">{new Date(req.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="font-semibold">{req.request_type}</TableCell>
-                        <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
-                        <TableCell className="max-w-[200px] truncate text-slate-600 dark:text-slate-400">{req.details}</TableCell>
+                        <TableCell className="font-mono text-[10px] max-w-[150px] truncate">{req.ticket_id}</TableCell>
+                        <TableCell className="max-w-[180px] truncate text-slate-600 dark:text-slate-400">{req.details}</TableCell>
+                        <TableCell className="max-w-[180px] text-emerald-600 font-medium">
+                          {req.leadership_comment || req.reviewed_by ? `${req.leadership_comment || 'Reviewed'} (by ${req.reviewed_by || 'TL'})` : '-'}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Badge className={
-                            req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
-                            req.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                            'bg-amber-100 text-amber-800'
+                            req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                            req.status === 'Rejected' ? 'bg-red-100 text-red-800 border-red-300' :
+                            'bg-amber-100 text-amber-800 border-amber-300'
                           }>
                             {req.status}
                           </Badge>
@@ -224,7 +256,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         You have not submitted any requests yet.
                       </TableCell>
                     </TableRow>
@@ -273,6 +305,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                     <TableHead>Ticket ID</TableHead>
                     <TableHead>Details</TableHead>
                     <TableHead>Submitted At</TableHead>
+                    <TableHead>Leadership Comment</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -283,9 +316,12 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                       <TableRow key={req.id || req.request_id || idx} className="hover:bg-slate-500/5">
                         <TableCell className="font-semibold text-emerald-600">{req.agent_email || req.user_email}</TableCell>
                         <TableCell>{req.request_type}</TableCell>
-                        <TableCell className="font-mono text-[10px]">{req.ticket_id}</TableCell>
-                        <TableCell className="max-w-[250px] text-slate-600 dark:text-slate-400">{req.details}</TableCell>
+                        <TableCell className="font-mono text-[10px] max-w-[150px] truncate">{req.ticket_id}</TableCell>
+                        <TableCell className="max-w-[200px] text-slate-600 dark:text-slate-400">{req.details}</TableCell>
                         <TableCell className="text-[10px]">{new Date(req.created_at).toLocaleString()}</TableCell>
+                        <TableCell className="text-xs font-medium text-emerald-600">
+                          {req.leadership_comment || '-'}
+                        </TableCell>
                         <TableCell>
                           <Badge className={
                             req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
@@ -300,16 +336,16 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                             <div className="flex justify-end gap-1">
                               <Button
                                 size="sm"
-                                onClick={() => handleUpdateStatus(req.id || req.request_id, 'Approved')}
-                                className="h-7 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                                onClick={() => handleOpenReviewModal(req, 'Approved')}
+                                className="h-7 px-2.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1"
                               >
                                 <CheckCircle2 className="h-3 w-3" /> Approve
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleUpdateStatus(req.id || req.request_id, 'Rejected')}
-                                className="h-7 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50 gap-1"
+                                onClick={() => handleOpenReviewModal(req, 'Rejected')}
+                                className="h-7 px-2.5 text-[10px] border-red-300 text-red-600 hover:bg-red-50 font-bold gap-1"
                               >
                                 <XCircle className="h-3 w-3" /> Reject
                               </Button>
@@ -324,7 +360,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No requests found matching status filter "{statusFilter}".
                       </TableCell>
                     </TableRow>
@@ -334,6 +370,71 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* MODAL: APPROVE / REJECT WITH LEADERSHIP COMMENT */}
+      {selectedRequest && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <Card className="w-full max-w-lg shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-emerald-500" />
+                  {reviewAction === 'Approved' ? 'Approve Agent Discrepancy' : 'Reject Agent Discrepancy'}
+                </span>
+                <button onClick={() => setSelectedRequest(null)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">
+                  <X className="h-4 w-4 text-slate-500" />
+                </button>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Request from <strong>{selectedRequest.agent_email || selectedRequest.user_email}</strong> ({selectedRequest.request_type})
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="pt-4 space-y-4 text-xs">
+              <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg space-y-1">
+                <div className="font-semibold text-slate-700 dark:text-slate-300">Agent's Submission Details:</div>
+                <p className="text-slate-600 dark:text-slate-400 italic">"{selectedRequest.details}"</p>
+                {selectedRequest.ticket_id && (
+                  <div className="text-[10px] font-mono text-emerald-600 pt-1">Ticket: {selectedRequest.ticket_id}</div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  Leadership Feedback / Review Comment (Optional)
+                </label>
+                <Textarea
+                  placeholder={
+                    reviewAction === 'Approved'
+                      ? 'e.g. Approved. Score excluded from monthly CSAT matrix...'
+                      : 'e.g. Declined. Ticket resolution confirmed accurate per QA guidelines...'
+                  }
+                  value={leadershipComment}
+                  onChange={(e) => setLeadershipComment(e.target.value)}
+                  className="text-xs min-h-[90px] bg-white dark:bg-slate-950"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" size="sm" onClick={() => setSelectedRequest(null)} className="h-8 text-xs">
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={reviewing}
+                  onClick={handleConfirmReview}
+                  className={`h-8 text-xs font-bold gap-1 ${
+                    reviewAction === 'Approved' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                >
+                  <Check className="h-4 w-4" />
+                  Confirm {reviewAction} Status
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
