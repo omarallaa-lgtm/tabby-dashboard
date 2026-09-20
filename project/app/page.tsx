@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, Sparkles, Eye, EyeOff } from 'lucide-react';
@@ -29,14 +29,37 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
-  // Cursor Tracking for Character Eyes
+  // Interactive Character States
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isTypingPassword, setIsTypingPassword] = useState(false);
+  const [loginState, setLoginState] = useState<'idle' | 'wrong' | 'success'>('idle');
+
+  // Interactive Cat State
+  const [catPos, setCatPos] = useState(50); // percentage across top border
+  const [catIsStaring, setCatIsStaring] = useState(false);
+  const formBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePos({ x: e.clientX, y: e.clientY });
+
+      // Cat movement logic along the top border
+      if (formBoxRef.current) {
+        const rect = formBoxRef.current.getBoundingClientRect();
+        if (e.clientY >= rect.top - 60 && e.clientY <= rect.top + 40) {
+          const relX = ((e.clientX - rect.left) / rect.width) * 100;
+          const clampedX = Math.max(5, Math.min(95, relX));
+          setCatPos(clampedX);
+
+          if (clampedX >= 90 || clampedX <= 10) {
+            setCatIsStaring(true);
+          } else {
+            setCatIsStaring(false);
+          }
+        }
+      }
     };
+
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
@@ -60,17 +83,20 @@ export default function Home() {
 
     // Direct Admin Fallback Check
     if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
-      const adminUser = {
-        user_email: cleanEmail,
-        username: 'omar.allaa',
-        role: 'Admin' as const,
-        team_name: 'Support Tier 1',
-        floor_name: 'Floor 1',
-        account_status: 'Active' as const,
-        allowed_tabs: ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data', 'admin'],
-      };
-      setCurrentUser(adminUser);
-      if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
+      setLoginState('success');
+      setTimeout(() => {
+        const adminUser = {
+          user_email: cleanEmail,
+          username: 'omar.allaa',
+          role: 'Admin' as const,
+          team_name: 'Support Tier 1',
+          floor_name: 'Floor 1',
+          account_status: 'Active' as const,
+          allowed_tabs: ['overview', 'metrics', 'team', 'requests', 'announcements', 'agent-data', 'admin'],
+        };
+        setCurrentUser(adminUser);
+        if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
+      }, 1000);
       return;
     }
 
@@ -82,15 +108,21 @@ export default function Home() {
         .single();
 
       if (userProfile && userProfile.password_hash === password) {
-        setCurrentUser(userProfile);
-        if (typeof refreshMetrics === 'function') refreshMetrics(userProfile);
+        setLoginState('success');
+        setTimeout(() => {
+          setCurrentUser(userProfile);
+          if (typeof refreshMetrics === 'function') refreshMetrics(userProfile);
+        }, 1000);
         return;
       }
     } catch (err) {
       console.error('Supabase auth error:', err);
     }
 
+    // Wrong Password Reaction
+    setLoginState('wrong');
     setErrorMessage("Invalid credentials. Please verify your email or password.");
+    setTimeout(() => setLoginState('idle'), 2000);
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -107,9 +139,10 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // Helper calculation for eye pupil offset relative to mouse
+  // Pupil Position Calculation
   const calcPupilPos = (eyeX: number, eyeY: number) => {
-    if (isTypingPassword) return { x: 0, y: -6 }; // Look up/away when entering password
+    if (showPassword) return { x: 8, y: -8 }; // Look away when password is shown
+    if (isTypingPassword) return { x: 0, y: -6 }; // Look up/away when typing password
     const dx = mousePos.x - eyeX;
     const dy = mousePos.y - eyeY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -121,17 +154,22 @@ export default function Home() {
     };
   };
 
-  // FULL-SCREEN ANIMATED CHARACTER SPLIT-SCREEN LOGIN PAGE
+  // FULL-SCREEN INTERACTIVE LOGIN SCREEN
   if (!currentUser) {
     const pEye = calcPupilPos(400, 400);
 
     return (
-      <div className="min-h-screen w-full flex bg-[#18181B] font-sans select-none overflow-hidden">
-        {/* LEFT PANEL: WIDE FULL-HEIGHT ANIMATED EYE-TRACKING CHARACTERS */}
-        <div className="w-full md:w-1/2 bg-[#E4E4E7] p-12 flex items-end justify-center relative overflow-hidden min-h-[300px] md:min-h-screen">
-          <div className="relative w-full max-w-[480px] h-[380px] flex items-end justify-center">
-            {/* Orange Dome Character */}
-            <div className="absolute left-0 bottom-0 w-48 h-36 bg-[#F97316] rounded-t-full flex items-center justify-center gap-5 pt-3 shadow-xl">
+      <div className="min-h-screen w-full flex bg-[#12141D] font-sans select-none overflow-hidden">
+        {/* LEFT PANEL: ANIMATED INTERACTIVE CHARACTERS */}
+        <div className="w-full md:w-1/2 bg-[#E4E4E7] p-12 flex items-end justify-center relative overflow-hidden min-h-[320px] md:min-h-screen">
+          <div className="relative w-full max-w-[500px] h-[400px] flex items-end justify-center">
+            
+            {/* Orange Dome Character (Bounces & Shakes on Wrong Password) */}
+            <div
+              className={`absolute left-0 bottom-0 w-48 h-36 bg-[#F97316] rounded-t-full flex items-center justify-center gap-5 pt-3 shadow-xl transition-transform duration-300 ${
+                loginState === 'wrong' ? 'animate-bounce text-red-500' : 'animate-pulse'
+              } ${showPassword ? '-rotate-12 translate-y-2' : ''}`}
+            >
               <div className="w-5 h-5 bg-black rounded-full relative flex items-center justify-center">
                 <div className="w-2.5 h-2.5 bg-white rounded-full absolute top-1 left-1" style={{ transform: `translate(${pEye.x * 0.6}px, ${pEye.y * 0.6}px)` }} />
               </div>
@@ -140,8 +178,12 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Purple Pillar Character */}
-            <div className="absolute left-24 bottom-0 w-32 h-80 bg-[#7C3AED] rounded-t-3xl flex flex-col items-center pt-10 gap-3 shadow-2xl z-10">
+            {/* Purple Pillar Character (Look away or happy jump) */}
+            <div
+              className={`absolute left-24 bottom-0 w-32 h-80 bg-[#7C3AED] rounded-t-3xl flex flex-col items-center pt-10 gap-3 shadow-2xl z-10 transition-all duration-300 ${
+                loginState === 'wrong' ? 'rotate-6' : ''
+              } ${loginState === 'success' ? '-translate-y-8' : ''}`}
+            >
               <div className="flex gap-4">
                 <div className="w-5 h-5 bg-white rounded-full relative flex items-center justify-center">
                   <div className="w-3 h-3 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
@@ -153,7 +195,11 @@ export default function Home() {
             </div>
 
             {/* Black Tall Character */}
-            <div className="absolute left-48 bottom-0 w-24 h-64 bg-[#18181B] rounded-t-2xl flex flex-col items-center pt-6 gap-3 shadow-2xl z-20">
+            <div
+              className={`absolute left-48 bottom-0 w-24 h-64 bg-[#18181B] rounded-t-2xl flex flex-col items-center pt-6 gap-3 shadow-2xl z-20 transition-all duration-300 ${
+                showPassword ? 'translate-x-4 rotate-12' : ''
+              }`}
+            >
               <div className="flex gap-3">
                 <div className="w-4 h-4 bg-white rounded-full relative flex items-center justify-center">
                   <div className="w-2 h-2 bg-black rounded-full" style={{ transform: `translate(${pEye.x}px, ${pEye.y}px)` }} />
@@ -165,7 +211,11 @@ export default function Home() {
             </div>
 
             {/* Yellow Pillar Character */}
-            <div className="absolute right-4 bottom-0 w-24 h-52 bg-[#FACC15] rounded-t-2xl flex flex-col items-center pt-8 gap-3 shadow-xl z-30">
+            <div
+              className={`absolute right-4 bottom-0 w-24 h-52 bg-[#FACC15] rounded-t-2xl flex flex-col items-center pt-8 gap-3 shadow-xl z-30 transition-all duration-300 ${
+                loginState === 'wrong' ? '-rotate-12' : ''
+              }`}
+            >
               <div className="flex gap-3">
                 <div className="w-4 h-4 bg-black rounded-full relative flex items-center justify-center">
                   <div className="w-2 h-2 bg-white rounded-full" style={{ transform: `translate(${pEye.x * 0.5}px, ${pEye.y * 0.5}px)` }} />
@@ -178,9 +228,41 @@ export default function Home() {
           </div>
         </div>
 
-        {/* RIGHT PANEL: WIDE FULL-HEIGHT LOGIN FORM */}
-        <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center bg-white text-slate-900 min-h-screen">
-          <div className="space-y-8 max-w-md mx-auto w-full">
+        {/* RIGHT PANEL: FORM WITH PLAYFUL CAT ON TOP */}
+        <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center bg-white text-slate-900 min-h-screen relative">
+          
+          <div ref={formBoxRef} className="space-y-8 max-w-md mx-auto w-full relative pt-10">
+            
+            {/* PLAYFUL CAT SITTING & MOVING ON TOP OF FORM */}
+            <div
+              className="absolute -top-6 transition-all duration-200 pointer-events-auto cursor-pointer"
+              style={{ left: `${catPos}%`, transform: 'translateX(-50%)' }}
+              title="Click or move cursor across the box to play with me!"
+            >
+              <div className="relative flex flex-col items-center">
+                {/* Cat Ears */}
+                <div className="flex justify-between w-8 -mb-1">
+                  <div className="w-2.5 h-2.5 bg-slate-900 rotate-45"></div>
+                  <div className="w-2.5 h-2.5 bg-slate-900 rotate-45"></div>
+                </div>
+                {/* Cat Head */}
+                <div className="w-10 h-8 bg-slate-900 rounded-full flex items-center justify-center gap-1.5 shadow-md">
+                  {/* Cat Eyes */}
+                  <div className="w-2 h-2 bg-amber-400 rounded-full flex items-center justify-center">
+                    <div className={`w-1 h-1 bg-black rounded-full ${catIsStaring ? 'scale-125' : ''}`}></div>
+                  </div>
+                  <div className="w-2 h-2 bg-amber-400 rounded-full flex items-center justify-center">
+                    <div className={`w-1 h-1 bg-black rounded-full ${catIsStaring ? 'scale-125' : ''}`}></div>
+                  </div>
+                </div>
+                {/* Cat Paws Resting On Border */}
+                <div className="flex gap-3 -mt-1">
+                  <div className="w-2 h-2 bg-slate-800 rounded-full"></div>
+                  <div className="w-2 h-2 bg-slate-800 rounded-full"></div>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2 text-center md:text-left">
               <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Welcome back!</h1>
               <p className="text-sm text-slate-500 font-medium">Please enter your Tabby credentials to continue</p>
@@ -188,7 +270,7 @@ export default function Home() {
 
             <form onSubmit={handleLogin} className="space-y-5 text-sm">
               {errorMessage && (
-                <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold flex items-center gap-2">
+                <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
