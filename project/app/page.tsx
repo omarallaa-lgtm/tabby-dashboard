@@ -59,7 +59,7 @@ export default function Home() {
     setErrorMessage('');
     const cleanEmail = email.trim().toLowerCase();
 
-    // Admin Fallback Check
+    // Admin Credentials Check
     if (cleanEmail === 'omar.allaa@tabby.ai' && password === 'Boyka@1322') {
       setJutsuState('rasengan_burst');
       setTimeout(() => {
@@ -116,31 +116,25 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN VIDEO BACKGROUND LOGIN PAGE
+  // FULL-SCREEN YOUTUBE BACKGROUND LOGIN PAGE
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#03060E] font-sans select-none overflow-hidden relative">
         
-        {/* 1. BACKGROUND VIDEO LAYER (NARUTO VS SASUKE BATTLE LOOP) */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover opacity-50 scale-105"
-          >
-            <source
-              src="https://youtu.be/flxZd7EFhSo?si=sduv-_EF3m6045ZH"
-              type="video/mp4"
-            />
-          </video>
-          {/* Overlay Dark Gradients for Content Legibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#03060E] via-[#03060E]/60 to-[#03060E]/90"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-600/20 via-transparent to-purple-600/20"></div>
+        {/* YOUTUBE BACKGROUND VIDEO IFRAME EMBED (flxZd7EFhSo) */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
+          <iframe
+            src="https://www.youtube.com/embed/flxZd7EFhSo?autoplay=1&mute=1&controls=0&loop=1&playlist=flxZd7EFhSo&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
+            title="Naruto vs Sasuke Background Video"
+            allow="autoplay; encrypted-media"
+            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-60 filter brightness-90 contrast-110"
+          />
+          {/* Ambient Dark Overlays for Text Legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#03060E] via-[#03060E]/50 to-[#03060E]/80"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-600/10 via-transparent to-purple-600/10"></div>
         </div>
 
-        {/* 2. FIREBALL JUTSU ENTRANCE ANIMATION (KATON: GŌKAKYŪ NO JUTSU) */}
+        {/* FIREBALL JUTSU ENTRANCE ANIMATION */}
         {entrancePhase === 'fireball' && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#03060E] pointer-events-none">
             <div className="relative flex items-center justify-center">
@@ -155,7 +149,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 3. GLASSMORPHIC LOGIN CARD */}
+        {/* GLASSMORPHIC LOGIN CARD */}
         <div className={`w-full max-w-md relative z-20 transition-all duration-1000 ${
           entrancePhase === 'revealed' ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
         }`}>
