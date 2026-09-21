@@ -8,7 +8,7 @@ import {
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
   MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
   Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail
+  Snowflake, Calculator, MessageSquare, Mail, Menu
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -33,6 +33,9 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Mobile Menu Drawer State
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Tab Flip Transition State
   const [isFlipping, setIsFlipping] = useState(false);
@@ -109,8 +112,12 @@ export default function Home() {
 
   // Page-Flip Transition Between Sidebar Tabs
   const handleTabChange = (tabKey: string) => {
-    if (tabKey === activeTab) return;
+    if (tabKey === activeTab) {
+      setMobileMenuOpen(false);
+      return;
+    }
     setIsFlipping(true);
+    setMobileMenuOpen(false);
     setTimeout(() => {
       setActiveTab(tabKey);
       setTimeout(() => setIsFlipping(false), 300);
@@ -422,7 +429,7 @@ export default function Home() {
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
-      <div className="min-h-screen flex font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
         
         {/* BACKGROUND VIDEO INSIDE DASHBOARD WORKSPACE */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125 opacity-25">
@@ -470,8 +477,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* SIDEBAR NAVIGATION */}
-        <div className="w-64 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between shrink-0 backdrop-blur-xl z-20 bg-white/90 dark:bg-[#080E1E]/90 shadow-xs">
+        {/* DESKTOP SIDEBAR NAVIGATION */}
+        <div className="hidden md:flex w-64 border-r border-slate-200 dark:border-slate-800 p-4 flex-col justify-between shrink-0 backdrop-blur-xl z-20 bg-white/90 dark:bg-[#080E1E]/90 shadow-xs">
           <div className="space-y-6">
             <div className="flex items-center gap-3 px-1">
               <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-md">
@@ -541,14 +548,80 @@ export default function Home() {
           </div>
         </div>
 
+        {/* MOBILE SLIDE-OUT MENU DRAWER */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-40 md:hidden flex">
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)} />
+            <div className="relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between z-50 h-full">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 font-black text-lg">
+                      T
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-xs text-emerald-600 dark:text-emerald-400">Tabby Gabrino</div>
+                      <div className="text-[10px] text-slate-500 font-bold uppercase">{currentUser.role}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => setMobileMenuOpen(false)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <nav className="space-y-1 text-xs font-medium max-h-[60vh] overflow-y-auto">
+                  {navItems.map((item) => {
+                    if (!isTabAllowed(item.key)) return null;
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.key;
+
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => handleTabChange(item.key)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all ${
+                          isActive
+                            ? 'bg-emerald-500/15 text-emerald-400 border-l-4 border-emerald-500'
+                            : 'text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                <button
+                  onClick={() => setCurrentUser(null)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 rounded-lg"
+                >
+                  <LogOut className="h-4 w-4" /> Log Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* MAIN CONTENT WORKSPACE */}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden z-10">
+        <div className="flex-1 flex flex-col h-screen overflow-hidden z-10 w-full min-w-0">
           
           {/* HEADER BAR */}
-          <header className="h-16 border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-[#080E1E]/80">
-            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <Clock className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
-              <span>{currentTime || 'Syncing live clock...'}</span>
+          <header className="h-16 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-[#080E1E]/80">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="md:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+
+              <div className="hidden sm:flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <Clock className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
+                <span>{currentTime || 'Syncing live clock...'}</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -557,14 +630,14 @@ export default function Home() {
                 className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-500/10 transition-colors text-xs flex items-center gap-2 font-semibold bg-white dark:bg-slate-900"
               >
                 {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-600" />}
-                <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                <span className="hidden sm:inline">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
               </button>
             </div>
           </header>
 
           {/* PASSWORD UPDATE DRAWER */}
           {showProfile && (
-            <div className="p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
+            <div className="p-4 md:p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
               <div className="font-bold flex items-center justify-between text-emerald-600 dark:text-emerald-400">
                 <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Update Permanent Password for {currentUser.user_email}</span>
                 <button onClick={() => setShowProfile(false)} className="text-slate-500 text-xs font-bold hover:underline">Close</button>
@@ -587,7 +660,7 @@ export default function Home() {
           )}
 
           {/* MAIN TAB CONTENT WITH 3D PAGE-FLIP ANIMATION */}
-          <main className={`flex-1 p-8 overflow-y-auto transition-all duration-300 origin-center ${
+          <main className={`flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden transition-all duration-300 origin-center ${
             isFlipping ? 'rotate-y-90 opacity-0 scale-95' : 'rotate-y-0 opacity-100 scale-100'
           }`}>
             {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
