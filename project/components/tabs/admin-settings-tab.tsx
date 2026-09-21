@@ -9,7 +9,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { 
   ShieldCheck, Users, Key, Trash2, Check, RefreshCw, AlertCircle, 
   CheckCircle2, LayoutDashboard, BarChart3, Calculator, MessageSquare, 
-  Mail, MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown
+  Mail, MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
@@ -33,6 +33,9 @@ export function AdminSettingsTab() {
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [isError, setIsError] = useState(false);
+
+  // State to track which user emails have visible passwords
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
 
   // New Account Creation State
   const [newEmail, setNewEmail] = useState('');
@@ -60,6 +63,14 @@ export function AdminSettingsTab() {
 
   const selectedUser = users.find((u) => u.user_email === selectedUserEmail);
 
+  // Toggle Password Visibility for an individual row
+  const togglePasswordVisibility = (email: string) => {
+    setVisiblePasswords((prev) => ({
+      ...prev,
+      [email]: !prev[email],
+    }));
+  };
+
   // Toggle Tab Permission
   const handleToggleTabPermission = async (tabKey: string) => {
     if (!selectedUser) return;
@@ -86,7 +97,7 @@ export function AdminSettingsTab() {
     if (error) {
       setIsError(true);
       setStatusMsg(`Failed to update permissions: ${error.message}`);
-      fetchUserProfiles(); // Revert
+      fetchUserProfiles();
     } else {
       setIsError(false);
       setStatusMsg(`✓ Updated access permissions for ${selectedUserEmail}`);
@@ -334,12 +345,12 @@ export function AdminSettingsTab() {
         </CardContent>
       </Card>
 
-      {/* ALL USER ACCOUNTS TABLE WITH PASSWORD COLUMN */}
+      {/* ALL USER ACCOUNTS TABLE WITH MASKED PASSWORD & EYE TOGGLE */}
       <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm rounded-2xl overflow-hidden">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
             <span>Registered Account Directory ({users.length})</span>
-            <Badge variant="outline" className="text-[10px]"><Key className="h-3 w-3 mr-1 text-emerald-500" /> Passwords Visible</Badge>
+            <Badge variant="outline" className="text-[10px]"><Key className="h-3 w-3 mr-1 text-emerald-500" /> Passwords Masked by Default</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -356,29 +367,46 @@ export function AdminSettingsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.user_email} className="hover:bg-slate-500/5 border-b border-slate-100 dark:border-slate-800/50">
-                    <TableCell className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{u.user_email}</TableCell>
-                    <TableCell className="font-mono text-slate-800 dark:text-slate-200 font-bold bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md inline-block my-1 border border-slate-200 dark:border-slate-800">
-                      {u.password_hash || u.password || '••••••••'}
-                    </TableCell>
-                    <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
-                    <TableCell className="font-bold">{u.allowed_tabs?.length || 0} Tabs</TableCell>
-                    <TableCell><Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Active</Badge></TableCell>
-                    <TableCell className="text-right">
-                      {u.user_email !== 'omar.allaa@tabby.ai' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteUser(u.user_email)}
-                          className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {users.map((u) => {
+                  const isPasswordVisible = !!visiblePasswords[u.user_email];
+                  const rawPass = u.password_hash || u.password || '••••••••';
+
+                  return (
+                    <TableRow key={u.user_email} className="hover:bg-slate-500/5 border-b border-slate-100 dark:border-slate-800/50">
+                      <TableCell className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{u.user_email}</TableCell>
+                      <TableCell>
+                        <div className="inline-flex items-center gap-2 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800">
+                          <span className="font-mono text-slate-800 dark:text-slate-200 font-bold min-w-[80px]">
+                            {isPasswordVisible ? rawPass : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => togglePasswordVisibility(u.user_email)}
+                            className="text-slate-400 hover:text-emerald-500 transition-colors p-0.5"
+                            title={isPasswordVisible ? 'Hide Password' : 'Show Password'}
+                          >
+                            {isPasswordVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </TableCell>
+                      <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
+                      <TableCell className="font-bold">{u.allowed_tabs?.length || 0} Tabs</TableCell>
+                      <TableCell><Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Active</Badge></TableCell>
+                      <TableCell className="text-right">
+                        {u.user_email !== 'omar.allaa@tabby.ai' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(u.user_email)}
+                            className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
