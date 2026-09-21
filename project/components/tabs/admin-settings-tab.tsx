@@ -167,7 +167,7 @@ export function AdminSettingsTab() {
             <ShieldCheck className="h-6 w-6 text-emerald-500" /> Admin Access & User Permissions
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Manage agent credentials, role assignments, and granular sidebar tab visibility
+            Manage agent credentials, role assignments, passwords, and granular sidebar tab visibility
           </p>
         </div>
 
@@ -298,7 +298,7 @@ export function AdminSettingsTab() {
                   placeholder="••••••••"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="h-9 text-xs bg-slate-50 dark:bg-slate-950"
+                  className="h-9 text-xs bg-slate-50 dark:bg-slate-950 font-mono"
                   required
                 />
               </div>
@@ -334,19 +334,21 @@ export function AdminSettingsTab() {
         </CardContent>
       </Card>
 
-      {/* ALL USER ACCOUNTS TABLE */}
+      {/* ALL USER ACCOUNTS TABLE WITH PASSWORD COLUMN */}
       <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm rounded-2xl overflow-hidden">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
-            Registered Account Directory ({users.length})
+          <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between">
+            <span>Registered Account Directory ({users.length})</span>
+            <Badge variant="outline" className="text-[10px]"><Key className="h-3 w-3 mr-1 text-emerald-500" /> Passwords Visible</Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
             <Table className="text-xs">
               <TableHeader>
-                <TableRow className="bg-slate-50 dark:bg-slate-800/80">
+                <TableRow className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
                   <TableHead className="font-bold">Email</TableHead>
+                  <TableHead className="font-bold">Password / Passcode</TableHead>
                   <TableHead className="font-bold">Role</TableHead>
                   <TableHead className="font-bold">Active Tabs Count</TableHead>
                   <TableHead className="font-bold">Status</TableHead>
@@ -355,8 +357,11 @@ export function AdminSettingsTab() {
               </TableHeader>
               <TableBody>
                 {users.map((u) => (
-                  <TableRow key={u.user_email} className="hover:bg-slate-500/5">
+                  <TableRow key={u.user_email} className="hover:bg-slate-500/5 border-b border-slate-100 dark:border-slate-800/50">
                     <TableCell className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{u.user_email}</TableCell>
+                    <TableCell className="font-mono text-slate-800 dark:text-slate-200 font-bold bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md inline-block my-1 border border-slate-200 dark:border-slate-800">
+                      {u.password_hash || u.password || '••••••••'}
+                    </TableCell>
                     <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
                     <TableCell className="font-bold">{u.allowed_tabs?.length || 0} Tabs</TableCell>
                     <TableCell><Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Active</Badge></TableCell>
@@ -366,7 +371,7 @@ export function AdminSettingsTab() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteUser(u.user_email)}
-                          className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
