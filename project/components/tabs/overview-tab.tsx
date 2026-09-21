@@ -14,7 +14,6 @@ import {
 
 export function OverviewTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget, currentUser } = useMetrics() as any;
-  const [activeChannel, setActiveChannel] = useState<'overall' | 'chat' | 'phone'>('overall');
 
   // Roster Selection State
   const [showRosterGear, setShowRosterGear] = useState(false);
@@ -147,21 +146,9 @@ export function OverviewTab() {
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <div className="flex border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900 shadow-2xs">
-            <Button variant={activeChannel === 'overall' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveChannel('overall')} className="h-7 text-xs gap-1 rounded-lg">
-              <Globe className="h-3.5 w-3.5 text-emerald-500" /> Overall
-            </Button>
-            <Button variant={activeChannel === 'chat' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveChannel('chat')} className="h-7 text-xs gap-1 rounded-lg">
-              <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Chat
-            </Button>
-            <Button variant={activeChannel === 'phone' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveChannel('phone')} className="h-7 text-xs gap-1 rounded-lg">
-              <Phone className="h-3.5 w-3.5 text-purple-500" /> Phone
-            </Button>
-          </div>
-
           {/* RESTRICTED: Configure Target Button for Admin / Team Leader only */}
           {isAdminOrTL && (
-            <Button variant="outline" size="sm" onClick={() => setShowTargetModal(true)} className="gap-1.5 h-9 text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl">
+            <Button variant="outline" size="sm" onClick={() => setShowTargetModal(true)} className="gap-1.5 h-9 text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl icon-reflection-container">
               <Settings2 className="h-3.5 w-3.5" /> Configure Target
             </Button>
           )}
@@ -203,7 +190,7 @@ export function OverviewTab() {
             </div>
 
             <div className="flex items-end">
-              <Button size="sm" onClick={handleSaveTarget} className="h-9 w-full bg-emerald-600 text-white text-xs font-bold gap-1 rounded-lg">
+              <Button size="sm" onClick={handleSaveTarget} className="h-9 w-full bg-emerald-600 text-white text-xs font-bold gap-1 rounded-lg icon-reflection-container">
                 <Check className="h-4 w-4" /> Save Target Value
               </Button>
             </div>
@@ -266,7 +253,7 @@ export function OverviewTab() {
         </CardContent>
       </Card>
 
-      {/* HORIZONTAL VIEW: TABLE 2 - TEAM PERFORMANCE */}
+      {/* HORIZONTAL VIEW: TABLE 2 - TEAM PERFORMANCE WITH REFLECTION CHIPS */}
       <Card className="border border-emerald-500/30 bg-emerald-500/5 dark:bg-slate-900 rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between">
@@ -278,7 +265,7 @@ export function OverviewTab() {
             {isAdminOrTL && (
               <button
                 onClick={() => setShowRosterGear(!showRosterGear)}
-                className="p-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 transition-all flex items-center gap-1.5 text-xs font-bold shadow-2xs"
+                className="p-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 transition-all flex items-center gap-1.5 text-xs font-bold shadow-2xs icon-reflection-container"
                 title="Select Agents for Team CSAT Calculation"
               >
                 <Settings2 className="h-4 w-4" /> Agent Filter Gear
@@ -316,7 +303,7 @@ export function OverviewTab() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-emerald-500/30 shadow-2xs flex flex-col justify-between hover:-translate-y-0.5 transition-transform duration-200">
+            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-emerald-500/30 shadow-2xs flex flex-col justify-between icon-reflection-container">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>CSAT</span>
                 <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
@@ -324,7 +311,7 @@ export function OverviewTab() {
               <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{teamTotalCsat}</div>
             </div>
 
-            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-blue-500/30 shadow-2xs flex flex-col justify-between hover:-translate-y-0.5 transition-transform duration-200">
+            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-blue-500/30 shadow-2xs flex flex-col justify-between icon-reflection-container">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>KSCAT</span>
                 <Percent className="h-3.5 w-3.5 text-blue-500" />
@@ -332,7 +319,7 @@ export function OverviewTab() {
               <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-1">{teamTotalKscat}</div>
             </div>
 
-            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-red-500/30 shadow-2xs flex flex-col justify-between hover:-translate-y-0.5 transition-transform duration-200">
+            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-red-500/30 shadow-2xs flex flex-col justify-between icon-reflection-container">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>DSAT</span>
                 <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
@@ -340,7 +327,7 @@ export function OverviewTab() {
               <div className="text-xl font-black text-red-500 mt-1">{teamTotalDsat}</div>
             </div>
 
-            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between hover:-translate-y-0.5 transition-transform duration-200">
+            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between icon-reflection-container">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>Total Count</span>
                 <Globe className="h-3.5 w-3.5 text-slate-500" />
@@ -348,7 +335,7 @@ export function OverviewTab() {
               <div className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{teamTotalCount}</div>
             </div>
 
-            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between hover:-translate-y-0.5 transition-transform duration-200">
+            <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between icon-reflection-container">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>w/o Karma</span>
                 <Globe className="h-3.5 w-3.5 text-slate-500" />
@@ -358,7 +345,7 @@ export function OverviewTab() {
 
             <div
               onClick={() => setSelectedMetric(allMetricDefinitions[1])}
-              className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-blue-500/30 shadow-2xs flex flex-col justify-between cursor-pointer hover:-translate-y-0.5 transition-all duration-200 ${selectedMetric.label === 'KSCAT %' ? 'ring-2 ring-blue-500' : ''}`}
+              className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-blue-500/30 shadow-2xs flex flex-col justify-between cursor-pointer icon-reflection-container ${selectedMetric.label === 'KSCAT %' ? 'icon-reflection-selected ring-2 ring-blue-500' : ''}`}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>KSCAT %</span>
@@ -369,7 +356,7 @@ export function OverviewTab() {
 
             <div
               onClick={() => setSelectedMetric(allMetricDefinitions[0])}
-              className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-emerald-500/30 shadow-2xs flex flex-col justify-between cursor-pointer hover:-translate-y-0.5 transition-all duration-200 ${selectedMetric.label === 'CSAT %' ? 'ring-2 ring-emerald-500' : ''}`}
+              className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-emerald-500/30 shadow-2xs flex flex-col justify-between cursor-pointer icon-reflection-container ${selectedMetric.label === 'CSAT %' ? 'icon-reflection-selected ring-2 ring-emerald-500' : ''}`}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                 <span>CSAT %</span>
@@ -387,7 +374,7 @@ export function OverviewTab() {
                 <div
                   key={m.label}
                   onClick={() => setSelectedMetric(m)}
-                  className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between cursor-pointer hover:-translate-y-0.5 transition-all duration-200 ${isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50/20' : ''}`}
+                  className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between cursor-pointer icon-reflection-container ${isSelected ? 'icon-reflection-selected ring-2 ring-emerald-500 bg-emerald-50/20' : ''}`}
                 >
                   <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                     <span className="truncate">{m.label}</span>
@@ -427,7 +414,7 @@ export function OverviewTab() {
                 <div
                   key={m.label}
                   onClick={() => setSelectedMetric(m)}
-                  className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between cursor-pointer hover:-translate-y-0.5 transition-all duration-200 ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50/20' : ''}`}
+                  className={`p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between cursor-pointer icon-reflection-container ${isSelected ? 'icon-reflection-selected ring-2 ring-blue-500 bg-blue-50/20' : ''}`}
                 >
                   <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
                     <span className="truncate">{m.label}</span>

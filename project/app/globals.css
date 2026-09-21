@@ -5,66 +5,47 @@
 @layer base {
   :root {
     --background: 210 40% 98%;
-    --foreground: 200 25% 12%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 200 25% 12%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 12%;
+    --popover-foreground: 222 47% 11%;
     --primary: 173 68% 32%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 200 20% 94%;
-    --secondary-foreground: 200 25% 20%;
-    --muted: 210 30% 95%;
-    --muted-foreground: 200 15% 45%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 173 40% 90%;
     --accent-foreground: 173 68% 25%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 200 20% 90%;
-    --input: 200 20% 90%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
     --ring: 173 68% 32%;
-    --chart-1: 173 68% 35%;
-    --chart-2: 200 70% 45%;
-    --chart-3: 25 85% 55%;
-    --chart-4: 145 55% 50%;
-    --chart-5: 340 70% 55%;
-    --radius: 0.625rem;
-
-    --success: 145 55% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --radius: 1rem;
   }
+
   .dark {
-    --background: 200 28% 8%;
-    --foreground: 200 15% 92%;
-    --card: 200 25% 11%;
-    --card-foreground: 200 15% 92%;
-    --popover: 200 25% 11%;
-    --popover-foreground: 200 15% 92%;
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 64% 10%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 64% 10%;
+    --popover-foreground: 213 31% 91%;
     --primary: 173 55% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 200 20% 18%;
-    --secondary-foreground: 200 15% 90%;
-    --muted: 200 20% 16%;
-    --muted-foreground: 200 12% 60%;
-    --accent: 173 30% 20%;
-    --accent-foreground: 173 50% 80%;
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 200 20% 20%;
-    --input: 200 20% 20%;
+    --secondary: 222 47% 15%;
+    --secondary-foreground: 213 31% 91%;
+    --muted: 222 47% 15%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 222 47% 15%;
+    --accent-foreground: 213 31% 91%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 213 31% 91%;
+    --border: 222 47% 18%;
+    --input: 222 47% 18%;
     --ring: 173 55% 45%;
-    --chart-1: 173 55% 45%;
-    --chart-2: 200 65% 55%;
-    --chart-3: 25 80% 60%;
-    --chart-4: 145 50% 55%;
-    --chart-5: 340 65% 60%;
-
-    --success: 145 50% 50%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 85% 55%;
-    --warning-foreground: 0 0% 100%;
   }
 }
 
@@ -73,48 +54,109 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
 }
 
-@layer utilities {
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 9999px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
-  }
+/* Force dark theme overrides for hardcoded card backgrounds */
+.dark .bg-white {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  color: #f8fafc !important;
+  border-color: rgba(51, 65, 85, 0.6) !important;
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.dark .text-slate-900 {
+  color: #f8fafc !important;
 }
 
-.animate-fade-in-up {
-  animation: fade-in-up 0.4s ease-out forwards;
+.dark .text-slate-800 {
+  color: #e2e8f0 !important;
 }
 
-@keyframes shimmer {
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: rgba(30, 41, 59, 0.7) !important;
+}
+
+.dark .bg-slate-100 {
+  background-color: rgba(30, 41, 59, 0.9) !important;
+}
+
+/* Glass & Glow Reflection Effects */
+.icon-reflection-container {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 1. HOVER REFLECTION: Emerald Radial Aura Glow */
+.icon-reflection-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0) 70%);
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+  transform: scale(0.5);
+}
+
+.icon-reflection-container:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.icon-reflection-container:hover {
+  transform: translateY(-2px) scale(1.02);
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.35));
+}
+
+/* 2. SELECTED / ACTIVE STATE REFLECTION: Metallic Glass Reflection Sweep */
+.icon-reflection-container::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.05) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(45deg);
+  transition: all 0.6s ease;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.icon-reflection-container:active::after,
+.icon-reflection-selected::after {
+  opacity: 1;
+  animation: shineSweep 0.75s ease-out forwards;
+}
+
+.icon-reflection-selected {
+  border-color: rgba(16, 185, 129, 0.8) !important;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.35), inset 0 0 10px rgba(16, 185, 129, 0.15) !important;
+}
+
+@keyframes shineSweep {
   0% {
-    background-position: -200% 0;
+    top: -100%;
+    left: -100%;
   }
   100% {
-    background-position: 200% 0;
+    top: 100%;
+    left: 100%;
   }
 }
