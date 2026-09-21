@@ -1,16 +1,10 @@
-import type { Metadata, Viewport } from 'next';
+import type { Metadata } from 'next';
 import '@/app/globals.css';
 import { MetricsProvider } from '@/lib/metrics-context';
 
 export const metadata: Metadata = {
   title: 'Tabby.ai — Performance Dashboard',
   description: 'Real-time contact center performance tracking',
-};
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -20,6 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+      </head>
       <body className="antialiased">
         <MetricsProvider>
           {children}
