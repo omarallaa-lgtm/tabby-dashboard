@@ -58,7 +58,7 @@
   }
 }
 
-/* Translucent glass cards for dark mode so animated sky shows through */
+/* Translucent Glass Cards for Dark Mode */
 .dark .bg-white {
   background-color: rgba(15, 23, 42, 0.55) !important;
   backdrop-filter: blur(12px) !important;
@@ -86,7 +86,7 @@
   background-color: rgba(30, 41, 59, 0.5) !important;
 }
 
-/* --- MOVING NIGHT SKY STAGE BACKGROUND --- */
+/* --- FULLSTAGE CELESTIAL STAGE ANIMATIONS --- */
 .stage {
   position: relative;
   width: 100%;
@@ -97,14 +97,7 @@
 }
 
 .stage.night {
-  background: linear-gradient(135deg, #0a1230 0%, #04050f 50%, #12123f 100%);
-  background-size: 200% 200%;
-  animation: skyPan 18s ease-in-out infinite alternate;
-}
-
-@keyframes skyPan {
-  0% { background-position: 0% 0%; }
-  100% { background-position: 100% 100%; }
+  background: radial-gradient(120% 90% at 50% 30%, #0a1230 0%, #04050f 75%);
 }
 
 /* TWINKLING PAGE STARS */
@@ -125,7 +118,7 @@
   position: absolute;
   width: 2px;
   height: 2px;
-  background: #ffffff;
+  background: #fff;
   border-radius: 50%;
   animation: twinkle 3s ease-in-out infinite;
 }
@@ -154,7 +147,7 @@
   width: 2px;
   height: 2px;
   border-radius: 50%;
-  background: #ffffff;
+  background: #fff;
   opacity: 0;
   transform: rotate(-32deg);
   animation: shoot 0.5s linear infinite;
@@ -305,6 +298,7 @@
   pointer-events: none;
   z-index: 5;
 }
+
 @keyframes moonbreathe {
   0%, 100% { opacity: .45; transform: scale(1); }
   50% { opacity: .8; transform: scale(1.12); }
@@ -440,9 +434,7 @@
   z-index: 1;
 }
 
-.switch.night .stars {
-  opacity: 1;
-}
+.switch.night .stars { opacity: 1; }
 
 .stars span {
   position: absolute;
@@ -462,9 +454,7 @@
   transition: opacity 1s ease;
 }
 
-.switch.night .toggle-shooting-stars {
-  opacity: 1;
-}
+.switch.night .toggle-shooting-stars { opacity: 1; }
 
 .toggle-shooting {
   position: absolute;
