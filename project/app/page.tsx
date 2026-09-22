@@ -38,6 +38,9 @@ export default function Home() {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Dynamic Pending Requests Badge Counter
+  const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+
   // Doorway Animation States
   const [doorBusy, setDoorBusy] = useState(false);
   const [doorOpen, setDoorOpen] = useState(false);
@@ -208,6 +211,30 @@ export default function Home() {
     setTimeout(() => enterWhoosh(), 2000);
     return new Promise((resolve) => setTimeout(resolve, 2500));
   };
+
+  // Dynamic Pending Requests Counter from Supabase
+  useEffect(() => {
+    async function fetchPendingCount() {
+      try {
+        const { count, error } = await supabase
+          .from('requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'Pending');
+
+        if (!error && count !== null) {
+          setPendingRequestsCount(count);
+        }
+      } catch (err) {
+        console.error('Error fetching pending requests count:', err);
+      }
+    }
+
+    if (currentUser) {
+      fetchPendingCount();
+      const interval = setInterval(fetchPendingCount, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [currentUser]);
 
   // Clock Timer
   useEffect(() => {
@@ -630,7 +657,7 @@ export default function Home() {
     { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
     { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
     { key: 'email-templates', label: 'Email Escalations', icon: Mail },
-    { key: 'requests', label: 'Requests', icon: MessageSquarePlus, badge: 3 },
+    { key: 'requests', label: 'Requests', icon: MessageSquarePlus, badge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined },
     { key: 'announcements', label: 'Announcements', icon: Megaphone },
     { key: 'agent-data', label: 'Data & Backups', icon: Database },
     { key: 'admin', label: 'Admin Settings', icon: ShieldCheck },
@@ -744,8 +771,8 @@ export default function Home() {
                   >
                     <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
                     <span className="rail-label truncate text-xs">{item.label}</span>
-                    {item.badge && (
-                      <span className="absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center">
+                    {item.badge !== undefined && (
+                      <span className="absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse">
                         {item.badge}
                       </span>
                     )}
