@@ -20,6 +20,7 @@ import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
+import { DayNightToggle } from '@/components/day-night-toggle';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
 export default function Home() {
@@ -755,16 +756,8 @@ export default function Home() {
             </nav>
           </div>
 
-          {/* Bottom Actions: Theme Toggle & Log Out */}
+          {/* Bottom Actions: Log Out */}
           <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className="w-full flex items-center gap-3.5 h-10 px-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
-            >
-              {isDarkMode ? <Sun className="h-5 w-5 text-amber-400 shrink-0" /> : <Moon className="h-5 w-5 text-indigo-400 shrink-0" />}
-              <span className="rail-action-text">{isDarkMode ? 'Light Theme' : 'Dark Theme'}</span>
-            </button>
-
             <button
               onClick={() => setCurrentUser(null)}
               className="w-full flex items-center gap-3.5 h-10 px-2.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
@@ -835,7 +828,7 @@ export default function Home() {
         {/* MAIN CONTENT WORKSPACE */}
         <div className="flex-1 flex flex-col h-screen overflow-hidden z-10 w-full min-w-0">
           
-          {/* HEADER BAR */}
+          {/* HEADER BAR WITH DAY/NIGHT TOGGLE */}
           <header className="h-16 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-[#080E1E]/80">
             <div className="flex items-center gap-3">
               <button
@@ -852,13 +845,11 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-500/10 transition-colors text-xs flex items-center gap-2 font-semibold bg-white dark:bg-slate-900"
-              >
-                {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-600" />}
-                <span className="hidden sm:inline">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-              </button>
+              {/* Animated Day-Night Toggle Switch */}
+              <DayNightToggle
+                isDarkMode={isDarkMode}
+                onToggle={() => setIsDarkMode(!isDarkMode)}
+              />
             </div>
           </header>
 
