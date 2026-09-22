@@ -58,20 +58,30 @@
   }
 }
 
-/* Translucent Glass Cards for Dark Mode */
-.dark .bg-white {
-  background-color: rgba(15, 23, 42, 0.55) !important;
+/* Universal Dark Theme Glass Transparency Overrides */
+.dark body,
+.dark .bg-slate-950,
+.dark .bg-[#080E1E],
+.dark .bg-[#020208] {
+  background: transparent !important;
+}
+
+.dark .bg-white,
+.dark [class*="bg-slate-900"],
+.dark [class*="bg-slate-950"],
+.dark [class*="bg-[#101a30]"],
+.dark [class*="bg-[#182238]"],
+.dark [class*="bg-[#080E1E]"] {
+  background-color: rgba(10, 18, 48, 0.45) !important;
   backdrop-filter: blur(12px) !important;
-  color: #f8fafc !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-.dark .text-slate-900 {
   color: #f8fafc !important;
 }
 
+.dark .text-slate-900,
 .dark .text-slate-800 {
-  color: #e2e8f0 !important;
+  color: #f8fafc !important;
 }
 
 .dark .text-slate-700 {
@@ -86,94 +96,10 @@
   background-color: rgba(30, 41, 59, 0.5) !important;
 }
 
-/* --- FULLSTAGE CELESTIAL STAGE ANIMATIONS --- */
-.stage {
-  position: relative;
-  width: 100%;
-  min-height: 100vh;
-  overflow: hidden;
-  background: radial-gradient(120% 90% at 50% 30%, #3f6a97 0%, #123a63 70%);
-  transition: background 1.1s ease;
-}
-
-.stage.night {
-  background: radial-gradient(120% 90% at 50% 30%, #0a1230 0%, #04050f 75%);
-}
-
-/* TWINKLING PAGE STARS */
-.page-stars {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-  z-index: 1;
-}
-
-.stage.night .page-stars {
-  opacity: 1;
-}
-
-.page-stars span {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  background: #fff;
-  border-radius: 50%;
-  animation: twinkle 3s ease-in-out infinite;
-}
-
-@keyframes twinkle {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 0.9; }
-}
-
-/* SHOOTING STARS */
-.shooting-stars {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1s ease;
-  z-index: 1;
-}
-
-.stage.night .shooting-stars {
-  opacity: 1;
-}
-
-.shooting {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: #fff;
-  opacity: 0;
-  transform: rotate(-32deg);
-  animation: shoot 0.5s linear infinite;
-}
-
-.shooting::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: 0;
-  width: 90px;
-  height: 1px;
-  transform: translateY(-50%);
-  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.9));
-}
-
-@keyframes shoot {
-  0% { opacity: 0; transform: rotate(-32deg) translateX(0); }
-  2% { opacity: 1; }
-  12% { opacity: 0; transform: rotate(-32deg) translateX(-160px); }
-  100% { opacity: 0; transform: rotate(-32deg) translateX(-160px); }
-}
-
-/* --- EXPANDING RAIL SIDEBAR ANIMATIONS (EXPANDED DIMENSIONS) --- */
+/* --- EXPANDING RAIL SIDEBAR ANIMATIONS --- */
 .sidebar-rail {
   width: 82px;
+  height: 100vh;
   transition: width 0.35s ease;
   white-space: nowrap;
 }
@@ -184,7 +110,12 @@
 }
 
 .sidebar-rail nav {
-  overflow-y: hidden !important; /* Removes vertical scrollbar */
+  overflow-y: hidden !important;
+}
+
+.sidebar-rail nav::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
 }
 
 .sidebar-rail .rail-details,
@@ -284,8 +215,14 @@
 }
 
 @keyframes shineSweep {
-  0% { top: -100%; left: -100%; }
-  100% { top: 100%; left: 100%; }
+  0% {
+    top: -100%;
+    left: -100%;
+  }
+  100% {
+    top: 100%;
+    left: 100%;
+  }
 }
 
 /* --- LOGIN MOONGLOW AURA & TILT --- */
@@ -302,7 +239,6 @@
   pointer-events: none;
   z-index: 5;
 }
-
 @keyframes moonbreathe {
   0%, 100% { opacity: .45; transform: scale(1); }
   50% { opacity: .8; transform: scale(1.12); }
@@ -390,8 +326,10 @@
 .welcome-msg.show { opacity: 1; transform: translateY(0); }
 
 /* =========================================
-   EXACT DAY / NIGHT TOGGLE BUTTON
+   EXACT DAY / NIGHT TOGGLE CSS FROM SOURCE
 ========================================= */
+
+/* SWITCH BUTTON CONTAINER */
 .switch {
   position: relative;
   width: 140px;
@@ -408,6 +346,7 @@
   background: transparent;
 }
 
+/* TRACK */
 .track {
   position: absolute;
   inset: 0;
@@ -430,6 +369,7 @@
   z-index: 5;
 }
 
+/* STARS INSIDE TRACK */
 .stars {
   position: absolute;
   inset: 0;
@@ -438,7 +378,9 @@
   z-index: 1;
 }
 
-.switch.night .stars { opacity: 1; }
+.switch.night .stars {
+  opacity: 1;
+}
 
 .stars span {
   position: absolute;
@@ -448,6 +390,7 @@
   background: #fff;
 }
 
+/* SHOOTING STARS INSIDE TOGGLE */
 .toggle-shooting-stars {
   position: absolute;
   inset: 0;
@@ -458,7 +401,9 @@
   transition: opacity 1s ease;
 }
 
-.switch.night .toggle-shooting-stars { opacity: 1; }
+.switch.night .toggle-shooting-stars {
+  opacity: 1;
+}
 
 .toggle-shooting {
   position: absolute;
@@ -494,6 +439,7 @@
   100% { opacity: 0; transform: rotate(-32deg) translateX(-75px); }
 }
 
+/* MOON */
 .moon {
   position: absolute;
   left: 12%;
@@ -507,8 +453,11 @@
   z-index: 2;
 }
 
-.switch.night .moon { opacity: 1; }
+.switch.night .moon {
+  opacity: 1;
+}
 
+/* SUN */
 .sun {
   position: absolute;
   right: 12%;
@@ -524,8 +473,11 @@
   z-index: 2;
 }
 
-.switch.night .sun { opacity: 0; }
+.switch.night .sun {
+  opacity: 0;
+}
 
+/* BIRDS */
 .birds {
   position: absolute;
   top: 26%;
@@ -537,7 +489,9 @@
   z-index: 2;
 }
 
-.switch.night .birds { opacity: 0; }
+.switch.night .birds {
+  opacity: 0;
+}
 
 .bird {
   position: absolute;
@@ -547,7 +501,11 @@
   animation: fly 7s linear infinite;
 }
 
-.bird svg { width: 100%; height: 100%; display: block; }
+.bird svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 
 .bird .wing {
   transform-origin: 7px 6px;
@@ -569,6 +527,7 @@
   50% { transform: scaleY(.35); }
 }
 
+/* CLOUD SYSTEM & TRACK */
 .clouds {
   position: absolute;
   left: 0;
@@ -611,6 +570,7 @@
   to { transform: translateX(-50%); }
 }
 
+/* KNOB */
 .knob {
   position: absolute;
   top: 8%;
@@ -634,4 +594,6 @@
     0 0 50px 16px rgba(160,190,255,.55);
 }
 
-.switch.on .knob { left: 70.5%; }
+.switch.on .knob {
+  left: 70.5%;
+}
