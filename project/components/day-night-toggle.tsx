@@ -34,15 +34,15 @@ export function DayNightToggle({ isDarkMode, onToggle }: DayNightToggleProps) {
           <span className="toggle-shooting s3"></span>
         </div>
 
-        {/* Crescent Yellow Moon (Night Mode) */}
+        {/* Crescent Moon (Night Mode) */}
         <div className="toggle-moon">
           <div className="toggle-crescent"></div>
         </div>
 
-        {/* Bright Glowing Sun (Day Mode) */}
+        {/* Sun (Day Mode) */}
         <div className="toggle-sun"></div>
 
-        {/* Flying Birds (Day Mode) */}
+        {/* Birds (Day Mode) */}
         <div className="toggle-birds">
           <svg className="bird b1" viewBox="0 0 14 8" aria-hidden="true">
             <path className="wing" d="M0 6 Q7 -2 14 6 Q7 3 0 6Z" fill="#eef6ff" />
@@ -55,13 +55,13 @@ export function DayNightToggle({ isDarkMode, onToggle }: DayNightToggleProps) {
           </svg>
         </div>
 
-        {/* Moving Cloud Infinite Loop */}
+        {/* Moving Cloud Infinite Track (Using cloud.png and cloud2.png) */}
         <div className="toggle-clouds">
           <div className="toggle-cloud-track">
             <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud.png" alt="" aria-hidden="true" draggable={false} />
             <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud.png" alt="" aria-hidden="true" draggable={false} />
           </div>
         </div>
       </div>
