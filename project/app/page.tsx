@@ -34,7 +34,7 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Sidebar Expanding Rail State
+  // Sidebar Expanding Rail State (Desktop & Touch)
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -212,7 +212,7 @@ export default function Home() {
     return new Promise((resolve) => setTimeout(resolve, 2500));
   };
 
-  // Dynamic Pending Requests Counter
+  // Dynamic Pending Requests Counter from Supabase
   useEffect(() => {
     async function fetchPendingCount() {
       try {
@@ -429,29 +429,20 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE WITH CELESTIAL ANIMATED STAGE
+  // FULL-SCREEN LOGIN PAGE WITH WINDOWS 11 DARK MODE ABSTRACT BACKGROUND
   if (!currentUser) {
     return (
-      <div className={`min-h-screen w-full flex items-center justify-center font-sans select-none overflow-hidden relative p-4 stage ${isDarkMode ? 'night' : ''}`}>
-        
-        {/* MOONGLOW AURA */}
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
         <div className="moonglow" />
 
-        {/* PAGE STARS & SHOOTING STARS */}
-        <div className="page-stars">
-          <span style={{ left: '10%', top: '15%' }}></span>
-          <span style={{ left: '25%', top: '40%' }}></span>
-          <span style={{ left: '45%', top: '10%' }}></span>
-          <span style={{ left: '60%', top: '65%' }}></span>
-          <span style={{ left: '75%', top: '25%' }}></span>
-          <span style={{ left: '85%', top: '50%' }}></span>
-          <span style={{ left: '30%', top: '80%' }}></span>
-        </div>
-
-        <div className="shooting-stars">
-          <div className="shooting" style={{ top: '14%', left: '70%', animationDuration: '5.5s', animationDelay: '.2s' }}></div>
-          <div className="shooting" style={{ top: '26%', left: '40%', animationDuration: '8s', animationDelay: '.5s' }}></div>
-          <div className="shooting" style={{ top: '8%', left: '85%', animationDuration: '7s', animationDelay: '.8s' }}></div>
+        {/* FULLSCREEN BACKGROUND IMAGE */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <img
+            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
+            alt="Dashboard Background"
+            className="w-full h-full object-cover filter brightness-90 contrast-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/80 via-transparent to-transparent pointer-events-none"></div>
         </div>
 
         <div
@@ -679,25 +670,17 @@ export default function Home() {
   );
 
   return (
-    <div className={`stage ${isDarkMode ? 'dark night' : ''}`}>
-      <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-500 text-slate-900 dark:text-slate-100">
+    <div className={isDarkMode ? 'dark' : ''}>
+      <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
         
-        {/* FULL PAGE TWINKLING STARS IN NIGHT MODE */}
-        <div className="page-stars">
-          <span style={{ left: '8%', top: '12%' }}></span>
-          <span style={{ left: '22%', top: '38%' }}></span>
-          <span style={{ left: '42%', top: '18%' }}></span>
-          <span style={{ left: '62%', top: '72%' }}></span>
-          <span style={{ left: '82%', top: '22%' }}></span>
-          <span style={{ left: '92%', top: '52%' }}></span>
-          <span style={{ left: '18%', top: '82%' }}></span>
-        </div>
-
-        {/* FULL PAGE SHOOTING STARS IN NIGHT MODE */}
-        <div className="shooting-stars">
-          <div className="shooting" style={{ top: '12%', left: '75%', animationDuration: '6s', animationDelay: '.1s' }}></div>
-          <div className="shooting" style={{ top: '28%', left: '45%', animationDuration: '7.5s', animationDelay: '.4s' }}></div>
-          <div className="shooting" style={{ top: '10%', left: '88%', animationDuration: '6.5s', animationDelay: '.7s' }}></div>
+        {/* BACKGROUND IMAGE INSIDE DASHBOARD WORKSPACE */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40">
+          <img
+            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
+            alt="Dashboard Inner Background Image"
+            className="w-full h-full object-cover filter brightness-90 contrast-110"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-[#020208] via-transparent to-slate-50 dark:to-[#020208]"></div>
         </div>
 
         {/* SNOW ACCENT ON INACTIVITY */}
@@ -735,9 +718,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* EXPANDING RAIL SIDEBAR NAVIGATION */}
+        {/* EXPANDING RAIL SIDEBAR NAVIGATION (DESKTOP) */}
         <aside
-          className={`hidden md:flex sidebar-rail flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-white/10 backdrop-blur-xl z-20 bg-white/80 dark:bg-slate-950/60 shadow-2xl ${
+          className={`hidden md:flex sidebar-rail flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-slate-800 backdrop-blur-xl z-20 bg-white/90 dark:bg-[#101a30]/90 shadow-2xl ${
             sidebarExpanded ? 'expanded' : ''
           }`}
         >
@@ -745,7 +728,7 @@ export default function Home() {
             {/* Profile Row with Touch Fallback */}
             <div
               onClick={() => setSidebarExpanded(!sidebarExpanded)}
-              className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-white/10 cursor-pointer select-none"
+              className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800 cursor-pointer select-none"
             >
               <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-600 flex items-center justify-center text-slate-950 font-extrabold text-sm shadow-md">
                 T
@@ -758,7 +741,7 @@ export default function Home() {
             </div>
 
             {/* Search Input Bar */}
-            <div className="rail-search relative flex items-center h-10 border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/60">
+            <div className="rail-search relative flex items-center h-10 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-[#182238]/60">
               <Input
                 type="text"
                 placeholder="Search dashboard"
@@ -769,7 +752,7 @@ export default function Home() {
               <Search className="h-4 w-4 text-slate-400 absolute right-3 pointer-events-none shrink-0" />
             </div>
 
-            {/* Navigation Items */}
+            {/* Navigation Items with Expand Labels & Badges */}
             <nav className="space-y-1 text-xs font-medium max-h-[55vh] overflow-y-auto">
               {filteredNavItems.map((item) => {
                 if (!isTabAllowed(item.key)) return null;
@@ -800,7 +783,7 @@ export default function Home() {
           </div>
 
           {/* Bottom Actions: Log Out */}
-          <div className="space-y-2 border-t border-slate-200 dark:border-white/10 pt-3">
+          <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
             <button
               onClick={() => setCurrentUser(null)}
               className="w-full flex items-center gap-3.5 h-10 px-2.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
@@ -815,9 +798,9 @@ export default function Home() {
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 md:hidden flex">
             <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)} />
-            <div className="relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-white/10 p-4 flex flex-col justify-between z-50 h-full">
+            <div className="relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between z-50 h-full">
               <div className="space-y-6">
-                <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-white/10">
+                <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 font-black text-lg">
                       T
@@ -856,7 +839,7 @@ export default function Home() {
                 </nav>
               </div>
 
-              <div className="space-y-2 border-t border-slate-200 dark:border-white/10 pt-3">
+              <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
                 <button
                   onClick={() => setCurrentUser(null)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 rounded-lg"
@@ -872,11 +855,11 @@ export default function Home() {
         <div className="flex-1 flex flex-col h-screen overflow-hidden z-10 w-full min-w-0">
           
           {/* HEADER BAR WITH DAY/NIGHT TOGGLE */}
-          <header className="h-16 border-b border-slate-200 dark:border-white/10 px-4 md:px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-slate-950/50">
+          <header className="h-16 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-[#080E1E]/80">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden p-2 rounded-xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="md:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -888,6 +871,7 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Animated Day-Night Toggle Switch */}
               <DayNightToggle
                 isDarkMode={isDarkMode}
                 onToggle={() => setIsDarkMode(!isDarkMode)}
@@ -919,7 +903,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* MAIN TAB CONTENT */}
+          {/* MAIN TAB CONTENT WITH 3D PAGE-FLIP ANIMATION */}
           <main className={`flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden transition-all duration-300 origin-center ${
             isFlipping ? 'rotate-y-90 opacity-0 scale-95' : 'rotate-y-0 opacity-100 scale-100'
           }`}>
