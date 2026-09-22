@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Calendar as CalendarIcon, Upload, Search, X, Check, Filter, 
-  UserCheck, AlertCircle, CheckCircle2, Clock, MapPin, Building2, Table, LayoutGrid
+  Calendar as CalendarIcon, Upload, X, Check, Filter, 
+  UserCheck, AlertCircle, CheckCircle2, Clock, MapPin, Table, LayoutGrid
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import * as XLSX from 'xlsx';
@@ -41,7 +40,7 @@ export function ScheduleTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
-  // Fetch Schedules from Supabase or Fallback
+  // Fetch All Schedules from Supabase across all browsers
   const fetchSchedules = async () => {
     setLoading(true);
     try {
@@ -50,7 +49,9 @@ export function ScheduleTab() {
         .select('*')
         .order('shift_date', { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (error) {
+        console.error('Supabase schedule fetch error:', error);
+      } else if (data) {
         setSchedules(data);
       }
     } catch (err) {
@@ -65,14 +66,6 @@ export function ScheduleTab() {
   }, []);
 
   // Multi-User Tag Management
-  const handleAddUserTag = (userEmailOrName: string) => {
-    const clean = userEmailOrName.trim().toLowerCase();
-    if (clean && !selectedUsers.includes(clean)) {
-      setSelectedUsers([...selectedUsers, clean]);
-    }
-    setUserInput('');
-  };
-
   const handleRemoveUserTag = (tagToRemove: string) => {
     const updated = selectedUsers.filter((u) => u !== tagToRemove);
     setSelectedUsers(updated);
@@ -121,14 +114,14 @@ export function ScheduleTab() {
     setUserInput('');
   };
 
-  // Upload Excel or CSV Schedule File
+  // Upload Excel or CSV Schedule File and Upsert to Supabase
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setLoading(true);
     setIsError(false);
-    setStatusMsg('Parsing and uploading schedule file...');
+    setStatusMsg('Parsing Excel schedule...');
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -158,16 +151,24 @@ export function ScheduleTab() {
           notes: row.notes || '',
         })).filter((r) => r.agent_email && r.shift_date);
 
-        // Upload to Supabase if table exists, otherwise update state
-        const { error } = await supabase.from('schedules').upsert(formattedEntries, { onConflict: 'agent_email,shift_date' });
+        setStatusMsg(`Saving ${formattedEntries.length} schedule entries to database...`);
 
-        if (error) {
-          console.warn('Supabase upsert note:', error.message);
+        // Batch upload into Supabase in chunks of 500
+        const chunkSize = 500;
+        for (let i = 0; i < formattedEntries.length; i += chunkSize) {
+          const chunk = formattedEntries.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('schedules')
+            .upsert(chunk, { onConflict: 'agent_email,shift_date' });
+
+          if (error) {
+            console.error('Upsert batch error:', error);
+          }
         }
 
-        setSchedules(formattedEntries);
         setIsError(false);
-        setStatusMsg(`✓ Successfully loaded schedule for ${formattedEntries.length} shift entries!`);
+        setStatusMsg(`✓ Saved ${formattedEntries.length} schedule entries! Syncing across all devices...`);
+        fetchSchedules();
       } catch (err: any) {
         setIsError(true);
         setStatusMsg(`Upload Error: ${err.message}`);
@@ -394,8 +395,8 @@ export function ScheduleTab() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={uniqueDates.length + 1} className="p-8 text-center text-slate-400">
-                      No schedule entries found. Please try adding user filters or upload a schedule file.
+                    <td colSpan={Math.max(uniqueDates.length + 1, 2)} className="p-8 text-center text-slate-400">
+                      No schedule entries found. Upload an Excel schedule file to sync all agents across devices.
                     </td>
                   </tr>
                 )}
