@@ -8,7 +8,7 @@ import {
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
   MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
   Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, ChevronDown
+  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, ChevronDown, Calendar
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -20,6 +20,7 @@ import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
+import { ScheduleTab } from '@/components/tabs/schedule-tab';
 import { DayNightToggle } from '@/components/day-night-toggle';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
@@ -335,7 +336,7 @@ export default function Home() {
         team_name: 'Support Tier 1',
         floor_name: 'Floor 1',
         account_status: 'Active' as const,
-        allowed_tabs: ['overview', 'metrics', 'team', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
+        allowed_tabs: ['overview', 'metrics', 'team', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
       };
     } else {
       try {
@@ -647,13 +648,14 @@ export default function Home() {
     );
   }
 
-  const allowedTabs: string[] = currentUser.allowed_tabs || [];
+  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'metrics', 'team', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
   const isTabAllowed = (tabKey: string) => allowedTabs.includes(tabKey) || currentUser.role === 'Admin';
 
   const navItems = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
     { key: 'metrics', label: 'Performance Analytics', icon: BarChart3 },
     { key: 'team', label: 'Team & Floor Insights', icon: Users2 },
+    { key: 'schedule', label: 'Schedule Roster', icon: Calendar },
     { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
     { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
     { key: 'email-templates', label: 'Email Escalations', icon: Mail },
@@ -910,6 +912,7 @@ export default function Home() {
             {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
             {activeTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
             {activeTab === 'team' && isTabAllowed('team') && <TeamTab />}
+            {activeTab === 'schedule' && isTabAllowed('schedule') && <ScheduleTab />}
             {activeTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
             {activeTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
             {activeTab === 'email-templates' && isTabAllowed('email-templates') && <EmailTemplatesTab />}
