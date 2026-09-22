@@ -34,7 +34,7 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Sidebar Expanding Rail State (Desktop & Touch)
+  // Sidebar Expanding Rail State
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -212,7 +212,7 @@ export default function Home() {
     return new Promise((resolve) => setTimeout(resolve, 2500));
   };
 
-  // Dynamic Pending Requests Counter from Supabase
+  // Dynamic Pending Requests Counter
   useEffect(() => {
     async function fetchPendingCount() {
       try {
@@ -429,25 +429,13 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE WITH DYNAMIC BACKGROUND & CELESTIAL EFFECTS
+  // FULL-SCREEN LOGIN PAGE WITH CELESTIAL ANIMATED STAGE
   if (!currentUser) {
     return (
       <div className={`min-h-screen w-full flex items-center justify-center font-sans select-none overflow-hidden relative p-4 stage ${isDarkMode ? 'night' : ''}`}>
         
         {/* MOONGLOW AURA */}
         <div className="moonglow" />
-
-        {/* FULLSCREEN BACKGROUND STAGE LAYER */}
-        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-          <img
-            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
-            alt="Dashboard Background"
-            className={`w-full h-full object-cover filter brightness-95 contrast-110 transition-opacity duration-1000 ${
-              isDarkMode ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/80 via-transparent to-transparent pointer-events-none"></div>
-        </div>
 
         {/* PAGE STARS & SHOOTING STARS */}
         <div className="page-stars">
@@ -694,22 +682,6 @@ export default function Home() {
     <div className={`stage ${isDarkMode ? 'dark night' : ''}`}>
       <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-500 text-slate-900 dark:text-slate-100">
         
-        {/* DYNAMIC BACKGROUND IMAGE LAYER */}
-        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-          <img
-            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
-            alt="Dashboard Inner Background Image"
-            className={`w-full h-full object-cover filter brightness-90 contrast-110 transition-opacity duration-700 ${
-              isDarkMode ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
-          <div className={`absolute inset-0 transition-all duration-700 ${
-            isDarkMode 
-              ? 'bg-gradient-to-t from-[#020208]/90 via-slate-950/20 to-[#020208]/80' 
-              : 'bg-gradient-to-tr from-sky-100 via-blue-50 to-indigo-100/80'
-          }`}></div>
-        </div>
-
         {/* FULL PAGE TWINKLING STARS IN NIGHT MODE */}
         <div className="page-stars">
           <span style={{ left: '8%', top: '12%' }}></span>
