@@ -58,11 +58,12 @@
   }
 }
 
-/* Force dark theme overrides for hardcoded card backgrounds */
+/* Force dark theme overrides for hardcoded card backgrounds with translucent glass effect */
 .dark .bg-white {
-  background-color: rgba(15, 23, 42, 0.85) !important;
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(12px) !important;
   color: #f8fafc !important;
-  border-color: rgba(51, 65, 85, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .dark .text-slate-900 {
@@ -78,11 +79,90 @@
 }
 
 .dark .bg-slate-50 {
-  background-color: rgba(30, 41, 59, 0.7) !important;
+  background-color: rgba(15, 23, 42, 0.35) !important;
 }
 
 .dark .bg-slate-100 {
-  background-color: rgba(30, 41, 59, 0.9) !important;
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* --- FULL PAGE CELESTIAL NIGHT STAGE ANIMATIONS --- */
+.stage {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* FULL PAGE TWINKLING STARS */
+.page-stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  z-index: 1;
+}
+
+.stage.night .page-stars {
+  opacity: 1;
+}
+
+.page-stars span {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 50%;
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.9; }
+}
+
+/* FULL PAGE SHOOTING STARS */
+.shooting-stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1s ease;
+  z-index: 1;
+}
+
+.stage.night .shooting-stars {
+  opacity: 1;
+}
+
+.shooting {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #ffffff;
+  opacity: 0;
+  transform: rotate(-32deg);
+  animation: shoot 0.5s linear infinite;
+}
+
+.shooting::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 90px;
+  height: 1px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.9));
+}
+
+@keyframes shoot {
+  0% { opacity: 0; transform: rotate(-32deg) translateX(0); }
+  2% { opacity: 1; }
+  12% { opacity: 0; transform: rotate(-32deg) translateX(-160px); }
+  100% { opacity: 0; transform: rotate(-32deg) translateX(-160px); }
 }
 
 /* --- EXPANDING RAIL SIDEBAR ANIMATIONS --- */
