@@ -726,7 +726,7 @@ export default function Home() {
             sidebarExpanded ? 'expanded' : ''
           }`}
         >
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 flex flex-col min-h-0">
             {/* Profile Row with Touch Fallback */}
             <div
               onClick={() => setSidebarExpanded(!sidebarExpanded)}
@@ -755,7 +755,7 @@ export default function Home() {
             </div>
 
             {/* Navigation Items with Expand Labels & Badges */}
-            <nav className="space-y-1 text-xs font-medium max-h-[55vh] overflow-y-auto">
+            <nav className="space-y-1 text-xs font-medium flex-1 overflow-y-hidden">
               {filteredNavItems.map((item) => {
                 if (!isTabAllowed(item.key)) return null;
                 const Icon = item.icon;
@@ -765,13 +765,13 @@ export default function Home() {
                   <button
                     key={item.key}
                     onClick={() => handleTabChange(item.key)}
-                    className={`relative w-full flex items-center gap-3.5 h-11 px-2.5 font-semibold rounded-xl transition-all duration-200 icon-reflection-container ${
+                    className={`relative w-full flex items-center gap-3.5 h-10 px-2.5 font-semibold rounded-xl transition-all duration-200 icon-reflection-container ${
                       isActive
                         ? 'icon-reflection-selected bg-emerald-500/15 text-emerald-400 border-l-4 border-emerald-500'
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                     }`}
                   >
-                    <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
+                    <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
                     <span className="rail-label truncate text-xs">{item.label}</span>
                     {item.badge !== undefined && (
                       <span className="absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse">
