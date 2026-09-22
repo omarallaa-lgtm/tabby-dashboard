@@ -160,3 +160,104 @@
     left: 100%;
   }
 }
+
+/* --- LOGIN MOONGLOW AURA --- */
+.moonglow {
+  position: fixed;
+  top: 12%; left: 50%;
+  width: 520px; height: 520px;
+  margin-left: -260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(62,230,168,.35), rgba(62,230,168,0) 65%);
+  mix-blend-mode: screen;
+  filter: blur(10px);
+  animation: moonbreathe 9s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+@keyframes moonbreathe {
+  0%, 100% { opacity: .45; transform: scale(1); }
+  50% { opacity: .8; transform: scale(1.12); }
+}
+
+.login-stage { perspective: 900px; }
+
+/* 3D Perspective Card Tilt */
+.login-tilt-card {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform .25s ease-out;
+  transform-style: preserve-3d;
+}
+
+/* --- THE DOORWAY BUTTON ANIMATION --- */
+.door-btn {
+  position: relative;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.door-btn-label {
+  display: flex; align-items: center; gap: 8px;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.door-btn.busy .door-btn-label { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+
+.doorway {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.door-btn.busy .doorway { opacity: 1; }
+
+.frame { position: relative; width: 34px; height: 30px; perspective: 160px; }
+.panel {
+  position: absolute; top: 0; bottom: 0; width: 17px;
+  background: rgba(6,19,12,.85);
+  border: 1px solid rgba(6,19,12,.5);
+}
+.panel.l { left: 0; border-radius: 4px 0 0 4px; transform-origin: left center; }
+.panel.r { right: 0; border-radius: 0 4px 4px 0; transform-origin: right center; }
+.door-btn.dooropen .panel.l { animation: swing-l 1.1s ease forwards; }
+.door-btn.dooropen .panel.r { animation: swing-r 1.1s ease forwards; }
+@keyframes swing-l { to { transform: rotateY(-100deg); opacity: .3; } }
+@keyframes swing-r { to { transform: rotateY(100deg); opacity: .3; } }
+
+.walker { position: absolute; left: -6px; bottom: 1px; width: 10px; height: 22px; opacity: 0; }
+.door-btn.dooropen .walker { animation: walk-through 2.1s ease-in-out .35s forwards; }
+@keyframes walk-through {
+  0% { opacity: 0; left: -6px; }
+  10% { opacity: 1; }
+  88% { opacity: 1; left: 14px; }
+  100% { opacity: 0; left: 20px; }
+}
+.walker circle, .walker line { stroke: #06130c; fill: #06130c; }
+.walker .legs { animation: stride .45s linear infinite; transform-origin: 5px 12px; }
+@keyframes stride {
+  0%, 100% { transform: rotate(18deg); }
+  50% { transform: rotate(-18deg); }
+}
+
+.check-door {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.door-btn.entered .check-door { opacity: 1; }
+.door-btn.entered .doorway { opacity: 0; }
+.check-door svg path {
+  fill: none; stroke: #06130c; stroke-width: 3;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 28; stroke-dashoffset: 28;
+}
+.door-btn.entered .check-door svg path { animation: draw-door .35s ease forwards; }
+@keyframes draw-door { to { stroke-dashoffset: 0; } }
+
+.welcome-msg {
+  text-align: center; margin-top: 18px; font-size: 13px;
+  color: #3ee6a8; font-weight: 600;
+  opacity: 0; transform: translateY(-4px);
+  transition: opacity .35s ease, transform .35s ease;
+}
+.welcome-msg.show { opacity: 1; transform: translateY(0); }
