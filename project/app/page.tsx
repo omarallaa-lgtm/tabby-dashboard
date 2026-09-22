@@ -8,7 +8,7 @@ import {
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
   MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
   Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu
+  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, ChevronDown
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -32,6 +32,10 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
+
+  // Sidebar Expanding Rail State (Desktop & Touch)
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Doorway Animation States
   const [doorBusy, setDoorBusy] = useState(false);
@@ -293,7 +297,6 @@ export default function Home() {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Verify Credentials First
     let userToSet: any = null;
 
     if (cleanEmail === 'omar.allaa@tabby.ai' && (password === 'Boyka@1322' || password === '123')) {
@@ -327,7 +330,6 @@ export default function Home() {
       return;
     }
 
-    // Trigger Door & Walking Sequence
     setDoorBusy(true);
     setDoorOpen(true);
     doorCreak();
@@ -399,14 +401,12 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE WITH MOONGLOW & 3D TILT
+  // FULL-SCREEN LOGIN PAGE
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
-        {/* Soft Breathing Moonglow Background Effect */}
         <div className="moonglow" />
 
-        {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
           <iframe
             src="https://www.youtube.com/embed/iYbfNHkXxqU?autoplay=1&mute=1&controls=0&loop=1&playlist=iYbfNHkXxqU&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
@@ -417,7 +417,6 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/30 to-transparent pointer-events-none"></div>
         </div>
 
-        {/* HORIZONTAL COMPACT CENTERED LOGIN CONTAINER WITH PERSPECTIVE */}
         <div
           ref={stageRef}
           onPointerMove={handlePointerMove}
@@ -428,7 +427,6 @@ export default function Home() {
             ref={cardRef}
             className="bg-slate-950/80 border border-white/15 backdrop-blur-md rounded-2xl p-5 shadow-2xl text-white login-tilt-card"
           >
-            {/* Header Title */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-base">
@@ -445,7 +443,6 @@ export default function Home() {
               <div className="hidden sm:block text-[10px] text-slate-400">Official Portal</div>
             </div>
 
-            {/* Form Layout */}
             <form onSubmit={handleLogin} className="space-y-3.5 text-xs">
               {errorMessage && (
                 <div className="p-2 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-[11px] font-semibold flex items-center gap-2">
@@ -513,7 +510,6 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* ANIMATED DOOR BUTTON */}
                 <button
                   type="submit"
                   disabled={doorBusy}
@@ -525,7 +521,6 @@ export default function Home() {
                     <span>Enter Dashboard</span> <ArrowRight className="h-3.5 w-3.5" />
                   </span>
 
-                  {/* Doorway Frame & Walking Figure */}
                   <span className="doorway">
                     <span className="frame">
                       <span className="panel l" />
@@ -541,7 +536,6 @@ export default function Home() {
                     </span>
                   </span>
 
-                  {/* Welcome Checkmark */}
                   <span className="check-door">
                     <svg width="20" height="20" viewBox="0 0 24 24">
                       <path d="M4 12.5 L9.5 18 L20 6" />
@@ -635,11 +629,17 @@ export default function Home() {
     { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
     { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
     { key: 'email-templates', label: 'Email Escalations', icon: Mail },
-    { key: 'requests', label: 'Requests', icon: MessageSquarePlus },
+    { key: 'requests', label: 'Requests', icon: MessageSquarePlus, badge: 3 },
     { key: 'announcements', label: 'Announcements', icon: Megaphone },
     { key: 'agent-data', label: 'Data & Backups', icon: Database },
     { key: 'admin', label: 'Admin Settings', icon: ShieldCheck },
   ];
+
+  const filteredNavItems = navItems.filter((item) =>
+    searchQuery.trim() === ''
+      ? true
+      : item.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
@@ -691,25 +691,43 @@ export default function Home() {
           </div>
         )}
 
-        {/* DESKTOP SIDEBAR NAVIGATION */}
-        <div className="hidden md:flex w-64 border-r border-slate-200 dark:border-slate-800 p-4 flex-col justify-between shrink-0 backdrop-blur-xl z-20 bg-white/90 dark:bg-[#080E1E]/90 shadow-xs">
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 px-1">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-md">
+        {/* EXPANDING RAIL SIDEBAR NAVIGATION (DESKTOP) */}
+        <aside
+          className={`hidden md:flex sidebar-rail flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-slate-800 backdrop-blur-xl z-20 bg-white/90 dark:bg-[#101a30]/90 shadow-2xl ${
+            sidebarExpanded ? 'expanded' : ''
+          }`}
+        >
+          <div className="space-y-4">
+            {/* Profile Row with Touch Fallback */}
+            <div
+              onClick={() => setSidebarExpanded(!sidebarExpanded)}
+              className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800 cursor-pointer select-none"
+            >
+              <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-600 flex items-center justify-center text-slate-950 font-extrabold text-sm shadow-md">
                 T
               </div>
-              <div>
-                <div className="font-extrabold tracking-tight text-sm text-emerald-600 dark:text-emerald-400">
-                  Tabby - Gabrino Team
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="h-2.5 w-2.5 text-emerald-500" /> {currentUser.role}
-                </div>
+              <div className="rail-details min-w-0">
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">Tabby Gabrino</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{currentUser.role}</p>
               </div>
+              <ChevronDown className="rail-chevron h-4 w-4 text-slate-400 ml-auto shrink-0" />
             </div>
 
-            <nav className="space-y-1 text-xs font-medium">
-              {navItems.map((item) => {
+            {/* Search Input Bar */}
+            <div className="rail-search relative flex items-center h-10 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-[#182238]/60">
+              <Input
+                type="text"
+                placeholder="Search dashboard"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="rail-search-input absolute inset-0 w-full h-full bg-transparent border-0 text-xs px-3 pr-9 placeholder:text-slate-500 focus-visible:ring-0 text-slate-900 dark:text-slate-100"
+              />
+              <Search className="h-4 w-4 text-slate-400 absolute right-3 pointer-events-none shrink-0" />
+            </div>
+
+            {/* Navigation Items with Expand Labels & Badges */}
+            <nav className="space-y-1 text-xs font-medium max-h-[55vh] overflow-y-auto">
+              {filteredNavItems.map((item) => {
                 if (!isTabAllowed(item.key)) return null;
                 const Icon = item.icon;
                 const isActive = activeTab === item.key;
@@ -718,45 +736,44 @@ export default function Home() {
                   <button
                     key={item.key}
                     onClick={() => handleTabChange(item.key)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all duration-200 icon-reflection-container ${
+                    className={`relative w-full flex items-center gap-3.5 h-11 px-2.5 font-semibold rounded-xl transition-all duration-200 icon-reflection-container ${
                       isActive
                         ? 'icon-reflection-selected bg-emerald-500/15 text-emerald-400 border-l-4 border-emerald-500'
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
-                    <span>{item.label}</span>
+                    <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
+                    <span className="rail-label truncate text-xs">{item.label}</span>
+                    {item.badge && (
+                      <span className="absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center">
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </nav>
           </div>
 
-          {/* LOWER LEFT PROFILE BADGE */}
+          {/* Bottom Actions: Theme Toggle & Log Out */}
           <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-            <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-2">
-              <div className="truncate">
-                <div className="font-bold text-xs truncate text-emerald-600 dark:text-emerald-400">{currentUser.user_email}</div>
-                <div className="text-[10px] text-slate-500 font-bold uppercase">{currentUser.role}</div>
-              </div>
-
-              <button
-                onClick={() => setShowProfile(!showProfile)}
-                className="w-full text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 transition-all shadow-2xs"
-              >
-                <KeyRound className="h-3.5 w-3.5 text-emerald-500" />
-                <span>Update Password</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="w-full flex items-center gap-3.5 h-10 px-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
+            >
+              {isDarkMode ? <Sun className="h-5 w-5 text-amber-400 shrink-0" /> : <Moon className="h-5 w-5 text-indigo-400 shrink-0" />}
+              <span className="rail-action-text">{isDarkMode ? 'Light Theme' : 'Dark Theme'}</span>
+            </button>
 
             <button
               onClick={() => setCurrentUser(null)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+              className="w-full flex items-center gap-3.5 h-10 px-2.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
             >
-              <LogOut className="h-4 w-4" /> Log Out
+              <LogOut className="h-5 w-5 shrink-0" />
+              <span className="rail-action-text">Log Out</span>
             </button>
           </div>
-        </div>
+        </aside>
 
         {/* MOBILE SLIDE-OUT MENU DRAWER */}
         {mobileMenuOpen && (
