@@ -12,10 +12,12 @@ import Papa from 'papaparse';
 
 interface ChatMacro {
   id?: string;
-  category: string;
-  male_ar: string;
-  female_ar: string;
-  english_en: string;
+  category?: string;
+  topic?: string;
+  category_name?: string;
+  male_ar?: string;
+  female_ar?: string;
+  english_en?: string;
   help_tips?: string;
   links?: string;
 }
@@ -45,13 +47,17 @@ export function ChatMacrosTab() {
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
   const fetchMacros = async () => {
-    const { data, error } = await supabase
-      .from('chat_macros')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('chat_macros')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setMacros(data);
+      if (!error && data) {
+        setMacros(data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching chat macros:', err);
     }
   };
 
@@ -74,18 +80,24 @@ export function ChatMacrosTab() {
       complete: async (results) => {
         try {
           const parsedRows: any[] = results.data;
-          const recordsToInsert = parsedRows.map((row) => ({
-            category: row.category || row.Category || 'General',
-            male_ar: row.male_ar || row.maleAR || row['Male AR'] || '',
-            female_ar: row.female_ar || row.femaleAR || row['Female AR'] || '',
-            english_en: row.english_en || row.englishEN || row['English EN'] || '',
-            help_tips: row.help_tips || row['Help Tips'] || null,
-            links: row.links || row.Links || null,
-          })).filter((r) => r.male_ar || r.english_en);
+          const recordsToInsert = parsedRows.map((row) => {
+            const cat = row.category || row.Category || row.topic || row.Topic || 'General';
+            return {
+              category: cat,
+              topic: cat,
+              category_name: cat,
+              male_ar: row.male_ar || row.maleAR || row['Male AR'] || '',
+              female_ar: row.female_ar || row.femaleAR || row['Female AR'] || '',
+              english_en: row.english_en || row.englishEN || row['English EN'] || '',
+              help_tips: row.help_tips || row['Help Tips'] || null,
+              links: row.links || row.Links || null,
+              created_at: new Date().toISOString(),
+            };
+          }).filter((r) => r.male_ar || r.english_en || r.female_ar);
 
           if (recordsToInsert.length === 0) {
             setIsError(true);
-            setStatusMsg('CSV Error: Headers must match category, male_ar, female_ar, english_en.');
+            setStatusMsg('CSV Error: File is empty or headers must match category, male_ar, female_ar, english_en.');
             setUploading(false);
             return;
           }
@@ -111,23 +123,46 @@ export function ChatMacrosTab() {
     });
   };
 
-  // Add Single Chat Macro
+  // Add Single Chat Macro Manually
   const handleAddMacro = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCategory.trim()) return;
+    setStatusMsg('');
+    setIsError(false);
+
+    if (!newCategory.trim()) {
+      setIsError(true);
+      setStatusMsg('Please provide a Category / Topic name.');
+      return;
+    }
+
+    if (!newMaleAR.trim() && !newFemaleAR.trim() && !newEnglishEN.trim()) {
+      setIsError(true);
+      setStatusMsg('Please fill in at least one script field (Arabic Male/Female or English).');
+      return;
+    }
+
+    const categoryVal = newCategory.trim();
 
     const newRecord = {
-      category: newCategory.trim(),
+      category: categoryVal,
+      topic: categoryVal,
+      category_name: categoryVal,
       male_ar: newMaleAR.trim(),
       female_ar: newFemaleAR.trim(),
       english_en: newEnglishEN.trim(),
       help_tips: newHelpTips.trim() || null,
       links: newLinks.trim() || null,
+      created_at: new Date().toISOString(),
     };
 
     const { error } = await supabase.from('chat_macros').insert([newRecord]);
 
-    if (!error) {
+    if (error) {
+      setIsError(true);
+      setStatusMsg(`Save Error: ${error.message}`);
+    } else {
+      setIsError(false);
+      setStatusMsg('✓ Chat Macro saved successfully!');
       setNewCategory('');
       setNewMaleAR('');
       setNewFemaleAR('');
@@ -136,29 +171,61 @@ export function ChatMacrosTab() {
       setNewLinks('');
       setShowAddForm(false);
       fetchMacros();
+      setTimeout(() => setStatusMsg(''), 4000);
     }
   };
 
   // Delete Macro
   const handleDeleteMacro = async (id: string) => {
     if (confirm('Are you sure you want to delete this chat macro?')) {
-      await supabase.from('chat_macros').delete().eq('id', id);
-      fetchMacros();
+      const { error } = await supabase.from('chat_macros').delete().eq('id', id);
+      if (!error) {
+        fetchMacros();
+      } else {
+        setIsError(true);
+        setStatusMsg(`Delete Error: ${error.message}`);
+      }
     }
   };
 
+  // Copy with iframe Fallback
   const handleCopy = (text: string, idKey: string) => {
-    navigator.clipboard.writeText(text);
+    if (!text) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch (err) {
+        console.error('Fallback copy failed', err);
+      }
+      document.body.removeChild(textArea);
+    }
     setCopiedIndex(idKey);
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const filteredMacros = macros.filter(
-    (m) =>
-      m.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.male_ar.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.english_en.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMacros = macros.filter((m) => {
+    const cat = m.category || m.topic || m.category_name || '';
+    const male = m.male_ar || '';
+    const female = m.female_ar || '';
+    const eng = m.english_en || '';
+    const term = searchTerm.toLowerCase();
+
+    return (
+      cat.toLowerCase().includes(term) ||
+      male.toLowerCase().includes(term) ||
+      female.toLowerCase().includes(term) ||
+      eng.toLowerCase().includes(term)
+    );
+  });
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -231,7 +298,7 @@ export function ChatMacrosTab() {
         </div>
       )}
 
-      {/* Add Macro Modal */}
+      {/* Add Macro Modal / Form */}
       {showAddForm && isAdminOrTL && (
         <Card className="border border-emerald-500/40 bg-emerald-500/5 dark:bg-slate-900">
           <CardHeader className="pb-2">
@@ -242,7 +309,7 @@ export function ChatMacrosTab() {
           <CardContent>
             <form onSubmit={handleAddMacro} className="space-y-3 text-xs">
               <div className="space-y-1">
-                <label className="font-semibold">Macro Category / Topic</label>
+                <label className="font-semibold text-slate-300">Macro Category / Topic</label>
                 <Input
                   type="text"
                   placeholder="e.g. Greeting, KNET Explanation"
@@ -255,7 +322,7 @@ export function ChatMacrosTab() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="font-semibold">Arabic (Male)</label>
+                  <label className="font-semibold text-slate-300">Arabic (Male)</label>
                   <Textarea
                     placeholder="مرحبًا أخي..."
                     value={newMaleAR}
@@ -264,7 +331,7 @@ export function ChatMacrosTab() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold">Arabic (Female)</label>
+                  <label className="font-semibold text-slate-300">Arabic (Female)</label>
                   <Textarea
                     placeholder="مرحبًا أختي..."
                     value={newFemaleAR}
@@ -273,7 +340,7 @@ export function ChatMacrosTab() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold">English</label>
+                  <label className="font-semibold text-slate-300">English</label>
                   <Textarea
                     placeholder="Hello, thank you for reaching out..."
                     value={newEnglishEN}
@@ -329,7 +396,8 @@ export function ChatMacrosTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredMacros.length > 0 ? (
           filteredMacros.map((macro, idx) => {
-            const scriptText = macro[selectedLang] || macro.english_en || macro.male_ar;
+            const categoryDisplay = macro.category || macro.topic || macro.category_name || 'General';
+            const scriptText = macro[selectedLang] || macro.english_en || macro.male_ar || macro.female_ar || '';
             const keyId = `macro-${macro.id || idx}`;
 
             return (
@@ -337,7 +405,7 @@ export function ChatMacrosTab() {
                 <CardHeader className="pb-2 flex flex-row items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                      <Sparkles className="h-4 w-4 text-emerald-500" /> {macro.category}
+                      <Sparkles className="h-4 w-4 text-emerald-500" /> {categoryDisplay}
                     </CardTitle>
                     <Badge variant="outline" className="text-[10px]">
                       {selectedLang === 'male_ar' ? 'AR (ذكر)' : selectedLang === 'female_ar' ? 'AR (أنثى)' : 'EN'}
@@ -349,7 +417,7 @@ export function ChatMacrosTab() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteMacro(macro.id!)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 px-2 text-xs"
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 h-7 px-2 text-xs"
                       title="Delete Macro"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -357,8 +425,8 @@ export function ChatMacrosTab() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3 pt-2 text-xs">
-                  <p className="font-sans text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 whitespace-pre-wrap leading-relaxed">
-                    {scriptText}
+                  <p className="font-sans text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 whitespace-pre-wrap leading-relaxed min-h-[60px]">
+                    {scriptText || <span className="text-slate-500 italic">No script content available for this language option.</span>}
                   </p>
 
                   {macro.help_tips && (
@@ -376,6 +444,7 @@ export function ChatMacrosTab() {
 
                     <Button
                       size="sm"
+                      disabled={!scriptText}
                       onClick={() => handleCopy(scriptText, keyId)}
                       className="h-8 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg"
                     >
