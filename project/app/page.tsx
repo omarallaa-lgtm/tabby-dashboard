@@ -429,20 +429,20 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE WITH IMAGE BACKGROUND (IMG_4012.jpeg)
+  // FULL-SCREEN LOGIN PAGE WITH WINDOWS 11 DARK MODE ABSTRACT BACKGROUND
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
         <div className="moonglow" />
 
-        {/* FULLSCREEN BACKGROUND IMAGE (IMG_4012.jpeg) */}
+        {/* FULLSCREEN BACKGROUND IMAGE */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
           <img
-            src="/IMG_4012.jpeg"
+            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
             alt="Dashboard Background"
             className="w-full h-full object-cover filter brightness-90 contrast-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/40 to-transparent pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/80 via-transparent to-transparent pointer-events-none"></div>
         </div>
 
         <div
@@ -673,10 +673,10 @@ export default function Home() {
     <div className={isDarkMode ? 'dark' : ''}>
       <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
         
-        {/* BACKGROUND IMAGE INSIDE DASHBOARD WORKSPACE (IMG_4012.jpeg) */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-25">
+        {/* BACKGROUND IMAGE INSIDE DASHBOARD WORKSPACE */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40">
           <img
-            src="/IMG_4012.jpeg"
+            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
             alt="Dashboard Inner Background Image"
             className="w-full h-full object-cover filter brightness-90 contrast-110"
           />
