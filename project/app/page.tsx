@@ -402,20 +402,20 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE
+  // FULL-SCREEN LOGIN PAGE WITH IMAGE BACKGROUND (IMG_4012.jpeg)
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
         <div className="moonglow" />
 
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
-          <iframe
-            src="https://www.youtube.com/embed/iYbfNHkXxqU?autoplay=1&mute=1&controls=0&loop=1&playlist=iYbfNHkXxqU&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
-            title="Dashboard Background Video"
-            allow="autoplay; encrypted-media"
-            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none opacity-85 filter brightness-95 contrast-105"
+        {/* FULLSCREEN BACKGROUND IMAGE (IMG_4012.jpeg) */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <img
+            src="/IMG_4012.jpeg"
+            alt="Dashboard Background"
+            className="w-full h-full object-cover filter brightness-90 contrast-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/30 to-transparent pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/40 to-transparent pointer-events-none"></div>
         </div>
 
         <div
@@ -646,13 +646,12 @@ export default function Home() {
     <div className={isDarkMode ? 'dark' : ''}>
       <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
         
-        {/* BACKGROUND VIDEO INSIDE DASHBOARD WORKSPACE */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125 opacity-25">
-          <iframe
-            src="https://www.youtube.com/embed/iYbfNHkXxqU?autoplay=1&mute=1&controls=0&loop=1&playlist=iYbfNHkXxqU&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1&disablekb=1"
-            title="Dashboard Inner Background Video"
-            allow="autoplay; encrypted-media"
-            className="w-full h-full min-w-[100vw] min-h-[100vh] object-cover pointer-events-none filter brightness-90 contrast-110"
+        {/* BACKGROUND IMAGE INSIDE DASHBOARD WORKSPACE (IMG_4012.jpeg) */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-25">
+          <img
+            src="/IMG_4012.jpeg"
+            alt="Dashboard Inner Background Image"
+            className="w-full h-full object-cover filter brightness-90 contrast-110"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-[#020208] via-transparent to-slate-50 dark:to-[#020208]"></div>
         </div>
