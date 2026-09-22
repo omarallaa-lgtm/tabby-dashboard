@@ -304,181 +304,275 @@
 }
 .welcome-msg.show { opacity: 1; transform: translateY(0); }
 
-/* ==========================================
-   DAY / NIGHT TOGGLE FULL ANIMATED STYLES
-========================================== */
-.toggle-switch {
+/* =========================================
+   EXACT DAY / NIGHT TOGGLE CSS FROM SOURCE
+========================================= */
+
+/* SWITCH BUTTON CONTAINER */
+.switch {
   position: relative;
   width: 140px;
   height: 48px;
-  border-radius: 24px;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  background: transparent;
+  border-radius: 48px;
   cursor: pointer;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   padding: 0;
+  border: none;
   outline: none;
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.35) inset,
+    0 10px 30px rgba(0,0,0,.35);
+  background: transparent;
 }
 
-.toggle-track {
+/* TRACK */
+.track {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(180deg, #5ebefc 0%, #a2daf9 100%);
-  transition: background 0.6s ease;
+  border-radius: 48px;
   overflow: hidden;
+  background: linear-gradient(100deg, #a9d3e8 0%, #5e9fd6 100%);
+  transition: background 1.1s ease;
 }
 
-.toggle-switch.night .toggle-track {
-  background: linear-gradient(180deg, #0a0f24 0%, #151e3f 100%);
+.switch.night .track {
+  background: linear-gradient(100deg, #12123f 0%, #2c2f60 100%);
 }
 
-/* Knob Slider */
-.toggle-knob {
+.track::after {
+  content: "";
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.95), inset -2px -2px 4px rgba(0, 0, 0, 0.15);
-  transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  z-index: 10;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0) 40%);
+  pointer-events: none;
+  z-index: 5;
 }
 
-.toggle-switch.night .toggle-knob {
-  transform: translateX(92px);
-  background: #fff3a1;
-  box-shadow: 0 0 18px rgba(255, 243, 161, 0.95), inset -3px -2px 0px #d99b00;
-}
-
-/* Sun Element */
-.toggle-sun {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #fcd34d;
-  box-shadow: 0 0 14px #fcd34d;
-  transition: transform 0.6s ease, opacity 0.6s ease;
-}
-
-.toggle-switch.night .toggle-sun {
-  transform: translateY(-40px);
-  opacity: 0;
-}
-
-/* Moon Crescent Element */
-.toggle-moon {
-  position: absolute;
-  top: 10px;
-  left: 14px;
-  width: 28px;
-  height: 28px;
-  transition: transform 0.6s ease, opacity 0.6s ease;
-  transform: translateY(40px);
-  opacity: 0;
-}
-
-.toggle-switch.night .toggle-moon {
-  transform: translateY(0);
-  opacity: 1;
-}
-
-.toggle-crescent {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  box-shadow: inset 8px -2px 0 0 #fde047;
-}
-
-/* Stars */
-.toggle-stars {
+/* STARS INSIDE TRACK */
+.stars {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 1s ease;
+  z-index: 1;
 }
 
-.toggle-switch.night .toggle-stars {
+.switch.night .stars {
   opacity: 1;
 }
 
-.toggle-stars span {
+.stars span {
   position: absolute;
   width: 2px;
   height: 2px;
-  background: #ffffff;
   border-radius: 50%;
-  animation: starBlink 2.5s infinite ease-in-out;
+  background: #fff;
 }
 
-@keyframes starBlink {
-  0%, 100% { opacity: 0.2; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.3); }
-}
-
-/* Birds */
-.toggle-birds {
+/* SHOOTING STARS INSIDE TOGGLE */
+.toggle-shooting-stars {
   position: absolute;
-  top: 8px;
-  left: 10px;
-  display: flex;
-  gap: 6px;
-  transition: transform 0.6s ease, opacity 0.6s ease;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
+  z-index: 2;
+  transition: opacity 1s ease;
 }
 
-.toggle-switch.night .toggle-birds {
-  transform: translateY(-30px);
+.switch.night .toggle-shooting-stars {
+  opacity: 1;
+}
+
+.toggle-shooting {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transform: rotate(-32deg);
+  box-shadow: 0 0 5px rgba(255,255,255,.9);
+  animation: toggleShoot 3.5s linear infinite;
+}
+
+.toggle-shooting::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 55px;
+  height: 1px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.85));
+}
+
+.toggle-shooting.s1 { top: 25%; left: 72%; animation-delay: 0s; }
+.toggle-shooting.s2 { top: 48%; left: 48%; animation-delay: -1.7s; }
+.toggle-shooting.s3 { top: 18%; left: 30%; animation-delay: -2.8s; }
+
+@keyframes toggleShoot {
+  0% { opacity: 0; transform: rotate(-32deg) translateX(0); }
+  5% { opacity: 1; }
+  18% { opacity: 0; transform: rotate(-32deg) translateX(-75px); }
+  100% { opacity: 0; transform: rotate(-32deg) translateX(-75px); }
+}
+
+/* MOON */
+.moon {
+  position: absolute;
+  left: 12%;
+  top: 10%;
+  width: 9%;
+  font-size: 20px;
+  aspect-ratio: 1;
+  transform: translateY(-50%) rotate(-130deg);
+  opacity: .35;
+  transition: opacity .45s ease;
+  z-index: 2;
+}
+
+.switch.night .moon {
+  opacity: 1;
+}
+
+/* SUN */
+.sun {
+  position: absolute;
+  right: 12%;
+  top: 50%;
+  width: 13%;
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #ffe98a 60%, #f7d55c 100%);
+  box-shadow: 0 0 14px 4px rgba(255,233,138,.8);
+  opacity: 1;
+  transition: opacity .8s ease;
+  z-index: 2;
+}
+
+.switch.night .sun {
+  opacity: 0;
+}
+
+/* BIRDS */
+.birds {
+  position: absolute;
+  top: 26%;
+  left: 0;
+  width: 100%;
+  height: 20%;
+  opacity: .9;
+  transition: opacity .8s ease;
+  z-index: 2;
+}
+
+.switch.night .birds {
   opacity: 0;
 }
 
 .bird {
-  width: 12px;
-  height: 7px;
-  animation: birdFlap 1.8s infinite ease-in-out;
-}
-
-@keyframes birdFlap {
-  0%, 100% { transform: translateY(0) scaleY(1); }
-  50% { transform: translateY(-3px) scaleY(0.6); }
-}
-
-/* Moving Clouds Infinite Track */
-.toggle-clouds {
   position: absolute;
-  bottom: -4px;
-  left: 0;
+  top: 0;
+  width: 16px;
+  height: 9px;
+  animation: fly 7s linear infinite;
+}
+
+.bird svg {
   width: 100%;
-  height: 28px;
+  height: 100%;
+  display: block;
+}
+
+.bird .wing {
+  transform-origin: 7px 6px;
+  animation: flap .5s ease-in-out infinite;
+}
+
+.bird.b2 { animation-delay: -2.3s; top: 35%; }
+.bird.b2 .wing { animation-delay: -.18s; }
+.bird.b3 { animation-delay: -4.6s; top: 8%; }
+.bird.b3 .wing { animation-delay: -.32s; }
+
+@keyframes fly {
+  from { left: 75%; }
+  to { left: -15%; }
+}
+
+@keyframes flap {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(.35); }
+}
+
+/* CLOUD SYSTEM & TRACK */
+.clouds {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4%;
+  height: 48%;
   overflow: hidden;
-  transition: transform 0.6s ease, opacity 0.6s ease;
-}
-
-.toggle-switch.night .toggle-clouds {
-  transform: translateY(35px);
-  opacity: 0;
-}
-
-.toggle-cloud-track {
-  display: flex;
-  width: 200%;
-  animation: cloudScroll 12s linear infinite;
-}
-
-.toggle-cloud-track img {
-  height: 28px;
-  object-fit: contain;
   pointer-events: none;
+  z-index: 3;
 }
 
-@keyframes cloudScroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+.cloud-track {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  animation: cloudMove 16s linear infinite;
+}
+
+.cloud-track img {
+  flex: 0 0 50%;
+  width: 55%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center bottom;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform: scale(1.12);
+  margin-left: -2.5%;
+  margin-right: -2.5%;
+}
+
+@keyframes cloudMove {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* KNOB */
+.knob {
+  position: absolute;
+  top: 8%;
+  left: 2.5%;
+  width: 27%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #ffffff, #fdfdfd 55%, #f4f4f4 100%);
+  box-shadow:
+    0 0 20px 6px rgba(255,255,255,.05),
+    0 0 26px 10px rgba(255,244,190,.55);
+  transition:
+    left .65s cubic-bezier(.65, -.1, .25, 1.15),
+    box-shadow 1.1s ease;
+  z-index: 6;
+}
+
+.switch.night .knob {
+  box-shadow:
+    0 0 18px 6px rgba(255,255,255,.9),
+    0 0 50px 16px rgba(160,190,255,.55);
+}
+
+.switch.on .knob {
+  left: 70.5%;
 }
