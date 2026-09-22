@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Calendar as CalendarIcon, Upload, X, Check, Filter, 
-  UserCheck, AlertCircle, CheckCircle2, Clock, MapPin, Table, LayoutGrid
+  UserCheck, AlertCircle, CheckCircle2, Clock, MapPin, Table, LayoutGrid, RefreshCw
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import * as XLSX from 'xlsx';
@@ -40,20 +40,38 @@ export function ScheduleTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
-  // Fetch All Schedules from Supabase across all browsers
+  // Fetch ALL Schedules from Supabase using Pagination (bypass 1000 row limit)
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('schedules')
-        .select('*')
-        .order('shift_date', { ascending: true });
+      let allRecords: ScheduleEntry[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Supabase schedule fetch error:', error);
-      } else if (data) {
-        setSchedules(data);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('schedules')
+          .select('*')
+          .order('shift_date', { ascending: true })
+          .range(from, from + step - 1);
+
+        if (error) {
+          console.error('Supabase schedule fetch error:', error);
+          hasMore = false;
+        } else if (data && data.length > 0) {
+          allRecords = [...allRecords, ...data];
+          if (data.length < step) {
+            hasMore = false;
+          } else {
+            from += step;
+          }
+        } else {
+          hasMore = false;
+        }
       }
+
+      setSchedules(allRecords);
     } catch (err) {
       console.error('Error fetching schedules:', err);
     } finally {
@@ -141,7 +159,7 @@ export function ScheduleTab() {
 
         const formattedEntries: ScheduleEntry[] = rawData.map((row) => ({
           agent_email: String(row.agent_email || row.Email || row['Agent Email'] || '').toLowerCase().trim(),
-          agent_name: String(row.agent_name || row.Name || row['Agent Name'] || row.agent_email || ''),
+          agent_name: String(row.agent_name || row.Name || row['Agent Name'] || row.agent_email || '').trim(),
           shift_date: String(row.shift_date || row.Date || row['Shift Date'] || '').slice(0, 10),
           shift_start_at: String(row.shift_start_at || row.Start || row['Shift Start'] || ''),
           shift_end_at: String(row.shift_end_at || row.End || row['Shift End'] || ''),
@@ -151,7 +169,7 @@ export function ScheduleTab() {
           notes: row.notes || '',
         })).filter((r) => r.agent_email && r.shift_date);
 
-        setStatusMsg(`Saving ${formattedEntries.length} schedule entries to database...`);
+        setStatusMsg(`Saving ${formattedEntries.length} entries into Supabase...`);
 
         // Batch upload into Supabase in chunks of 500
         const chunkSize = 500;
@@ -167,8 +185,8 @@ export function ScheduleTab() {
         }
 
         setIsError(false);
-        setStatusMsg(`✓ Saved ${formattedEntries.length} schedule entries! Syncing across all devices...`);
-        fetchSchedules();
+        setStatusMsg(`✓ Uploaded ${formattedEntries.length} schedule entries! Reloading database...`);
+        await fetchSchedules();
       } catch (err: any) {
         setIsError(true);
         setStatusMsg(`Upload Error: ${err.message}`);
@@ -213,11 +231,21 @@ export function ScheduleTab() {
             <CalendarIcon className="h-6 w-6 text-emerald-500" /> Team Shift Schedule Roster
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            View, multi-filter, and manage real-time work shifts and days off
+            View, multi-filter, and manage real-time work shifts ({schedules.length} loaded shifts)
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchSchedules}
+            disabled={loading}
+            className="h-8 text-xs gap-1"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+
           {/* View Mode Toggle */}
           <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900">
             <Button
