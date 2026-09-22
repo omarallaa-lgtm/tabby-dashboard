@@ -85,14 +85,58 @@
   background-color: rgba(30, 41, 59, 0.9) !important;
 }
 
-/* Glass & Glow Reflection Effects */
+/* --- EXPANDING RAIL SIDEBAR ANIMATIONS --- */
+.sidebar-rail {
+  width: 78px;
+  transition: width 0.35s ease;
+  white-space: nowrap;
+}
+
+.sidebar-rail:hover,
+.sidebar-rail.expanded {
+  width: 250px;
+}
+
+.sidebar-rail .rail-details,
+.sidebar-rail .rail-chevron,
+.sidebar-rail .rail-search-input,
+.sidebar-rail .rail-label,
+.sidebar-rail .rail-action-text {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-rail:hover .rail-details,
+.sidebar-rail.expanded .rail-details,
+.sidebar-rail:hover .rail-chevron,
+.sidebar-rail.expanded .rail-chevron,
+.sidebar-rail:hover .rail-search-input,
+.sidebar-rail.expanded .rail-search-input,
+.sidebar-rail:hover .rail-label,
+.sidebar-rail.expanded .rail-label,
+.sidebar-rail:hover .rail-action-text,
+.sidebar-rail.expanded .rail-action-text {
+  opacity: 1;
+  transition: opacity 0.25s 0.1s ease;
+}
+
+.sidebar-rail .rail-search {
+  width: 40px;
+  transition: width 0.35s ease;
+}
+
+.sidebar-rail:hover .rail-search,
+.sidebar-rail.expanded .rail-search {
+  width: 100%;
+}
+
+/* --- GLASS & GLOW REFLECTION EFFECTS --- */
 .icon-reflection-container {
   position: relative;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 1. HOVER REFLECTION: Emerald Radial Aura Glow */
 .icon-reflection-container::before {
   content: '';
   position: absolute;
@@ -117,7 +161,6 @@
   filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.35));
 }
 
-/* 2. SELECTED / ACTIVE STATE REFLECTION: Metallic Glass Reflection Sweep */
 .icon-reflection-container::after {
   content: '';
   position: absolute;
@@ -161,7 +204,7 @@
   }
 }
 
-/* --- LOGIN MOONGLOW AURA --- */
+/* --- LOGIN MOONGLOW AURA & TILT --- */
 .moonglow {
   position: fixed;
   top: 12%; left: 50%;
@@ -182,14 +225,13 @@
 
 .login-stage { perspective: 900px; }
 
-/* 3D Perspective Card Tilt */
 .login-tilt-card {
   transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
   transition: transform .25s ease-out;
   transform-style: preserve-3d;
 }
 
-/* --- THE DOORWAY BUTTON ANIMATION --- */
+/* --- DOORWAY BUTTON ANIMATION --- */
 .door-btn {
   position: relative;
   overflow: hidden;
