@@ -32,7 +32,12 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Doorway Animation States
+  const [doorBusy, setDoorBusy] = useState(false);
+  const [doorOpen, setDoorOpen] = useState(false);
+  const [doorEntered, setDoorEntered] = useState(false);
+  const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
 
   // Mobile Menu Drawer State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -59,6 +64,146 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
+  // 3D Card Tilt Refs
+  const stageRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Web Audio Context Synthesizer Engine
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const getAudioCtx = () => {
+    if (!audioCtxRef.current) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        audioCtxRef.current = new AudioCtxClass();
+      }
+    }
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  };
+
+  const tone = (freq: number, t0: number, dur: number, peak: number, type?: OscillatorType) => {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const noiseBurst = (t0: number, dur: number, freq: number, q: number, peak: number) => {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const size = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / size, 2);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.value = freq;
+      filt.Q.value = q;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(peak, t0);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(filt).connect(gain).connect(ctx.destination);
+      src.start(t0);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const footstep = (t0: number) => {
+    noiseBurst(t0, 0.09, 200, 1.1, 0.3);
+    tone(85, t0, 0.09, 0.1);
+  };
+
+  const doorCreak = () => {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(70, t0);
+      osc.frequency.exponentialRampToValueAtTime(130, t0 + 0.9);
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.05, t0 + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 1.05);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const enterWhoosh = () => {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const t0 = ctx.currentTime;
+      const size = Math.floor(ctx.sampleRate * 0.4);
+      const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / size, 1.5);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(2200, t0);
+      filt.frequency.exponentialRampToValueAtTime(250, t0 + 0.4);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.22, t0);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      src.connect(filt).connect(gain).connect(ctx.destination);
+      src.start(t0);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const welcomeChime = () => {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const t = ctx.currentTime;
+      tone(659.3, t, 0.3, 0.13);
+      tone(880, t + 0.1, 0.3, 0.14);
+      tone(1318.5, t + 0.2, 0.6, 0.16);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const walkSequence = async () => {
+    const stepStart = 400;
+    const stepGap = 320;
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        const ctx = getAudioCtx();
+        if (ctx) footstep(ctx.currentTime);
+      }, stepStart + i * stepGap);
+    }
+    setTimeout(() => enterWhoosh(), 2000);
+    return new Promise((resolve) => setTimeout(resolve, 2500));
+  };
+
   // Clock Timer
   useEffect(() => {
     const timer = setInterval(() => {
@@ -71,6 +216,22 @@ export default function Home() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Pointer Move Event for 3D Perspective Tilt
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!stageRef.current || !cardRef.current) return;
+    const r = stageRef.current.getBoundingClientRect();
+    const nx = (e.clientX - r.left) / r.width;
+    const ny = (e.clientY - r.top) / r.height;
+    cardRef.current.style.setProperty('--ry', `${(nx - 0.5) * 18}deg`);
+    cardRef.current.style.setProperty('--rx', `${(0.5 - ny) * 10}deg`);
+  };
+
+  const handlePointerLeave = () => {
+    if (!cardRef.current) return;
+    cardRef.current.style.setProperty('--rx', '0deg');
+    cardRef.current.style.setProperty('--ry', '0deg');
+  };
 
   // Idle Timer for Freezing (100 Seconds)
   const resetIdleTimer = () => {
@@ -124,49 +285,63 @@ export default function Home() {
     }, 200);
   };
 
+  // Login Authentication with Walking Animation
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    setIsSubmitting(true);
+    if (doorBusy) return;
+
     const cleanEmail = email.trim().toLowerCase();
 
+    // Verify Credentials First
+    let userToSet: any = null;
+
     if (cleanEmail === 'omar.allaa@tabby.ai' && (password === 'Boyka@1322' || password === '123')) {
-      setTimeout(() => {
-        const adminUser = {
-          user_email: cleanEmail,
-          username: 'omar.allaa',
-          role: 'Admin' as const,
-          team_name: 'Support Tier 1',
-          floor_name: 'Floor 1',
-          account_status: 'Active' as const,
-          allowed_tabs: ['overview', 'metrics', 'team', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
-        };
-        setCurrentUser(adminUser);
-        if (typeof refreshMetrics === 'function') refreshMetrics(adminUser);
-      }, 800);
+      userToSet = {
+        user_email: cleanEmail,
+        username: 'omar.allaa',
+        role: 'Admin' as const,
+        team_name: 'Support Tier 1',
+        floor_name: 'Floor 1',
+        account_status: 'Active' as const,
+        allowed_tabs: ['overview', 'metrics', 'team', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
+      };
+    } else {
+      try {
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_email', cleanEmail)
+          .single();
+
+        if (userProfile && (userProfile.password_hash === password || userProfile.password === password)) {
+          userToSet = userProfile;
+        }
+      } catch (err) {
+        console.error('Supabase auth error:', err);
+      }
+    }
+
+    if (!userToSet) {
+      setErrorMessage("Invalid email or password!");
       return;
     }
 
-    try {
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_email', cleanEmail)
-        .single();
+    // Trigger Door & Walking Sequence
+    setDoorBusy(true);
+    setDoorOpen(true);
+    doorCreak();
 
-      if (userProfile && (userProfile.password_hash === password || userProfile.password === password)) {
-        setTimeout(() => {
-          setCurrentUser(userProfile);
-          if (typeof refreshMetrics === 'function') refreshMetrics(userProfile);
-        }, 800);
-        return;
-      }
-    } catch (err) {
-      console.error('Supabase auth error:', err);
-    }
+    await walkSequence();
 
-    setIsSubmitting(false);
-    setErrorMessage("Invalid email or password!");
+    setDoorEntered(true);
+    welcomeChime();
+    setShowWelcomeMsg(true);
+
+    setTimeout(() => {
+      setCurrentUser(userToSet);
+      if (typeof refreshMetrics === 'function') refreshMetrics(userToSet);
+    }, 1200);
   };
 
   const handleRaiseForgotPasswordRequest = async (e: React.FormEvent) => {
@@ -224,11 +399,13 @@ export default function Home() {
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE
+  // FULL-SCREEN LOGIN PAGE WITH MOONGLOW & 3D TILT
   if (!currentUser) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
-        
+        {/* Soft Breathing Moonglow Background Effect */}
+        <div className="moonglow" />
+
         {/* FULLSCREEN YOUTUBE BACKGROUND VIDEO */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none scale-125">
           <iframe
@@ -240,10 +417,17 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/90 via-[#020208]/30 to-transparent pointer-events-none"></div>
         </div>
 
-        {/* HORIZONTAL COMPACT CENTERED LOGIN CONTAINER */}
-        <div className="w-full max-w-2xl relative z-10 px-2">
-          <div className="bg-slate-950/80 border border-white/15 backdrop-blur-md rounded-2xl p-5 shadow-2xl text-white">
-            
+        {/* HORIZONTAL COMPACT CENTERED LOGIN CONTAINER WITH PERSPECTIVE */}
+        <div
+          ref={stageRef}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={handlePointerLeave}
+          className="w-full max-w-2xl relative z-10 px-2 login-stage"
+        >
+          <div
+            ref={cardRef}
+            className="bg-slate-950/80 border border-white/15 backdrop-blur-md rounded-2xl p-5 shadow-2xl text-white login-tilt-card"
+          >
             {/* Header Title */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
               <div className="flex items-center gap-2.5">
@@ -258,12 +442,10 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="hidden sm:block text-[10px] text-slate-400">
-                Official Portal
-              </div>
+              <div className="hidden sm:block text-[10px] text-slate-400">Official Portal</div>
             </div>
 
-            {/* Horizontal Form Layout */}
+            {/* Form Layout */}
             <form onSubmit={handleLogin} className="space-y-3.5 text-xs">
               {errorMessage && (
                 <div className="p-2 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-[11px] font-semibold flex items-center gap-2">
@@ -331,16 +513,48 @@ export default function Home() {
                   </button>
                 </div>
 
-                <Button
+                {/* ANIMATED DOOR BUTTON */}
+                <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full sm:w-auto px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 rounded-xl text-xs gap-1.5 transition-all shadow-md shadow-emerald-600/20"
+                  disabled={doorBusy}
+                  className={`door-btn w-full sm:w-auto px-6 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold h-10 rounded-xl text-xs gap-1.5 transition-all shadow-md shadow-emerald-600/20 ${
+                    doorBusy ? 'busy' : ''
+                  } ${doorOpen ? 'dooropen' : ''} ${doorEntered ? 'entered' : ''}`}
                 >
-                  <span>{isSubmitting ? 'Authenticating...' : 'Enter Dashboard'}</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
+                  <span className="door-btn-label">
+                    <span>Enter Dashboard</span> <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+
+                  {/* Doorway Frame & Walking Figure */}
+                  <span className="doorway">
+                    <span className="frame">
+                      <span className="panel l" />
+                      <span className="panel r" />
+                      <svg className="walker" viewBox="0 0 10 22">
+                        <circle cx="5" cy="3" r="2.4" />
+                        <line x1="5" y1="6" x2="5" y2="13" strokeWidth="1.8" />
+                        <g className="legs">
+                          <line x1="5" y1="13" x2="2" y2="20" strokeWidth="1.8" />
+                          <line x1="5" y1="13" x2="8" y2="20" strokeWidth="1.8" />
+                        </g>
+                      </svg>
+                    </span>
+                  </span>
+
+                  {/* Welcome Checkmark */}
+                  <span className="check-door">
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                      <path d="M4 12.5 L9.5 18 L20 6" />
+                    </svg>
+                    Welcome back
+                  </span>
+                </button>
               </div>
             </form>
+
+            <div className={`welcome-msg ${showWelcomeMsg ? 'show' : ''}`}>
+              Session started · loading workspace…
+            </div>
           </div>
         </div>
 
@@ -504,14 +718,10 @@ export default function Home() {
                   <button
                     key={item.key}
                     onClick={() => handleTabChange(item.key)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all duration-200 ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 font-semibold rounded-xl transition-all duration-200 icon-reflection-container ${
                       isActive
-                        ? isDarkMode
-                          ? 'bg-emerald-500/15 text-emerald-400 border-l-4 border-emerald-500 shadow-xs'
-                          : 'bg-emerald-50 text-emerald-700 border-l-4 border-emerald-600 shadow-xs'
-                        : isDarkMode
-                          ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        ? 'icon-reflection-selected bg-emerald-500/15 text-emerald-400 border-l-4 border-emerald-500'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                     }`}
                   >
                     <Icon className={`h-4 w-4 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
