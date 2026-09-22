@@ -55,18 +55,18 @@ export function DayNightToggle({ isDarkMode, onToggle }: DayNightToggleProps) {
           </svg>
         </div>
 
-        {/* Moving Cloud Track using cloud.png */}
+        {/* Moving Cloud Infinite Track */}
         <div className="clouds">
           <div className="cloud-track">
-            <img src="/cloud.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
           </div>
         </div>
       </div>
 
-      {/* Sliding Knob */}
+      {/* Knob */}
       <div className="knob"></div>
     </button>
   );
