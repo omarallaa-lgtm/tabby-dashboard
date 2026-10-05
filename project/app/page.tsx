@@ -727,7 +727,7 @@ export default function Home() {
           }`}
         >
           <div className="space-y-4 flex-1 flex flex-col min-h-0">
-            {/* Profile Row with Touch Fallback */}
+            {/* Profile Row with Password Change Trigger */}
             <div
               onClick={() => setSidebarExpanded(!sidebarExpanded)}
               className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800 cursor-pointer select-none"
@@ -735,11 +735,21 @@ export default function Home() {
               <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-600 flex items-center justify-center text-slate-950 font-extrabold text-sm shadow-md">
                 T
               </div>
-              <div className="rail-details min-w-0">
+              <div className="rail-details min-w-0 flex-1">
                 <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">Tabby Gabrino</p>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{currentUser.role}</p>
               </div>
-              <ChevronDown className="rail-chevron h-4 w-4 text-slate-400 ml-auto shrink-0" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProfile(!showProfile);
+                }}
+                className="rail-details p-1.5 hover:bg-emerald-500/10 rounded-lg text-slate-400 hover:text-emerald-400 transition-colors"
+                title="Change Password"
+              >
+                <KeyRound className="h-4 w-4" />
+              </button>
             </div>
 
             {/* Search Input Bar */}
@@ -843,6 +853,16 @@ export default function Home() {
 
               <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
                 <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowProfile(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-500 hover:bg-emerald-500/10 rounded-lg"
+                >
+                  <KeyRound className="h-4 w-4" /> Change Password
+                </button>
+                <button
                   onClick={() => setCurrentUser(null)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 rounded-lg"
                 >
@@ -873,6 +893,15 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowProfile(!showProfile)}
+                className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-bold rounded-lg"
+              >
+                <KeyRound className="h-3.5 w-3.5" /> Change Password
+              </Button>
+
               {/* Animated Day-Night Toggle Switch */}
               <DayNightToggle
                 isDarkMode={isDarkMode}
