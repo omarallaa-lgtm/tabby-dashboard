@@ -38,6 +38,18 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
   const [dailyProgressData, setDailyProgressData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Helper function to cleanly parse JSON arrays/strings or numbers
+  const parseTargetVal = (val: any) => {
+    if (typeof val === 'string') {
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        return isNaN(Number(val)) ? val : Number(val);
+      }
+    }
+    return val;
+  };
+
   const fetchMetrics = async (user?: any) => {
     setLoading(true);
 
@@ -94,15 +106,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
       if (targetData && targetData.length > 0) {
         const tMap: Record<string, any> = {};
         targetData.forEach((t) => {
-          let val = t.target_value;
-          if (typeof val === 'string') {
-            try {
-              val = JSON.parse(val);
-            } catch (e) {
-              val = isNaN(Number(val)) ? val : Number(val);
-            }
-          }
-          tMap[t.metric_key] = val;
+          tMap[t.metric_key] = parseTargetVal(t.target_value);
         });
         setKpiTargets((prev) => ({ ...prev, ...tMap }));
       }
@@ -124,17 +128,10 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         { event: '*', schema: 'public', table: 'kpi_targets' },
         (payload: any) => {
           if (payload.new && payload.new.metric_key) {
-            let val = payload.new.target_value;
-            if (typeof val === 'string') {
-              try {
-                val = JSON.parse(val);
-              } catch (e) {
-                val = isNaN(Number(val)) ? val : Number(val);
-              }
-            }
+            const parsedVal = parseTargetVal(payload.new.target_value);
             setKpiTargets((prev) => ({
               ...prev,
-              [payload.new.metric_key]: val,
+              [payload.new.metric_key]: parsedVal,
             }));
           }
         }
@@ -147,18 +144,27 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
   }, []);
 
   const updateTarget = async (key: string, value: any) => {
+    // Update local React state immediately
     setKpiTargets((prev) => ({ ...prev, [key]: value }));
 
-    const valueToStore = typeof value === 'object' ? JSON.stringify(value) : value;
+    // Safely format value for text/JSON storage
+    const valueToStore = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
     try {
-      await supabase.from('kpi_targets').upsert([
-        {
-          metric_key: key,
-          target_value: valueToStore,
-          updated_by: currentUser?.user_email || 'admin',
-        },
-      ]);
+      const { error } = await supabase.from('kpi_targets').upsert(
+        [
+          {
+            metric_key: key,
+            target_value: valueToStore,
+            updated_by: currentUser?.user_email || 'admin',
+          },
+        ],
+        { onConflict: 'metric_key' } // Fix: Explicitly resolve conflict on metric_key primary key
+      );
+
+      if (error) {
+        console.error('Error saving target to Supabase:', error);
+      }
     } catch (err) {
       console.error('Failed to sync target with Supabase:', err);
     }
