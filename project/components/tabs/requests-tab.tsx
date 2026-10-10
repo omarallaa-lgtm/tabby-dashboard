@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,13 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [leadershipComment, setLeadershipComment] = useState('');
   const [reviewing, setReviewing] = useState(false);
+
+  // Portal mount check for SSR safety
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
@@ -441,9 +449,9 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         </Card>
       )}
 
-      {/* POPUP MODAL: FIXED CENTERED VIEW ON CURRENT SCREEN VIEWPORT */}
-      {selectedRequest && (
-        <div className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+      {/* POPUP MODAL: MOUNTED TO DOCUMENT.BODY VIA REACT PORTAL FOR DIRECT VIEWPORT CENTERING */}
+      {selectedRequest && isMounted && createPortal(
+        <div className="fixed inset-0 z-[99999] w-screen h-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
           <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto">
             <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between">
               <div>
@@ -576,7 +584,8 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
