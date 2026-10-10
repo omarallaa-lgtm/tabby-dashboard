@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
@@ -27,7 +27,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
   const [agentMetrics, setAgentMetrics] = useState<any[]>([]);
   const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({});
   const [floorAverages, setFloorAverages] = useState<Record<string, any>>({});
-  const [kpiTargets, setKpiTargets] = useState<Record<string, number>>({
+  const [kpiTargets, setKpiTargets] = useState<Record<string, any>>({
     csatPercent: 85,
     kscatPercent: 35,
     adherencePercent: 90,
@@ -89,11 +89,21 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
         setDailyProgressData(Object.values(periodGrouped));
       }
 
-      // 3. Fetch KPI Targets
+      // 3. Fetch KPI Targets (Supports numbers and array strings safely)
       const { data: targetData } = await supabase.from('kpi_targets').select('*');
       if (targetData && targetData.length > 0) {
-        const tMap: Record<string, number> = {};
-        targetData.forEach((t) => { tMap[t.metric_key] = Number(t.target_value); });
+        const tMap: Record<string, any> = {};
+        targetData.forEach((t) => {
+          let val = t.target_value;
+          if (typeof val === 'string') {
+            try {
+              val = JSON.parse(val);
+            } catch (e) {
+              val = isNaN(Number(val)) ? val : Number(val);
+            }
+          }
+          tMap[t.metric_key] = val;
+        });
         setKpiTargets((prev) => ({ ...prev, ...tMap }));
       }
     } catch (e) {
@@ -103,11 +113,55 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
-  const updateTarget = async (key: string, value: number) => {
+  // Live Supabase Broadcast Listener to update all users in real-time
+  useEffect(() => {
+    fetchMetrics();
+
+    const channel = supabase
+      .channel('public:kpi_targets')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'kpi_targets' },
+        (payload: any) => {
+          if (payload.new && payload.new.metric_key) {
+            let val = payload.new.target_value;
+            if (typeof val === 'string') {
+              try {
+                val = JSON.parse(val);
+              } catch (e) {
+                val = isNaN(Number(val)) ? val : Number(val);
+              }
+            }
+            setKpiTargets((prev) => ({
+              ...prev,
+              [payload.new.metric_key]: val,
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const updateTarget = async (key: string, value: any) => {
     setKpiTargets((prev) => ({ ...prev, [key]: value }));
-    await supabase.from('kpi_targets').upsert([
-      { metric_key: key, target_value: value, updated_by: currentUser?.user_email || 'admin' }
-    ]);
+
+    const valueToStore = typeof value === 'object' ? JSON.stringify(value) : value;
+
+    try {
+      await supabase.from('kpi_targets').upsert([
+        {
+          metric_key: key,
+          target_value: valueToStore,
+          updated_by: currentUser?.user_email || 'admin',
+        },
+      ]);
+    } catch (err) {
+      console.error('Failed to sync target with Supabase:', err);
+    }
   };
 
   const logAuditAction = async (action: string, target: string, prevVal?: any, newVal?: any) => {
