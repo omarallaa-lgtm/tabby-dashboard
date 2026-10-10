@@ -441,10 +441,10 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         </Card>
       )}
 
-      {/* POPUP MODAL: FULL REQUEST DETAILS & APPROVAL WORKFLOW */}
+      {/* POPUP MODAL: FIXED CENTERED VIEW ON CURRENT SCREEN VIEWPORT */}
       {selectedRequest && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+          <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto">
             <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -462,7 +462,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               </button>
             </CardHeader>
 
-            <CardContent className="pt-4 space-y-4 text-xs">
+            <CardContent className="pt-4 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-500">Request Type</span>
