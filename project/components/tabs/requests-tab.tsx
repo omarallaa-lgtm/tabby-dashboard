@@ -156,44 +156,47 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     const updatePayload = {
       status: action,
       leadership_comment: commentToSave,
-      admin_comment: commentToSave,
       reviewed_by: currentUser?.user_email || 'TL',
       reviewed_at: new Date().toISOString(),
     };
 
-    try {
-      const targetId = selectedRequest.id || selectedRequest.request_id;
+    const targetKey = selectedRequest.id || selectedRequest.request_id;
 
-      // 1. Optimistic Local State Update (Reflects instantly in background UI)
-      const updateList = (prev: any[]) =>
-        prev.map((req) => {
-          const isMatch = (req.id && req.id === targetId) || (req.request_id && req.request_id === targetId);
-          return isMatch ? { ...req, ...updatePayload } : req;
-        });
-
-      setAllRequests((prev) => updateList(prev));
-      setMyRequests((prev) => updateList(prev));
-
-      // 2. Perform DB Updates in Supabase
-      if (selectedRequest.id) {
-        await supabase
-          .from('requests')
-          .update(updatePayload)
-          .eq('id', selectedRequest.id);
-      }
-
-      if (selectedRequest.request_id) {
-        await supabase
-          .from('requests')
-          .update(updatePayload)
-          .eq('request_id', selectedRequest.request_id);
-      }
-    } catch (err) {
-      console.error('Failed to update request:', err);
-    } finally {
+    if (!targetKey) {
+      console.error('Missing target identifier on selected request', selectedRequest);
       setReviewing(false);
       setSelectedRequest(null);
-      await fetchRequests(); // Re-sync server data
+      return;
+    }
+
+    // 1. Instant Optimistic State Update (Updates background tables immediately in React state)
+    const applyLocalUpdate = (list: any[]) =>
+      list.map((item) => {
+        const matches = item.id === targetKey || item.request_id === targetKey;
+        return matches ? { ...item, ...updatePayload } : item;
+      });
+
+    setAllRequests((prev) => applyLocalUpdate(prev));
+    setMyRequests((prev) => applyLocalUpdate(prev));
+
+    // Close modal immediately so user sees table update
+    setSelectedRequest(null);
+
+    try {
+      // 2. Perform DB Update in Supabase matching either id or request_id
+      const { error } = await supabase
+        .from('requests')
+        .update(updatePayload)
+        .or(`id.eq.${targetKey},request_id.eq.${targetKey}`);
+
+      if (error) {
+        console.error('Supabase update failed:', error);
+      }
+    } catch (err) {
+      console.error('Unexpected error during review update:', err);
+    } finally {
+      setReviewing(false);
+      await fetchRequests(); // Re-sync with server state
     }
   };
 
