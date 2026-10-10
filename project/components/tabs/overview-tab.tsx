@@ -104,7 +104,9 @@ export function OverviewTab() {
 
   const teamScore = selectedMetric.label === 'CSAT %' ? teamTotalCsatPct : getNumericVal(teamMetrics, selectedMetric.teamKey);
   const floorScore = getNumericVal(floorAverages, selectedMetric.floorKey);
-  const targetScore = kpiTargets[selectedMetric.targetKey] || selectedMetric.defaultTarget;
+  
+  // Read target value dynamically from kpiTargets (falling back to default target)
+  const targetScore = kpiTargets[selectedMetric.targetKey] ?? selectedMetric.defaultTarget;
 
   // Sync agent roster toggle to Supabase database so all users see changes in real time
   const handleToggleAgent = async (email: string) => {
@@ -132,12 +134,18 @@ export function OverviewTab() {
     const val = parseFloat(tempTargetValue);
     if (!isNaN(val)) {
       await updateTarget(targetMetricKey, val);
-      if (selectedMetric.targetKey === targetMetricKey) {
-        setSelectedMetric({ ...selectedMetric, defaultTarget: val });
-      }
       setShowTargetModal(false);
     }
   };
+
+  // Sync initial input value when target modal opens or target metric changes
+  useEffect(() => {
+    if (showTargetModal) {
+      const found = allMetricDefinitions.find((m) => m.targetKey === targetMetricKey);
+      const existingVal = kpiTargets[targetMetricKey] ?? found?.defaultTarget ?? 85;
+      setTempTargetValue(String(existingVal));
+    }
+  }, [showTargetModal, targetMetricKey, kpiTargets]);
 
   // Channel Totals
   const totalChatCsat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
@@ -187,9 +195,11 @@ export function OverviewTab() {
               <select
                 value={targetMetricKey}
                 onChange={(e) => {
-                  setTargetMetricKey(e.target.value);
-                  const found = allMetricDefinitions.find((m) => m.targetKey === e.target.value);
-                  setTempTargetValue(String(kpiTargets[e.target.value] || found?.defaultTarget || 85));
+                  const key = e.target.value;
+                  setTargetMetricKey(key);
+                  const found = allMetricDefinitions.find((m) => m.targetKey === key);
+                  const existingVal = kpiTargets[key] ?? found?.defaultTarget ?? 85;
+                  setTempTargetValue(String(existingVal));
                 }}
                 className="w-full h-9 rounded-lg border text-xs px-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               >
