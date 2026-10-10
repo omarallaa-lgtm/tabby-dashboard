@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export function OverviewTab() {
-  const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget, currentUser } = useMetrics() as any;
+  const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, updateTarget, updateMultipleTargets, currentUser } = useMetrics() as any;
 
   // Roster Selection State
   const [showRosterGear, setShowRosterGear] = useState(false);
@@ -28,10 +28,9 @@ export function OverviewTab() {
     isPct: true,
   });
 
-  // Target Modal State
+  // Target Modal State (Holds all target values for batch editing)
   const [showTargetModal, setShowTargetModal] = useState(false);
-  const [targetMetricKey, setTargetMetricKey] = useState('csatPercent');
-  const [tempTargetValue, setTempTargetValue] = useState('85');
+  const [batchTargetValues, setBatchTargetValues] = useState<Record<string, string>>({});
 
   // Role Restriction Check: Only Admin or Team Leader can access Target Config & Roster Gear
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
@@ -104,9 +103,19 @@ export function OverviewTab() {
 
   const teamScore = selectedMetric.label === 'CSAT %' ? teamTotalCsatPct : getNumericVal(teamMetrics, selectedMetric.teamKey);
   const floorScore = getNumericVal(floorAverages, selectedMetric.floorKey);
-  
-  // Read target value dynamically from kpiTargets (falling back to default target)
   const targetScore = kpiTargets[selectedMetric.targetKey] ?? selectedMetric.defaultTarget;
+
+  // Initialize all targets into batch state when opening the modal
+  useEffect(() => {
+    if (showTargetModal) {
+      const initialMap: Record<string, string> = {};
+      allMetricDefinitions.forEach((m) => {
+        const val = kpiTargets[m.targetKey] ?? m.defaultTarget;
+        initialMap[m.targetKey] = String(val);
+      });
+      setBatchTargetValues(initialMap);
+    }
+  }, [showTargetModal, kpiTargets]);
 
   // Sync agent roster toggle to Supabase database so all users see changes in real time
   const handleToggleAgent = async (email: string) => {
@@ -130,22 +139,25 @@ export function OverviewTab() {
     }
   };
 
-  const handleSaveTarget = async () => {
-    const val = parseFloat(tempTargetValue);
-    if (!isNaN(val)) {
-      await updateTarget(targetMetricKey, val);
-      setShowTargetModal(false);
-    }
-  };
+  // Batch save all edited target values at once
+  const handleSaveAllTargets = async () => {
+    const payload: Record<string, number> = {};
+    Object.entries(batchTargetValues).forEach(([key, valStr]) => {
+      const parsed = parseFloat(valStr);
+      if (!isNaN(parsed)) {
+        payload[key] = parsed;
+      }
+    });
 
-  // Sync initial input value when target modal opens or target metric changes
-  useEffect(() => {
-    if (showTargetModal) {
-      const found = allMetricDefinitions.find((m) => m.targetKey === targetMetricKey);
-      const existingVal = kpiTargets[targetMetricKey] ?? found?.defaultTarget ?? 85;
-      setTempTargetValue(String(existingVal));
+    if (typeof updateMultipleTargets === 'function') {
+      await updateMultipleTargets(payload);
+    } else if (typeof updateTarget === 'function') {
+      for (const [key, val] of Object.entries(payload)) {
+        await updateTarget(key, val);
+      }
     }
-  }, [showTargetModal, targetMetricKey, kpiTargets]);
+    setShowTargetModal(false);
+  };
 
   // Channel Totals
   const totalChatCsat = uniqueAgentMetrics.reduce((s: number, a: any) => s + (a.chat_csat || a.chatCsat || 0), 0);
@@ -177,53 +189,49 @@ export function OverviewTab() {
           {/* RESTRICTED: Configure Target Button for Admin / Team Leader only */}
           {isAdminOrTL && (
             <Button variant="outline" size="sm" onClick={() => setShowTargetModal(true)} className="gap-1.5 h-9 text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl icon-reflection-container">
-              <Settings2 className="h-3.5 w-3.5" /> Configure Target
+              <Settings2 className="h-3.5 w-3.5" /> Configure All Targets
             </Button>
           )}
         </div>
       </div>
 
-      {/* Target Setting Modal */}
+      {/* Target Setting Modal - Batch Edit Grid */}
       {showTargetModal && isAdminOrTL && (
         <div className="p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs space-y-4 animate-fade-in-up">
-          <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 text-sm">
-            <Target className="h-5 w-5" /> Configure Operational Target Value
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 text-sm">
+              <Target className="h-5 w-5" /> Operational Targets Batch Configuration
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setShowTargetModal(false)} className="text-xs text-slate-500">
+              Cancel
+            </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Select Metric</label>
-              <select
-                value={targetMetricKey}
-                onChange={(e) => {
-                  const key = e.target.value;
-                  setTargetMetricKey(key);
-                  const found = allMetricDefinitions.find((m) => m.targetKey === key);
-                  const existingVal = kpiTargets[key] ?? found?.defaultTarget ?? 85;
-                  setTempTargetValue(String(existingVal));
-                }}
-                className="w-full h-9 rounded-lg border text-xs px-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-              >
-                {allMetricDefinitions.map((m) => (
-                  <option key={m.targetKey} value={m.targetKey}>{m.label}</option>
-                ))}
-              </select>
-            </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Target Value</label>
-              <Input
-                type="number"
-                value={tempTargetValue}
-                onChange={(e) => setTempTargetValue(e.target.value)}
-                className="h-9 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg"
-              />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1">
+            {allMetricDefinitions.map((m) => {
+              const IconComp = m.icon;
+              return (
+                <div key={m.targetKey} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span className="truncate">{m.label}</span>
+                    <IconComp className={`h-3.5 w-3.5 shrink-0 ${m.color}`} />
+                  </label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={batchTargetValues[m.targetKey] ?? ''}
+                    onChange={(e) => setBatchTargetValues({ ...batchTargetValues, [m.targetKey]: e.target.value })}
+                    className="h-8 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg"
+                  />
+                </div>
+              );
+            })}
+          </div>
 
-            <div className="flex items-end">
-              <Button size="sm" onClick={handleSaveTarget} className="h-9 w-full bg-emerald-600 text-white text-xs font-bold gap-1 rounded-lg icon-reflection-container">
-                <Check className="h-4 w-4" /> Save Target Value
-              </Button>
-            </div>
+          <div className="flex justify-end pt-2">
+            <Button size="sm" onClick={handleSaveAllTargets} className="h-9 px-6 bg-emerald-600 text-white text-xs font-bold gap-1 rounded-xl icon-reflection-container">
+              <Check className="h-4 w-4" /> Save All Targets
+            </Button>
           </div>
         </div>
       )}
