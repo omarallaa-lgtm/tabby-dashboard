@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { 
   MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Filter, 
-  MessageSquare, Check, X, Copy, ExternalLink, Eye, ShieldAlert 
+  Check, X, Copy, ExternalLink, Eye, ShieldAlert 
 } from 'lucide-react';
 import { supabase } from '@/lib/metrics-context';
 
@@ -449,11 +449,11 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         </Card>
       )}
 
-      {/* POPUP MODAL: MOUNTED TO DOCUMENT.BODY VIA REACT PORTAL FOR DIRECT VIEWPORT CENTERING */}
+      {/* POPUP MODAL: VIEWPORT-STATIONARY OVERLAY (SCROLL INDEPENDENT) */}
       {selectedRequest && isMounted && createPortal(
-        <div className="fixed inset-0 z-[99999] w-screen h-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
-          <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto">
-            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between">
+        <div className="fixed inset-0 z-[99999] h-screen w-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-hidden pointer-events-auto">
+          <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto animate-fade-in flex flex-col max-h-[90vh]">
+            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between shrink-0">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <ShieldAlert className="h-5 w-5 text-emerald-500" /> Request Details & Review
@@ -470,7 +470,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               </button>
             </CardHeader>
 
-            <CardContent className="pt-4 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+            <CardContent className="pt-4 space-y-4 text-xs overflow-y-auto grow">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-500">Request Type</span>
@@ -554,7 +554,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
               )}
 
               {/* Modal Actions */}
-              <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
                 <Button variant="outline" size="sm" onClick={() => setSelectedRequest(null)} className="h-8 text-xs">
                   Close
                 </Button>
