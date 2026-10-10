@@ -162,35 +162,38 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     };
 
     try {
-      // Primary Key resolution: check both id and request_id
-      const primaryId = selectedRequest.id;
-      const customReqId = selectedRequest.request_id;
+      const targetId = selectedRequest.id || selectedRequest.request_id;
 
-      let updated = false;
+      // 1. Optimistic Local State Update (Reflects instantly in background UI)
+      const updateList = (prev: any[]) =>
+        prev.map((req) => {
+          const isMatch = (req.id && req.id === targetId) || (req.request_id && req.request_id === targetId);
+          return isMatch ? { ...req, ...updatePayload } : req;
+        });
 
-      if (primaryId) {
-        const { error, count } = await supabase
-          .from('requests')
-          .update(updatePayload, { count: 'exact' })
-          .eq('id', primaryId);
+      setAllRequests((prev) => updateList(prev));
+      setMyRequests((prev) => updateList(prev));
 
-        if (!error && count && count > 0) {
-          updated = true;
-        }
-      }
-
-      if (!updated && customReqId) {
+      // 2. Perform DB Updates in Supabase
+      if (selectedRequest.id) {
         await supabase
           .from('requests')
           .update(updatePayload)
-          .eq('request_id', customReqId);
+          .eq('id', selectedRequest.id);
+      }
+
+      if (selectedRequest.request_id) {
+        await supabase
+          .from('requests')
+          .update(updatePayload)
+          .eq('request_id', selectedRequest.request_id);
       }
     } catch (err) {
       console.error('Failed to update request:', err);
     } finally {
       setReviewing(false);
       setSelectedRequest(null);
-      await fetchRequests();
+      await fetchRequests(); // Re-sync server data
     }
   };
 
