@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { 
   MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Filter, 
-  Check, X, Copy, ExternalLink, Eye, ShieldAlert 
+  MessageSquare, Check, X, Copy, ExternalLink, Eye, ShieldAlert 
 } from 'lucide-react';
 import { supabase } from '@/lib/metrics-context';
 
@@ -75,6 +75,22 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
 
   useEffect(() => {
     fetchRequests();
+
+    // Live Supabase Broadcast Listener: Updates requests instantly across all open browser sessions
+    const channel = supabase
+      .channel('public:requests')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'requests' },
+        () => {
+          fetchRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentUser, statusFilter]);
 
   // Copy Ticket ID / URL Handler
@@ -449,7 +465,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         </Card>
       )}
 
-      {/* POPUP MODAL: VIEWPORT-STATIONARY OVERLAY (SCROLL INDEPENDENT) */}
+      {/* POPUP MODAL: MOUNTED TO DOCUMENT.BODY VIA REACT PORTAL FOR VIEWPORT CENTERING */}
       {selectedRequest && isMounted && createPortal(
         <div className="fixed inset-0 z-[99999] h-screen w-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-hidden pointer-events-auto">
           <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto animate-fade-in flex flex-col max-h-[90vh]">
