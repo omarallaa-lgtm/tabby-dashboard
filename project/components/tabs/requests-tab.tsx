@@ -149,7 +149,6 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     if (!selectedRequest) return;
 
     setReviewing(true);
-    const targetId = selectedRequest.id || selectedRequest.request_id;
 
     const defaultComment = action === 'Approved' ? 'Approved by Team Leader' : 'Declined by Team Leader';
     const commentToSave = leadershipComment.trim() || defaultComment;
@@ -162,21 +161,27 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
       reviewed_at: new Date().toISOString(),
     };
 
-    let { error } = await supabase
-      .from('requests')
-      .update(updatePayload)
-      .eq('id', targetId);
+    try {
+      if (selectedRequest.id) {
+        await supabase
+          .from('requests')
+          .update(updatePayload)
+          .eq('id', selectedRequest.id);
+      }
 
-    if (error && selectedRequest.request_id) {
-      await supabase
-        .from('requests')
-        .update(updatePayload)
-        .eq('request_id', selectedRequest.request_id);
+      if (selectedRequest.request_id) {
+        await supabase
+          .from('requests')
+          .update(updatePayload)
+          .eq('request_id', selectedRequest.request_id);
+      }
+    } catch (err) {
+      console.error('Failed to update request:', err);
+    } finally {
+      setReviewing(false);
+      setSelectedRequest(null);
+      await fetchRequests();
     }
-
-    setReviewing(false);
-    setSelectedRequest(null);
-    fetchRequests();
   };
 
   return (
@@ -465,7 +470,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
         </Card>
       )}
 
-      {/* POPUP MODAL: MOUNTED TO DOCUMENT.BODY VIA REACT PORTAL FOR VIEWPORT CENTERING */}
+      {/* POPUP MODAL: VIEWPORT-STATIONARY OVERLAY (MOUNTED DIRECTLY TO DOCUMENT.BODY) */}
       {selectedRequest && isMounted && createPortal(
         <div className="fixed inset-0 z-[99999] h-screen w-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-hidden pointer-events-auto">
           <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto animate-fade-in flex flex-col max-h-[90vh]">
