@@ -162,18 +162,28 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     };
 
     try {
-      if (selectedRequest.id) {
-        await supabase
+      // Primary Key resolution: check both id and request_id
+      const primaryId = selectedRequest.id;
+      const customReqId = selectedRequest.request_id;
+
+      let updated = false;
+
+      if (primaryId) {
+        const { error, count } = await supabase
           .from('requests')
-          .update(updatePayload)
-          .eq('id', selectedRequest.id);
+          .update(updatePayload, { count: 'exact' })
+          .eq('id', primaryId);
+
+        if (!error && count && count > 0) {
+          updated = true;
+        }
       }
 
-      if (selectedRequest.request_id) {
+      if (!updated && customReqId) {
         await supabase
           .from('requests')
           .update(updatePayload)
-          .eq('request_id', selectedRequest.request_id);
+          .eq('request_id', customReqId);
       }
     } catch (err) {
       console.error('Failed to update request:', err);
