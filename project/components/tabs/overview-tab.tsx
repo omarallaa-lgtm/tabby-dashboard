@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -17,7 +17,6 @@ export function OverviewTab() {
 
   // Roster Selection State
   const [showRosterGear, setShowRosterGear] = useState(false);
-  const [selectedAgentEmails, setSelectedAgentEmails] = useState<string[]>([]);
 
   // Selected Metric for Live Comparison Chart
   const [selectedMetric, setSelectedMetric] = useState({
@@ -82,7 +81,17 @@ export function OverviewTab() {
   }, [agentMetrics]);
 
   const allAgentEmails = useMemo(() => uniqueAgentMetrics.map((a: any) => a.agent_email), [uniqueAgentMetrics]);
-  const activeRosterEmails = useMemo(() => selectedAgentEmails.length === 0 ? allAgentEmails : selectedAgentEmails, [selectedAgentEmails, allAgentEmails]);
+
+  // Global Sync: Read active roster selections directly from Supabase via kpiTargets or teamMetrics
+  const activeRosterEmails = useMemo(() => {
+    const globalRoster = kpiTargets.active_roster_emails || teamMetrics.active_roster_emails;
+    if (Array.isArray(globalRoster) && globalRoster.length > 0) {
+      const valid = globalRoster.filter((e) => allAgentEmails.includes(e));
+      if (valid.length > 0) return valid;
+    }
+    return allAgentEmails;
+  }, [kpiTargets, teamMetrics, allAgentEmails]);
+
   const filteredAgentMetrics = useMemo(() => uniqueAgentMetrics.filter((a: any) => activeRosterEmails.includes(a.agent_email)), [uniqueAgentMetrics, activeRosterEmails]);
 
   const teamTotalCsat = filteredAgentMetrics.reduce((s: number, a: any) => s + (a.csat || 0), 0);
@@ -97,16 +106,27 @@ export function OverviewTab() {
   const floorScore = getNumericVal(floorAverages, selectedMetric.floorKey);
   const targetScore = kpiTargets[selectedMetric.targetKey] || selectedMetric.defaultTarget;
 
-  const handleToggleAgent = (email: string) => {
-    const current = selectedAgentEmails.length === 0 ? [...allAgentEmails] : [...selectedAgentEmails];
+  // Sync agent roster toggle to Supabase database so all users see changes in real time
+  const handleToggleAgent = async (email: string) => {
+    if (!isAdminOrTL) return;
+    const current = activeRosterEmails.length === 0 ? [...allAgentEmails] : [...activeRosterEmails];
+    let updated: string[];
     if (current.includes(email)) {
-      setSelectedAgentEmails(current.filter((e) => e !== email));
+      updated = current.filter((e) => e !== email);
     } else {
-      setSelectedAgentEmails([...current, email]);
+      updated = [...current, email];
+    }
+    if (typeof updateTarget === 'function') {
+      await updateTarget('active_roster_emails', updated);
     }
   };
 
-  const handleSelectAllAgents = () => setSelectedAgentEmails([...allAgentEmails]);
+  const handleSelectAllAgents = async () => {
+    if (!isAdminOrTL) return;
+    if (typeof updateTarget === 'function') {
+      await updateTarget('active_roster_emails', [...allAgentEmails]);
+    }
+  };
 
   const handleSaveTarget = async () => {
     const val = parseFloat(tempTargetValue);
