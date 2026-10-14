@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { 
-  AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck, 
-  MessageSquarePlus, Megaphone, LogOut, Sun, Moon, Clock, KeyRound, Check, 
-  Sparkles, Eye, EyeOff, ArrowRight, Key, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, ChevronDown, Calendar
+import {
+  AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck,
+  MessageSquarePlus, Megaphone, LogOut, Clock, KeyRound, Check,
+  Eye, EyeOff, ArrowRight, HelpCircle, X, Send, CheckCircle2,
+  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, Calendar, Zap
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -24,16 +24,141 @@ import { ScheduleTab } from '@/components/tabs/schedule-tab';
 import { DayNightToggle } from '@/components/day-night-toggle';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
+const IDLE_MS = 100000; // inactivity time before the dashboard "freezes"
+
+// Fixed values (not Math.random) so server and client render the same markup
+const AURORA_PARTICLES = [
+  { left: '8%',  top: '78%', size: 3, dur: 16, delay: 0 },
+  { left: '17%', top: '40%', size: 2, dur: 20, delay: 3 },
+  { left: '26%', top: '88%', size: 3, dur: 18, delay: 6 },
+  { left: '34%', top: '22%', size: 2, dur: 22, delay: 1 },
+  { left: '43%', top: '70%', size: 2, dur: 17, delay: 9 },
+  { left: '57%', top: '85%', size: 3, dur: 19, delay: 4 },
+  { left: '66%', top: '30%', size: 2, dur: 21, delay: 7 },
+  { left: '74%', top: '64%', size: 3, dur: 16, delay: 2 },
+  { left: '83%', top: '82%', size: 2, dur: 23, delay: 10 },
+  { left: '91%', top: '45%', size: 3, dur: 18, delay: 5 },
+  { left: '12%', top: '58%', size: 2, dur: 24, delay: 12 },
+  { left: '48%', top: '12%', size: 2, dur: 20, delay: 8 },
+  { left: '95%', top: '18%', size: 2, dur: 22, delay: 11 },
+  { left: '3%',  top: '20%', size: 3, dur: 19, delay: 13 },
+];
+
+// Guess whether this browser is software-rendered / low power (Citrix, VDI, old PCs)
+function detectLowPower(): boolean {
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+    const cores = navigator.hardwareConcurrency || 4;
+    const mem = (navigator as any).deviceMemory || 8;
+    if (cores <= 2 || mem <= 2) return true;
+    const canvas = document.createElement('canvas');
+    const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    if (!gl) return true;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = ext ? String(gl.getParameter((ext as any).UNMASKED_RENDERER_WEBGL)) : '';
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return /swiftshader|llvmpipe|software|basic render|citrix|vmware|svga|parallels|virtualbox/i.test(renderer);
+  } catch {
+    return true;
+  }
+}
+
+// Clock lives in its own component so the per-second update does NOT re-render the whole dashboard
+function LiveClock() {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setTime(
+        now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+        ' • ' +
+        now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      );
+    };
+    tick();
+    const id = setInterval(() => {
+      if (!document.hidden) tick();
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <span>{time || 'Syncing live clock...'}</span>;
+}
+
+// Aurora waves + floating particles (shared by login page and dashboard)
+// lite = plain static gradient (no blur, no animation)
+function Aurora({ lite }: { lite?: boolean }) {
+  if (lite) {
+    return <div className="lg-aurora lg-aurora-static" aria-hidden="true" />;
+  }
+  return (
+    <>
+      <div className="lg-aurora" aria-hidden="true">
+        <span className="lg-wave lg-wave-3" />
+        <span className="lg-wave lg-wave-5" />
+        <svg className="lg-ribbons" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <linearGradient id="lgG1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#34d399" stopOpacity="0" />
+              <stop offset="0.45" stopColor="#34d399" stopOpacity="0.5" />
+              <stop offset="1" stopColor="#0f766e" stopOpacity="0.08" />
+            </linearGradient>
+            <linearGradient id="lgG2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#2dd4bf" stopOpacity="0.55" />
+              <stop offset="0.6" stopColor="#0d9488" stopOpacity="0.32" />
+              <stop offset="1" stopColor="#064e3b" stopOpacity="0.25" />
+            </linearGradient>
+            <linearGradient id="lgG3" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#10b981" stopOpacity="0.5" />
+              <stop offset="1" stopColor="#065f46" stopOpacity="0.2" />
+            </linearGradient>
+            <linearGradient id="lgB1" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#1d4ed8" stopOpacity="0.38" />
+              <stop offset="1" stopColor="#1e3a8a" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <g className="lg-rb lg-rb-4">
+            <path fill="url(#lgB1)" d="M-200 -60 C 300 200, 700 40, 1100 150 S 1500 60, 1800 -40 L1800 -200 L-200 -200 Z" />
+          </g>
+          <g className="lg-rb lg-rb-1">
+            <path fill="url(#lgG1)" d="M-250 330 C 150 110, 480 440, 880 270 S 1400 30, 1850 170 L1850 360 C 1420 230, 1120 500, 760 540 S 190 400, -250 560 Z" />
+          </g>
+          <g className="lg-rb lg-rb-2">
+            <path fill="url(#lgG2)" d="M560 980 C 780 650, 1080 720, 1290 530 S 1660 290, 1850 350 L1850 980 Z" />
+          </g>
+          <g className="lg-rb lg-rb-3">
+            <path fill="url(#lgG3)" d="M-250 780 C 80 600, 400 840, 800 710 S 1200 580, 1550 720 L1550 980 L-250 980 Z" />
+          </g>
+        </svg>
+      </div>
+      {AURORA_PARTICLES.map((p, i) => (
+        <span
+          key={i}
+          className="lg-dot"
+          aria-hidden="true"
+          style={{
+            left: p.left,
+            top: p.top,
+            width: p.size,
+            height: p.size,
+            animationDuration: `${p.dur}s`,
+            animationDelay: `${p.delay}s`,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 export default function Home() {
   const { currentUser, setCurrentUser, refreshMetrics } = useMetrics() as any;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [currentTime, setCurrentTime] = useState('');
+  const [liteMode, setLiteMode] = useState(false); // performance mode for Citrix / weak PCs
 
   // Sidebar Expanding Rail State (Desktop & Touch)
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -42,11 +167,11 @@ export default function Home() {
   // Dynamic Pending Requests Badge Counter
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
 
-  // Doorway Animation States
-  const [doorBusy, setDoorBusy] = useState(false);
-  const [doorOpen, setDoorOpen] = useState(false);
-  const [doorEntered, setDoorEntered] = useState(false);
+  // Login button / success states
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
   const [showWelcomeMsg, setShowWelcomeMsg] = useState(false);
+  const [shake, setShake] = useState(false);
 
   // Mobile Menu Drawer State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -59,6 +184,7 @@ export default function Home() {
   const [isFrozen, setIsFrozen] = useState(false);
   const [iceShattered, setIceShattered] = useState(false);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef(0);
 
   // Forgot Password Modal State
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -77,7 +203,7 @@ export default function Home() {
   const stageRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Web Audio Context Synthesizer Engine
+  // Web Audio (welcome chime)
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const getAudioCtx = () => {
@@ -112,81 +238,6 @@ export default function Home() {
     }
   };
 
-  const noiseBurst = (t0: number, dur: number, freq: number, q: number, peak: number) => {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    try {
-      const size = Math.max(1, Math.floor(ctx.sampleRate * dur));
-      const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / size, 2);
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      const filt = ctx.createBiquadFilter();
-      filt.type = 'bandpass';
-      filt.frequency.value = freq;
-      filt.Q.value = q;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(peak, t0);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      src.connect(filt).connect(gain).connect(ctx.destination);
-      src.start(t0);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const footstep = (t0: number) => {
-    noiseBurst(t0, 0.09, 200, 1.1, 0.3);
-    tone(85, t0, 0.09, 0.1);
-  };
-
-  const doorCreak = () => {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    try {
-      const t0 = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(70, t0);
-      osc.frequency.exponentialRampToValueAtTime(130, t0 + 0.9);
-      gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(0.05, t0 + 0.15);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t0);
-      osc.stop(t0 + 1.05);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const enterWhoosh = () => {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    try {
-      const t0 = ctx.currentTime;
-      const size = Math.floor(ctx.sampleRate * 0.4);
-      const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / size, 1.5);
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      const filt = ctx.createBiquadFilter();
-      filt.type = 'lowpass';
-      filt.frequency.setValueAtTime(2200, t0);
-      filt.frequency.exponentialRampToValueAtTime(250, t0 + 0.4);
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.22, t0);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
-      src.connect(filt).connect(gain).connect(ctx.destination);
-      src.start(t0);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const welcomeChime = () => {
     const ctx = getAudioCtx();
     if (!ctx) return;
@@ -198,19 +249,6 @@ export default function Home() {
     } catch (e) {
       console.error(e);
     }
-  };
-
-  const walkSequence = async () => {
-    const stepStart = 400;
-    const stepGap = 320;
-    for (let i = 0; i < 5; i++) {
-      setTimeout(() => {
-        const ctx = getAudioCtx();
-        if (ctx) footstep(ctx.currentTime);
-      }, stepStart + i * stepGap);
-    }
-    setTimeout(() => enterWhoosh(), 2000);
-    return new Promise((resolve) => setTimeout(resolve, 2500));
   };
 
   // Dynamic Pending Requests Counter from Supabase
@@ -232,32 +270,36 @@ export default function Home() {
 
     if (currentUser) {
       fetchPendingCount();
-      const interval = setInterval(fetchPendingCount, 10000);
+      const interval = setInterval(() => {
+        if (!document.hidden) fetchPendingCount();
+      }, 10000);
       return () => clearInterval(interval);
     }
   }, [currentUser]);
 
-  // Clock Timer
+  // Lite mode: saved choice wins, otherwise auto-detect weak/software rendering
   useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
-        ' • ' +
-        now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      );
-    }, 1000);
-    return () => clearInterval(timer);
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('tabby-lite'); } catch {}
+    setLiteMode(saved !== null ? saved === '1' : detectLowPower());
   }, []);
 
-  // Pointer Move Event for 3D Perspective Tilt
+  const toggleLite = () => {
+    setLiteMode((v) => {
+      const next = !v;
+      try { localStorage.setItem('tabby-lite', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
+
+  // Pointer Move Event for subtle 3D tilt of the login card
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!stageRef.current || !cardRef.current) return;
+    if (liteMode || !stageRef.current || !cardRef.current) return;
     const r = stageRef.current.getBoundingClientRect();
     const nx = (e.clientX - r.left) / r.width;
     const ny = (e.clientY - r.top) / r.height;
-    cardRef.current.style.setProperty('--ry', `${(nx - 0.5) * 18}deg`);
-    cardRef.current.style.setProperty('--rx', `${(0.5 - ny) * 10}deg`);
+    cardRef.current.style.setProperty('--ry', `${(nx - 0.5) * 8}deg`);
+    cardRef.current.style.setProperty('--rx', `${(0.5 - ny) * 5}deg`);
   };
 
   const handlePointerLeave = () => {
@@ -266,7 +308,7 @@ export default function Home() {
     cardRef.current.style.setProperty('--ry', '0deg');
   };
 
-  // Idle Timer for Freezing (100 Seconds)
+  // Idle Timer for Freezing
   const resetIdleTimer = () => {
     if (showSnow) setShowSnow(false);
     if (isFrozen) {
@@ -284,11 +326,17 @@ export default function Home() {
         setShowSnow(true);
         setIsFrozen(true);
       }
-    }, 100000);
+    }, IDLE_MS);
   };
 
   useEffect(() => {
-    const handleActivity = () => resetIdleTimer();
+    // mousemove fires hundreds of times a second - only react once per second (or instantly when frozen)
+    const handleActivity = () => {
+      const now = Date.now();
+      if (!isFrozen && now - lastActivityRef.current < 1000) return;
+      lastActivityRef.current = now;
+      resetIdleTimer();
+    };
 
     window.addEventListener('mousemove', handleActivity);
     window.addEventListener('keydown', handleActivity);
@@ -302,6 +350,7 @@ export default function Home() {
       window.removeEventListener('click', handleActivity);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, isDarkMode, isFrozen, showSnow]);
 
   // Page-Flip Transition Between Sidebar Tabs
@@ -318,11 +367,14 @@ export default function Home() {
     }, 200);
   };
 
-  // Login Authentication with Walking Animation
+  // Login Authentication
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    if (doorBusy) return;
+    if (loginBusy) return;
+
+    // Unlock audio inside the click gesture (browsers block it after an await)
+    getAudioCtx();
 
     const cleanEmail = email.trim().toLowerCase();
 
@@ -355,24 +407,22 @@ export default function Home() {
     }
 
     if (!userToSet) {
-      setErrorMessage("Invalid email or password!");
+      setErrorMessage('Invalid email or password!');
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
       return;
     }
 
-    setDoorBusy(true);
-    setDoorOpen(true);
-    doorCreak();
-
-    await walkSequence();
-
-    setDoorEntered(true);
-    welcomeChime();
+    // Success: button turns into "Welcome back ✓" with pulsing rings
+    setLoginBusy(true);
+    setLoginSuccess(true);
     setShowWelcomeMsg(true);
+    welcomeChime();
 
     setTimeout(() => {
       setCurrentUser(userToSet);
       if (typeof refreshMetrics === 'function') refreshMetrics(userToSet);
-    }, 1200);
+    }, 1500);
   };
 
   const handleRaiseForgotPasswordRequest = async (e: React.FormEvent) => {
@@ -420,109 +470,110 @@ export default function Home() {
     e.preventDefault();
     if (!newPassword.trim()) return;
 
-    await supabase
+    const { error } = await supabase
       .from('user_profiles')
       .update({ password_hash: newPassword, is_temporary_password: false })
       .eq('user_email', currentUser.user_email);
 
-    setProfileMsg('✓ Password updated successfully!');
-    setNewPassword('');
+    if (error) {
+      setProfileMsg(`Could not update password: ${error.message}`);
+    } else {
+      setProfileMsg('✓ Password updated successfully!');
+      setNewPassword('');
+    }
     setTimeout(() => setProfileMsg(''), 3000);
   };
 
-  // FULL-SCREEN LOGIN PAGE WITH WINDOWS 11 DARK MODE ABSTRACT BACKGROUND
+  // ============================================================
+  // LOGIN PAGE – aurora background + glass card
+  // ============================================================
   if (!currentUser) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#020208] font-sans select-none overflow-hidden relative p-4">
-        <div className="moonglow" />
-
-        {/* FULLSCREEN BACKGROUND IMAGE */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <img
-            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
-            alt="Dashboard Background"
-            className="w-full h-full object-cover filter brightness-90 contrast-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#020208]/80 via-transparent to-transparent pointer-events-none"></div>
-        </div>
+      <div className={`lg-root font-sans ${liteMode ? 'lite' : ''}`}>
+        <Aurora lite={liteMode} />
 
         <div
           ref={stageRef}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
-          className="w-full max-w-2xl relative z-10 px-2 login-stage"
+          className="lg-stage"
         >
-          <div
-            ref={cardRef}
-            className="bg-slate-950/80 border border-white/15 backdrop-blur-md rounded-2xl p-5 shadow-2xl text-white login-tilt-card"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-base">
+          <div ref={cardRef} className={`lg-card ${shake ? 'lg-shake' : ''}`}>
+            <div className="lg-sweep-clip" aria-hidden="true" />
+
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-emerald-400 flex items-center justify-center font-semibold text-slate-900 text-base">
                   T
                 </div>
                 <div>
-                  <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-                    Tabby - Gabrino Team <Sparkles className="h-3 w-3 text-emerald-400" />
-                  </h1>
-                  <p className="text-[10px] text-slate-400 font-medium">Customer Service Performance Workspace</p>
+                  <h1 className="text-[13px] font-semibold text-white leading-tight">Tabby - Gabrino Team</h1>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Customer Service Performance Workspace</p>
                 </div>
               </div>
-
-              <div className="hidden sm:block text-[10px] text-slate-400">Official Portal</div>
+              <div className="hidden sm:block text-[10px] text-slate-300/80">Official Portal</div>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-3.5 text-xs">
+            <form onSubmit={handleLogin} className="relative space-y-4 text-xs">
               {errorMessage && (
-                <div className="p-2 bg-red-950/80 border border-red-500/50 text-red-300 rounded-xl text-[11px] font-semibold flex items-center gap-2">
+                <div
+                  role="alert"
+                  className="p-2 bg-red-950/70 border border-red-500/40 text-red-300 rounded-lg text-[11px] font-medium flex items-center gap-2"
+                >
                   <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300 text-[10px]">Email Address</label>
+              <div className="space-y-1.5">
+                <label htmlFor="login-email" className="block text-[12px] text-slate-200">Email Address</label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="user@tabby.ai"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loginBusy}
+                  className="h-10 text-[13px] bg-slate-950/45 border-white/10 text-white placeholder:text-slate-500 rounded-lg px-3 focus-visible:border-emerald-400/70 focus-visible:ring-1 focus-visible:ring-emerald-400/60"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="login-password" className="block text-[12px] text-slate-200">Passcode</label>
+                <div className="relative">
                   <Input
-                    type="email"
-                    placeholder="user@tabby.ai"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-9 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium px-3"
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loginBusy}
+                    className="h-10 text-[13px] bg-slate-950/45 border-white/10 text-white placeholder:text-slate-500 rounded-lg pl-3 pr-10 focus-visible:border-emerald-400/70 focus-visible:ring-1 focus-visible:ring-emerald-400/60"
                     required
                   />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300 text-[10px]">Passcode</label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="h-9 text-xs bg-slate-900/80 border-slate-800 text-white placeholder:text-slate-600 rounded-xl pr-9 font-medium px-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2 text-slate-400 hover:text-emerald-400 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="h-3.5 w-3.5 text-emerald-400" /> : <Eye className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide passcode' : 'Show passcode'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-300 transition-colors"
+                  >
+                    {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-1">
-                <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                  <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-4 text-[12px] text-slate-300">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 h-3 w-3"
+                      className="lg-check"
                     />
                     <span>Remember Session</span>
                   </label>
@@ -533,64 +584,58 @@ export default function Home() {
                       setForgotEmail(email);
                       setShowForgotModal(true);
                     }}
-                    className="text-emerald-400 hover:text-emerald-300 font-semibold hover:underline flex items-center gap-1 text-[11px]"
+                    className="text-slate-400 hover:text-emerald-300 transition-colors"
                   >
-                    <Key className="h-3 w-3" /> Forgot Password?
+                    Forgot Password?
                   </button>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={doorBusy}
-                  className={`door-btn w-full sm:w-auto px-6 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold h-10 rounded-xl text-xs gap-1.5 transition-all shadow-md shadow-emerald-600/20 ${
-                    doorBusy ? 'busy' : ''
-                  } ${doorOpen ? 'dooropen' : ''} ${doorEntered ? 'entered' : ''}`}
+                  disabled={loginBusy}
+                  className={`lg-btn self-end sm:self-auto ${loginSuccess ? 'is-success' : ''}`}
                 >
-                  <span className="door-btn-label">
-                    <span>Enter Dashboard</span> <ArrowRight className="h-3.5 w-3.5" />
+                  <span className="lg-ring" aria-hidden="true" />
+                  <span className="lg-ring lg-ring-2" aria-hidden="true" />
+                  <span className="lg-btn-label">
+                    Enter Dashboard <ArrowRight className="h-3.5 w-3.5" />
                   </span>
-
-                  <span className="doorway">
-                    <span className="frame">
-                      <span className="panel l" />
-                      <span className="panel r" />
-                      <svg className="walker" viewBox="0 0 10 22">
-                        <circle cx="5" cy="3" r="2.4" />
-                        <line x1="5" y1="6" x2="5" y2="13" strokeWidth="1.8" />
-                        <g className="legs">
-                          <line x1="5" y1="13" x2="2" y2="20" strokeWidth="1.8" />
-                          <line x1="5" y1="13" x2="8" y2="20" strokeWidth="1.8" />
-                        </g>
-                      </svg>
-                    </span>
-                  </span>
-
-                  <span className="check-door">
-                    <svg width="20" height="20" viewBox="0 0 24 24">
+                  <span className="lg-btn-done" aria-live="polite">
+                    Welcome back
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M4 12.5 L9.5 18 L20 6" />
                     </svg>
-                    Welcome back
                   </span>
                 </button>
               </div>
             </form>
 
-            <div className={`welcome-msg ${showWelcomeMsg ? 'show' : ''}`}>
+            <div className={`lg-status ${showWelcomeMsg ? 'show' : ''}`}>
               Session started · loading workspace…
             </div>
           </div>
         </div>
 
+        {/* Performance mode switch */}
+        <button
+          type="button"
+          onClick={toggleLite}
+          className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-emerald-300 transition-colors"
+          title="Turn on if the page feels slow (Citrix / remote desktop)"
+        >
+          <Zap className="h-3.5 w-3.5" /> Lite mode: {liteMode ? 'On' : 'Off'}
+        </button>
+
         {/* FORGOT PASSWORD MODAL */}
         {showForgotModal && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-            <Card className="w-full max-w-md border-slate-800 bg-slate-900 text-slate-100 shadow-2xl rounded-2xl">
-              <CardHeader className="border-b border-slate-800 pb-3">
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <Card className="w-full max-w-md border-white/10 bg-slate-900/90 text-slate-100 shadow-2xl rounded-2xl backdrop-blur-xl">
+              <CardHeader className="border-b border-white/10 pb-3">
                 <CardTitle className="text-base flex items-center justify-between">
                   <span className="flex items-center gap-2 text-emerald-400">
                     <HelpCircle className="h-5 w-5" /> Request Password Reset from Admin
                   </span>
-                  <button onClick={() => setShowForgotModal(false)} className="p-1 hover:bg-slate-800 rounded">
+                  <button onClick={() => setShowForgotModal(false)} className="p-1 hover:bg-slate-800 rounded" aria-label="Close">
                     <X className="h-4 w-4 text-slate-400" />
                   </button>
                 </CardTitle>
@@ -631,7 +676,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
                     <Button type="button" variant="outline" size="sm" onClick={() => setShowForgotModal(false)} className="h-9 text-xs">
                       Cancel
                     </Button>
@@ -648,6 +693,9 @@ export default function Home() {
     );
   }
 
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
   const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'metrics', 'team', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
   const isTabAllowed = (tabKey: string) => allowedTabs.includes(tabKey) || currentUser.role === 'Admin';
 
@@ -671,28 +719,37 @@ export default function Home() {
       : item.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const snowflakes = [
+    { left: '10%', size: 'h-4 w-4', color: 'text-cyan-200', delay: '0s' },
+    { left: '25%', size: 'h-3 w-3', color: 'text-cyan-100', delay: '1.5s' },
+    { left: '50%', size: 'h-5 w-5', color: 'text-sky-200', delay: '0.6s' },
+    { left: '75%', size: 'h-4 w-4', color: 'text-cyan-300', delay: '2.4s' },
+    { left: '90%', size: 'h-3 w-3', color: 'text-cyan-100', delay: '1s' },
+  ];
+
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
+    <div className={`${isDarkMode ? 'dark' : ''} ${liteMode ? 'lite' : ''}`}>
       <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
-        
-        {/* BACKGROUND IMAGE INSIDE DASHBOARD WORKSPACE */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40">
-          <img
-            src="/windows-11-dark-mode-abstract-background-black-background-3840x2160-8710.png"
-            alt="Dashboard Inner Background Image"
-            className="w-full h-full object-cover filter brightness-90 contrast-110"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-[#020208] via-transparent to-slate-50 dark:to-[#020208]"></div>
-        </div>
+
+        {/* BACKGROUND: aurora in dark mode, soft pastel in light mode */}
+        {isDarkMode ? (
+          <div className="dash-aurora"><Aurora lite={liteMode} /></div>
+        ) : (
+          <div className="dash-light-bg" aria-hidden="true" />
+        )}
 
         {/* SNOW ACCENT ON INACTIVITY */}
-        {showSnow && isDarkMode && (
-          <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden opacity-50 animate-fade-in">
-            <div className="absolute -top-10 left-1/10 text-cyan-200 animate-bounce duration-1000"><Snowflake className="h-4 w-4" /></div>
-            <div className="absolute -top-10 left-1/4 text-cyan-100 animate-pulse duration-700"><Snowflake className="h-3 w-3" /></div>
-            <div className="absolute -top-10 left-1/2 text-sky-200 animate-bounce duration-1000"><Snowflake className="h-5 w-5" /></div>
-            <div className="absolute -top-10 left-3/4 text-cyan-300 animate-pulse duration-700"><Snowflake className="h-4 w-4" /></div>
-            <div className="absolute -top-10 left-9/10 text-cyan-100 animate-bounce duration-1000"><Snowflake className="h-3 w-3" /></div>
+        {showSnow && isDarkMode && !liteMode && (
+          <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden opacity-50 animate-in fade-in">
+            {snowflakes.map((s, i) => (
+              <div
+                key={i}
+                className={`lg-snowflake ${s.color}`}
+                style={{ left: s.left, animationDelay: s.delay }}
+              >
+                <Snowflake className={s.size} />
+              </div>
+            ))}
           </div>
         )}
 
@@ -711,7 +768,7 @@ export default function Home() {
               </div>
               <div>
                 <h2 className="text-xl font-extrabold tracking-tight text-cyan-200 uppercase">Dashboard Frozen</h2>
-                <p className="text-xs text-sky-300/80 mt-1 font-medium">Inactive for over 1 minute</p>
+                <p className="text-xs text-sky-300/80 mt-1 font-medium">Inactive for over {Math.round(IDLE_MS / 1000)} seconds</p>
               </div>
               <div className="pt-2 text-[11px] font-bold text-cyan-300 uppercase tracking-widest bg-cyan-950/60 border border-cyan-400/30 rounded-full py-1.5 px-4 inline-block">
                 ❄️ Move mouse to break ice
@@ -781,7 +838,7 @@ export default function Home() {
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                     }`}
                   >
-                    <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
+                    <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
                     <span className="rail-label truncate text-xs">{item.label}</span>
                     {item.badge !== undefined && (
                       <span className="absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse">
@@ -809,7 +866,7 @@ export default function Home() {
         {/* MOBILE SLIDE-OUT MENU DRAWER */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 md:hidden flex">
-            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)} />
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
             <div className="relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between z-50 h-full">
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
@@ -875,7 +932,7 @@ export default function Home() {
 
         {/* MAIN CONTENT WORKSPACE */}
         <div className="flex-1 flex flex-col h-screen overflow-hidden z-10 w-full min-w-0">
-          
+
           {/* HEADER BAR WITH DAY/NIGHT TOGGLE */}
           <header className="h-16 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-[#080E1E]/80">
             <div className="flex items-center gap-3">
@@ -887,12 +944,22 @@ export default function Home() {
               </button>
 
               <div className="hidden sm:flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                <Clock className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
-                <span>{currentTime || 'Syncing live clock...'}</span>
+                <Clock className="h-3.5 w-3.5 text-emerald-500" />
+                <LiveClock />
               </div>
             </div>
 
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleLite}
+                title="Turn on if the dashboard feels slow (Citrix / remote desktop)"
+                className="h-8 text-xs gap-1.5 border-slate-500/40 text-slate-500 dark:text-slate-300 hover:bg-slate-500/10 font-bold rounded-lg"
+              >
+                <Zap className="h-3.5 w-3.5" /> Lite: {liteMode ? 'On' : 'Off'}
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -912,7 +979,7 @@ export default function Home() {
 
           {/* PASSWORD UPDATE DRAWER */}
           {showProfile && (
-            <div className="p-4 md:p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-fade-in-up">
+            <div className="p-4 md:p-5 bg-emerald-500/10 border-b border-emerald-500/30 text-xs space-y-3 animate-in fade-in slide-in-from-top-2">
               <div className="font-bold flex items-center justify-between text-emerald-600 dark:text-emerald-400">
                 <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Update Permanent Password for {currentUser.user_email}</span>
                 <button onClick={() => setShowProfile(false)} className="text-slate-500 text-xs font-bold hover:underline">Close</button>
