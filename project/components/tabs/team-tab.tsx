@@ -66,6 +66,37 @@ const resolveTarget = (raw: any, fallback: number): number => {
 const isPlausibleTarget = (target: number, ref: number | null) =>
   ref == null || ref <= 0 || (target >= ref * 0.3 && target <= ref * 3);
 
+// Same calculation as the Overview tab: Team CSAT % and KSCAT % are worked out from the agent rows
+// of the selected (active) roster, not read from the saved Team Overall figures.
+const computeOverviewTeam = (agentMetrics: any[], kpiTargets: Record<string, any>, teamMetrics: Record<string, any>) => {
+  const unique = new Map<string, any>();
+  agentMetrics.forEach((a: any) => {
+    if (!unique.has(a.agent_email)) unique.set(a.agent_email, a);
+  });
+  const agents = Array.from(unique.values());
+  const allEmails = agents.map((a: any) => a.agent_email);
+
+  const globalRoster = kpiTargets.active_roster_emails || teamMetrics.active_roster_emails;
+  let activeEmails: string[] = allEmails;
+  if (Array.isArray(globalRoster) && globalRoster.length > 0) {
+    const valid = globalRoster.filter((e: string) => allEmails.includes(e));
+    if (valid.length > 0) activeEmails = valid;
+  }
+
+  const filtered = agents.filter((a: any) => activeEmails.includes(a.agent_email));
+  const csat = filtered.reduce((sum: number, a: any) => sum + (a.csat || 0), 0);
+  const kscat = filtered.reduce((sum: number, a: any) => sum + (a.kscat || 0), 0);
+  const dsat = filtered.reduce((sum: number, a: any) => sum + (a.dsat || 0), 0);
+  const total = csat + kscat + dsat;
+  const woKarma = csat + dsat;
+
+  return {
+    hasAgents: filtered.length > 0 && total > 0,
+    csatPct: woKarma > 0 ? (csat / woKarma) * 100 : 0,
+    kscatPct: total > 0 ? (csat / total) * 100 : 0,
+  };
+};
+
 const fmt = (n: number | null | undefined, isPct: boolean) => {
   if (n == null || isNaN(n)) return '-';
   return isPct ? `${n.toFixed(2)}%` : String(Number(n.toFixed(2)));
@@ -435,20 +466,37 @@ function Delta({ now, before, isPct, lowerIsBetter }: { now: number | null; befo
 // Tab
 // ---------------------------------------------------------------------------
 export function TeamTab() {
-  const { teamMetrics = {}, floorAverages = {}, kpiTargets = {}, dailyProgressData = [] } = useMetrics() as any;
+  const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, dailyProgressData = [] } = useMetrics() as any;
   const [graphMetricKey, setGraphMetricKey] = useState('CSAT %');
 
-  const hasData = Object.keys(teamMetrics).length > 0;
+  const hasData = Object.keys(teamMetrics).length > 0 || agentMetrics.length > 0;
   const metric = METRICS.find((c) => c.name === graphMetricKey) || METRICS[0];
 
+  // CSAT % and KSCAT % use the Overview calculation (selected roster); every other metric reads the Team Overall figure
+  const overview = computeOverviewTeam(agentMetrics, kpiTargets, teamMetrics);
+  const teamOverride = (m: MetricDef): number | null => {
+    if (!overview.hasAgents) return null;
+    if (m.name === 'CSAT %') return overview.csatPct;
+    if (m.name === 'KSCAT %') return overview.kscatPct;
+    return null;
+  };
+  const teamCurrent = (m: MetricDef): number | null => teamOverride(m) ?? getNum(teamMetrics, m.keys, m.isPct);
+
   // chart series for the selected metric (oldest -> newest)
-  const points: ChartPoint[] = [...dailyProgressData]
+  const basePoints: ChartPoint[] = [...dailyProgressData]
     .sort((a: any, b: any) => String(a.period).localeCompare(String(b.period)))
     .map((d: any) => ({
       period: String(d.period),
       team: getNum(d.teamMetrics, metric.keys, metric.isPct),
       floor: getNum(d.floorMetrics, metric.keys, metric.isPct),
     }));
+
+  // the newest point shows the same Team number as the Overview tab; older days come from the saved daily backups
+  const liveTeam = teamOverride(metric);
+  const points: ChartPoint[] =
+    liveTeam != null && basePoints.length
+      ? basePoints.map((p, i) => (i === basePoints.length - 1 ? { ...p, team: liveTeam } : p))
+      : basePoints;
 
   const lastIdx = (key: 'team' | 'floor') => {
     for (let i = points.length - 1; i >= 0; i--) if (points[i][key] != null) return i;
@@ -464,7 +512,7 @@ export function TeamTab() {
     return null;
   };
 
-  const currentTeam = getNum(teamMetrics, metric.keys, metric.isPct);
+  const currentTeam = teamCurrent(metric);
   const currentFloor = getNum(floorAverages, metric.keys, metric.isPct);
   const teamNow = latestOf('team') ?? currentTeam;
   const floorNow = latestOf('floor') ?? currentFloor;
@@ -479,7 +527,7 @@ export function TeamTab() {
 
   const anyBadTarget = METRICS.some((m) => {
     const t = resolveTarget(kpiTargets[m.targetKey], m.defaultTarget);
-    const ref = getNum(teamMetrics, m.keys, m.isPct) ?? getNum(floorAverages, m.keys, m.isPct);
+    const ref = teamCurrent(m) ?? getNum(floorAverages, m.keys, m.isPct);
     return !isPlausibleTarget(t, ref);
   });
 
@@ -541,7 +589,11 @@ export function TeamTab() {
                   <span className="h-2 w-2 rounded-sm" style={{ background: COLORS.team }} /> Team (latest)
                 </div>
                 <div className="text-2xl font-black" style={{ color: COLORS.team }}>{fmt(teamNow, metric.isPct)}</div>
-                <Delta now={latestOf('team')} before={previousOf('team')} isPct={metric.isPct} lowerIsBetter={!!metric.lowerIsBetter} />
+                {liveTeam != null ? (
+                  <span className="text-[11px] text-slate-400">Same value as the Overview tab</span>
+                ) : (
+                  <Delta now={latestOf('team')} before={previousOf('team')} isPct={metric.isPct} lowerIsBetter={!!metric.lowerIsBetter} />
+                )}
               </CardContent>
             </Card>
 
@@ -601,6 +653,7 @@ export function TeamTab() {
               </CardTitle>
               <CardDescription className="text-xs">
                 Team vs floor average for each daily backup{metric.lowerIsBetter ? ' · lower is better for this metric' : ''}
+                {liveTeam != null ? ' · the latest Team value matches the Overview tab (selected roster)' : ''}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
@@ -637,7 +690,7 @@ export function TeamTab() {
                   </TableHeader>
                   <TableBody>
                     {METRICS.map((item) => {
-                      const t = getNum(teamMetrics, item.keys, item.isPct);
+                      const t = teamCurrent(item);
                       const f = getNum(floorAverages, item.keys, item.isPct);
                       const target = resolveTarget(kpiTargets[item.targetKey], item.defaultTarget);
                       const okTarget = isPlausibleTarget(target, t ?? f);
