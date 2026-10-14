@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Copy, Check, Search, Plus, Trash2, Upload, UserCheck, Globe, Sparkles, ExternalLink, AlertCircle, CheckCircle2, ShieldAlert, Headphones } from 'lucide-react';
+import { MessageSquare, Copy, Check, Search, Plus, Trash2, Upload, UserCheck, Globe, Sparkles, ExternalLink, AlertCircle, CheckCircle2, ShieldAlert, Headphones, Pencil } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import Papa from 'papaparse';
 
@@ -53,6 +53,8 @@ export function ChatMacrosTab() {
 
   // Add Macro Form State
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const [newType, setNewType] = useState<MacroType | ''>('');
   const [newCategory, setNewCategory] = useState('');
   const [newLangs, setNewLangs] = useState<Record<LangKey, boolean>>({ male_ar: true, female_ar: true, english_en: true });
@@ -105,6 +107,7 @@ export function ChatMacrosTab() {
   };
 
   const resetAddForm = () => {
+    setEditingId(null);
     setNewType('');
     setNewCategory('');
     setNewLangs({ male_ar: true, female_ar: true, english_en: true });
@@ -113,6 +116,44 @@ export function ChatMacrosTab() {
     setNewEnglishEN('');
     setNewHelpTips('');
     setNewLinks('');
+  };
+
+  const scrollToForm = () => {
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  // "Add Macro" button: open an empty form (or close it if an empty one is already open)
+  const handleAddButton = () => {
+    if (showAddForm && !editingId) {
+      resetAddForm();
+      setShowAddForm(false);
+      return;
+    }
+    resetAddForm();
+    setShowAddForm(true);
+    scrollToForm();
+  };
+
+  // Pencil button on a card: open the form filled with that macro
+  const handleStartEdit = (macro: ChatMacro) => {
+    if (!macro.id) return;
+    const hasAny = !!(macro.male_ar || macro.female_ar || macro.english_en);
+    setStatusMsg('');
+    setEditingId(macro.id);
+    setNewType(normalizeType(macro.macro_type));
+    setNewCategory(macro.category || macro.topic || macro.category_name || '');
+    setNewMaleAR(macro.male_ar || '');
+    setNewFemaleAR(macro.female_ar || '');
+    setNewEnglishEN(macro.english_en || '');
+    setNewLangs({
+      male_ar: hasAny ? !!macro.male_ar : true,
+      female_ar: hasAny ? !!macro.female_ar : true,
+      english_en: hasAny ? !!macro.english_en : true,
+    });
+    setNewHelpTips(macro.help_tips || '');
+    setNewLinks(macro.links || '');
+    setShowAddForm(true);
+    scrollToForm();
   };
 
   // CSV Upload Handler for Chat Macros
@@ -211,7 +252,7 @@ export function ChatMacrosTab() {
 
     const categoryVal = newCategory.trim();
 
-    const newRecord = {
+    const record = {
       category: categoryVal,
       topic: categoryVal,
       category_name: categoryVal,
@@ -221,18 +262,20 @@ export function ChatMacrosTab() {
       english_en: newLangs.english_en ? newEnglishEN.trim() : '',
       help_tips: newHelpTips.trim() || null,
       links: newLinks.trim() || null,
-      created_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('chat_macros').insert([newRecord]);
+    const wasEditing = !!editingId;
+    const { error } = editingId
+      ? await supabase.from('chat_macros').update(record).eq('id', editingId)
+      : await supabase.from('chat_macros').insert([{ ...record, created_at: new Date().toISOString() }]);
 
     if (error) {
       setIsError(true);
-      setStatusMsg(explainDbError(error.message, 'Save Error'));
+      setStatusMsg(explainDbError(error.message, wasEditing ? 'Update Error' : 'Save Error'));
     } else {
       setIsError(false);
-      setStatusMsg(`✓ ${newType} macro saved successfully!`);
-      // make sure the new macro is visible under the current page filter
+      setStatusMsg(`✓ ${newType} macro ${wasEditing ? 'updated' : 'saved'} successfully!`);
+      // make sure the macro is visible under the current page filter
       if (typeFilter !== 'all' && typeFilter !== newType) setTypeFilter(newType);
       resetAddForm();
       setShowAddForm(false);
@@ -359,15 +402,15 @@ export function ChatMacrosTab() {
               >
                 <Upload className="h-4 w-4" /> Upload CSV
               </Button>
-              <Button
-                size="sm"
-                onClick={() => setShowAddForm(!showAddForm)}
-                className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-              >
-                <Plus className="h-4 w-4" /> Add Macro
-              </Button>
             </>
           )}
+          <Button
+            size="sm"
+            onClick={handleAddButton}
+            className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+          >
+            <Plus className="h-4 w-4" /> Add Macro
+          </Button>
         </div>
       </div>
 
@@ -379,11 +422,13 @@ export function ChatMacrosTab() {
       )}
 
       {/* Add Macro Form */}
-      {showAddForm && isAdminOrTL && (
+      {showAddForm && (
+        <div ref={formRef} className="scroll-mt-4">
         <Card className="border border-emerald-500/40 bg-emerald-500/5 dark:bg-slate-900">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-              <Plus className="h-4 w-4" /> Add New Chat Macro
+              {editingId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {editingId ? 'Edit Chat Macro' : 'Add New Chat Macro'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -523,12 +568,13 @@ export function ChatMacrosTab() {
                   disabled={!newType}
                   className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
                 >
-                  Save Macro
+                  {editingId ? 'Save Changes' : 'Save Macro'}
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
+        </div>
       )}
 
       {/* Type filter + Search */}
@@ -591,17 +637,30 @@ export function ChatMacrosTab() {
                     </Badge>
                   </div>
 
-                  {isAdminOrTL && macro.id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteMacro(macro.id!)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 h-7 px-2 text-xs"
-                      title="Delete Macro"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {macro.id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleStartEdit(macro)}
+                        className="text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 h-7 px-2 text-xs"
+                        title="Edit Macro"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {isAdminOrTL && macro.id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteMacro(macro.id!)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 h-7 px-2 text-xs"
+                        title="Delete Macro"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-2 text-xs">
                   <p className="font-sans text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 whitespace-pre-wrap leading-relaxed min-h-[60px]">
