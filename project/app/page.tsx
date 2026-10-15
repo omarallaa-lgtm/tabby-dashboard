@@ -8,11 +8,12 @@ import {
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck,
   MessageSquarePlus, Megaphone, LogOut, Clock, KeyRound, Check,
   Eye, EyeOff, ArrowRight, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, Calendar, Zap
+  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, Calendar, Zap, UserCheck
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
+import { MyPerformanceTab } from '@/components/tabs/my-performance-tab';
 import { KnetCalculatorTab } from '@/components/tabs/knet-calculator-tab';
 import { ChatMacrosTab } from '@/components/tabs/chat-macros-tab';
 import { EmailTemplatesTab } from '@/components/tabs/email-templates-tab';
@@ -388,7 +389,7 @@ export default function Home() {
         team_name: 'Support Tier 1',
         floor_name: 'Floor 1',
         account_status: 'Active' as const,
-        allowed_tabs: ['overview', 'metrics', 'team', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
+        allowed_tabs: ['overview', 'metrics', 'team', 'my-performance', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
       };
     } else {
       try {
@@ -696,13 +697,14 @@ export default function Home() {
   // ============================================================
   // DASHBOARD
   // ============================================================
-  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'metrics', 'team', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
+  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'metrics', 'team', 'my-performance', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
   const isTabAllowed = (tabKey: string) => allowedTabs.includes(tabKey) || currentUser.role === 'Admin';
 
   const navItems = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
     { key: 'metrics', label: 'Performance Analytics', icon: BarChart3 },
     { key: 'team', label: 'Team & Floor Insights', icon: Users2 },
+    { key: 'my-performance', label: 'My Performance', icon: UserCheck },
     { key: 'schedule', label: 'Schedule Roster', icon: Calendar },
     { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
     { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
@@ -1008,6 +1010,7 @@ export default function Home() {
             {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
             {activeTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
             {activeTab === 'team' && isTabAllowed('team') && <TeamTab />}
+            {activeTab === 'my-performance' && isTabAllowed('my-performance') && <MyPerformanceTab />}
             {activeTab === 'schedule' && isTabAllowed('schedule') && <ScheduleTab />}
             {activeTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
             {activeTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
