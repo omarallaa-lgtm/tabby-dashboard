@@ -36,7 +36,7 @@ const METRICS: MetricDef[] = [
   { name: 'FCR %', short: 'FCR', keys: ['FCR, %', 'fcrPercent'], targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
 ];
 
-const COLORS = { team: '#10b981', floor: '#60a5fa', target: '#f59e0b' };
+export const COLORS = { team: '#10b981', floor: '#60a5fa', target: '#f59e0b' };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,7 +55,7 @@ const getNum = (src: Record<string, any> | undefined, keys: string[], isPct: boo
 };
 
 // Targets may arrive as numbers, "85", or arrays like [85, 90]
-const resolveTarget = (raw: any, fallback: number): number => {
+export const resolveTarget = (raw: any, fallback: number): number => {
   let v: any = raw;
   if (Array.isArray(v)) v = v.find((x) => Number.isFinite(parseFloat(String(x))));
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace('%', ''));
@@ -63,7 +63,7 @@ const resolveTarget = (raw: any, fallback: number): number => {
 };
 
 // A target far away from the real data (for example 1% when the team is at 66%) is almost certainly a data entry mistake
-const isPlausibleTarget = (target: number, ref: number | null) =>
+export const isPlausibleTarget = (target: number, ref: number | null) =>
   ref == null || ref <= 0 || (target >= ref * 0.3 && target <= ref * 3);
 
 // Same calculation as the Overview tab: Team CSAT % and KSCAT % are worked out from the agent rows
@@ -97,12 +97,12 @@ const computeOverviewTeam = (agentMetrics: any[], kpiTargets: Record<string, any
   };
 };
 
-const fmt = (n: number | null | undefined, isPct: boolean) => {
+export const fmt = (n: number | null | undefined, isPct: boolean) => {
   if (n == null || isNaN(n)) return '-';
   return isPct ? `${n.toFixed(2)}%` : String(Number(n.toFixed(2)));
 };
 
-const fmtTick = (n: number, isPct: boolean) => `${Number(n.toFixed(2))}${isPct ? '%' : ''}`;
+export const fmtTick = (n: number, isPct: boolean) => `${Number(n.toFixed(2))}${isPct ? '%' : ''}`;
 
 const fmtPeriod = (p: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(p));
@@ -151,7 +151,7 @@ const monotonePath = (pts: { x: number; y: number }[]) => {
   return d;
 };
 
-interface ChartPoint {
+export interface ChartPoint {
   period: string;
   team: number | null;
   floor: number | null;
@@ -160,16 +160,20 @@ interface ChartPoint {
 // ---------------------------------------------------------------------------
 // Interactive trend chart (responsive, hover tooltip, clickable legend)
 // ---------------------------------------------------------------------------
-function TrendChart({
+export function TrendChart({
   points,
   target,
   isPct,
   lowerIsBetter,
+  teamLabel = 'Team Score',
+  floorLabel = 'Floor Average',
 }: {
   points: ChartPoint[];
   target: number | null;
   isPct: boolean;
   lowerIsBetter: boolean;
+  teamLabel?: string;
+  floorLabel?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(760);
@@ -297,8 +301,8 @@ function TrendChart({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        {legendBtn('team', 'Team Score', COLORS.team)}
-        {legendBtn('floor', 'Floor Average', COLORS.floor)}
+        {legendBtn('team', teamLabel, COLORS.team)}
+        {legendBtn('floor', floorLabel, COLORS.floor)}
         {target != null && legendBtn('target', `Target ${fmtTick(target, isPct)}`, COLORS.target)}
         <span className="text-[11px] text-slate-400 ml-auto hidden sm:inline">Hover the chart for details · click a label to hide it</span>
       </div>
@@ -407,11 +411,11 @@ function TrendChart({
             <div className="font-bold mb-1.5">{hp.period}</div>
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.team }} />Team</span>
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.team }} />{teamLabel === 'Team Score' ? 'Team' : teamLabel}</span>
                 <span className="font-bold">{fmt(hp.team, isPct)}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.floor }} />Floor</span>
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.floor }} />{floorLabel === 'Floor Average' ? 'Floor' : floorLabel}</span>
                 <span className="font-bold">{fmt(hp.floor, isPct)}</span>
               </div>
               {target != null && (
