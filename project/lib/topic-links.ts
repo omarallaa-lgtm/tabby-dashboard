@@ -29,8 +29,9 @@ export const isSameTopic = (a?: string | null, b?: string | null): boolean => {
   const nb = normalizeTopic(b);
   if (!na || !nb) return false;
 
-  const ta = significantTokens(na);
-  const tb = significantTokens(nb);
+  // each word counts once, even if the topic repeats it
+  const ta = Array.from(new Set(significantTokens(na)));
+  const tb = Array.from(new Set(significantTokens(nb)));
   if (!ta.length || !tb.length) return false; // only generic words, do not link
 
   if (na === nb) return true;
@@ -40,7 +41,10 @@ export const isSameTopic = (a?: string | null, b?: string | null): boolean => {
   const setB = new Set(tb);
   const shared = ta.filter((t) => setB.has(t)).length;
   const shorter = Math.min(ta.length, tb.length);
-  return shared > 0 && (shared === shorter || (shared >= 2 && shared / shorter >= 0.67));
+  const sharedWords = ta.filter((t) => setB.has(t));
+  // a single shared word only counts when it is a distinctive word (5+ letters), not something like "used"
+  const distinctive = shorter >= 2 || (sharedWords[0] || '').length >= 5;
+  return shared > 0 && ((shared === shorter && distinctive) || (shared >= 2 && shared / shorter >= 0.67));
 };
 
 export const anyTopicMatch = (
