@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Copy, Check, Search, Plus, Trash2, Upload, UserCheck, Globe, Sparkles, ExternalLink, AlertCircle, CheckCircle2, ShieldAlert, Headphones, Pencil } from 'lucide-react';
+import { MessageSquare, Copy, Check, Search, Plus, Trash2, Upload, UserCheck, Globe, Sparkles, ExternalLink, AlertCircle, CheckCircle2, ShieldAlert, Headphones, Pencil, Link2, ChevronDown, ChevronUp, Mail } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
+import { anyTopicMatch } from '@/lib/topic-links';
 import Papa from 'papaparse';
 
 type MacroType = 'FL' | 'Escalation';
@@ -50,6 +51,8 @@ export function ChatMacrosTab() {
   const [selectedLang, setSelectedLang] = useState<LangKey>('male_ar');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [emailTemplates, setEmailTemplates] = useState<any[]>([]);
+  const [openRelated, setOpenRelated] = useState<Record<string, boolean>>({});
 
   // Add Macro Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -94,8 +97,19 @@ export function ChatMacrosTab() {
     }
   };
 
+  // email templates are loaded too, so each macro can show the emails that share its topic
+  const fetchEmailTemplates = async () => {
+    try {
+      const { data, error } = await supabase.from('email_templates').select('*');
+      if (!error && data) setEmailTemplates(data);
+    } catch (err) {
+      console.error('Error fetching email templates for linking:', err);
+    }
+  };
+
   useEffect(() => {
     fetchMacros();
+    fetchEmailTemplates();
   }, []);
 
   // Friendly message when the database column has not been created yet
@@ -672,6 +686,69 @@ export function ChatMacrosTab() {
                       <strong>Tip:</strong> {macro.help_tips}
                     </div>
                   )}
+
+                  {(() => {
+                    const labels = [macro.category, macro.topic, macro.category_name];
+                    const relatedEmails = emailTemplates.filter((t) => anyTopicMatch(labels, [t.category, t.title]));
+                    if (relatedEmails.length === 0) return null;
+                    const open = !!openRelated[keyId];
+                    return (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setOpenRelated((prev) => ({ ...prev, [keyId]: !prev[keyId] }))}
+                          className="flex items-center gap-1.5 text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline"
+                        >
+                          <Link2 className="h-3.5 w-3.5" />
+                          Same topic: {relatedEmails.length} email template{relatedEmails.length === 1 ? '' : 's'}
+                          {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+
+                        {open && (
+                          <div className="mt-2 space-y-2 p-3 rounded-xl border border-sky-500/30 bg-sky-500/5">
+                            {relatedEmails.map((t, i) => {
+                              const eKey = `${keyId}-email-${t.id || i}`;
+                              const tType = normalizeType(t.macro_type);
+                              const btn = (label: string, text: string, k: string) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  onClick={() => handleCopy(text, k)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:border-emerald-500/60 hover:text-emerald-500"
+                                >
+                                  {copiedIndex === k ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                  {copiedIndex === k ? 'Copied!' : label}
+                                </button>
+                              );
+                              return (
+                                <div key={eKey} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-950/60 space-y-1.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Mail className="h-3 w-3 text-slate-400" />
+                                    <span className="font-bold text-slate-800 dark:text-slate-100">{t.title}</span>
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] font-bold ${
+                                        tType === 'FL'
+                                          ? 'border-sky-500/50 text-sky-600 dark:text-sky-400 bg-sky-500/10'
+                                          : 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                                      }`}
+                                    >
+                                      {tType === 'FL' ? 'FL' : 'Escalation'}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {t.subject && btn('Subject', t.subject, `${eKey}-sub`)}
+                                    {t.body_en && btn('English email', t.body_en, `${eKey}-en`)}
+                                    {t.body_ar && btn('Arabic email', t.body_ar, `${eKey}-ar`)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex justify-between items-center pt-1">
                     {macro.links ? (
