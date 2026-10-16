@@ -739,7 +739,8 @@ export function ChatMacrosTab() {
                                   <div className="flex flex-wrap gap-1.5">
                                     {t.subject && btn('Subject', t.subject, `${eKey}-sub`)}
                                     {t.body_en && btn('English email', t.body_en, `${eKey}-en`)}
-                                    {t.body_ar && btn('Arabic email', t.body_ar, `${eKey}-ar`)}
+                                    {t.body_ar && btn('Arabic email (Male)', t.body_ar, `${eKey}-ar`)}
+                                    {t.body_ar_female && btn('Arabic email (Female)', t.body_ar_female, `${eKey}-arf`)}
                                   </div>
                                 </div>
                               );
