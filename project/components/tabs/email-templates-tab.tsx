@@ -25,6 +25,7 @@ interface EmailTemplate {
   subject?: string | null;
   body_en: string;
   body_ar?: string | null;
+  body_ar_female?: string | null;
 }
 
 interface ChatMacroLite {
@@ -47,7 +48,8 @@ const normalizeType = (value?: string | null): MacroType => {
 
 const DB_COLUMNS_SQL =
   "alter table email_templates add column if not exists macro_type text default 'Escalation'; " +
-  'alter table email_templates add column if not exists subject text;';
+  'alter table email_templates add column if not exists subject text; ' +
+  'alter table email_templates add column if not exists body_ar_female text;';
 
 const FAV_KEY = 'tabby-fav-email-templates';
 
@@ -127,9 +129,11 @@ export function EmailTemplatesTab() {
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSubject, setNewSubject] = useState('');
-  const [newLangs, setNewLangs] = useState({ en: true, ar: true });
+  const [newLangs, setNewLangs] = useState({ en: true, ar: true, arf: true });
   const [newBodyEN, setNewBodyEN] = useState('');
   const [newBodyAR, setNewBodyAR] = useState('');
+  const [newBodyARF, setNewBodyARF] = useState('');
+  const [editingHadFemale, setEditingHadFemale] = useState(false);
 
   // Status messages
   const [statusMsg, setStatusMsg] = useState('');
@@ -188,7 +192,7 @@ export function EmailTemplatesTab() {
   };
 
   const explainDbError = (message: string, prefix: string) => {
-    if (/macro_type|subject/i.test(message)) {
+    if (/macro_type|subject|body_ar_female/i.test(message)) {
       return `${prefix}: the database needs new columns. Run this once in Supabase → SQL Editor: ${DB_COLUMNS_SQL}`;
     }
     return `${prefix}: ${message}`;
@@ -201,9 +205,11 @@ export function EmailTemplatesTab() {
     setNewTitle('');
     setNewCategory('');
     setNewSubject('');
-    setNewLangs({ en: true, ar: true });
+    setNewLangs({ en: true, ar: true, arf: true });
     setNewBodyEN('');
     setNewBodyAR('');
+    setNewBodyARF('');
+    setEditingHadFemale(false);
   };
 
   const scrollToForm = () => setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -221,7 +227,7 @@ export function EmailTemplatesTab() {
 
   const handleStartEdit = (t: EmailTemplate) => {
     if (!t.id) return;
-    const hasAny = !!(t.body_en || t.body_ar);
+    const hasAny = !!(t.body_en || t.body_ar || t.body_ar_female);
     setStatusMsg('');
     setEditingId(t.id);
     setEditingHadSubject(!!t.subject);
@@ -231,15 +237,18 @@ export function EmailTemplatesTab() {
     setNewSubject(t.subject || '');
     setNewBodyEN(t.body_en || '');
     setNewBodyAR(t.body_ar || '');
-    setNewLangs({ en: hasAny ? !!t.body_en : true, ar: hasAny ? !!t.body_ar : true });
+    setNewBodyARF(t.body_ar_female || '');
+    setEditingHadFemale(!!t.body_ar_female);
+    setNewLangs({ en: hasAny ? !!t.body_en : true, ar: hasAny ? !!t.body_ar : true, arf: hasAny ? !!t.body_ar_female : true });
     setShowAddForm(true);
     scrollToForm();
   };
 
-  const appendTag = (field: 'en' | 'ar', tag: string) => {
+  const appendTag = (field: 'en' | 'ar' | 'arf', tag: string) => {
     const add = (prev: string) => `${prev}${prev && !/\s$/.test(prev) ? ' ' : ''}${tag}`;
     if (field === 'en') setNewBodyEN(add);
-    else setNewBodyAR(add);
+    else if (field === 'ar') setNewBodyAR(add);
+    else setNewBodyARF(add);
   };
 
   // CSV upload (Admin / Team Leader)
@@ -268,16 +277,18 @@ export function EmailTemplatesTab() {
                 category: row.category || row.Category || 'General',
                 macro_type: rawType ? normalizeType(rawType) : fallbackType,
                 body_en: row.body_en || row.bodyEN || row.Body || row['English Body'] || '',
-                body_ar: row.body_ar || row.bodyAR || row['Arabic Body'] || null,
+                body_ar: row.body_ar || row.bodyAR || row['Arabic Body'] || row['Arabic Male Body'] || null,
               };
+              const arFemale = row.body_ar_female || row.bodyARFemale || row['Arabic Female Body'] || '';
               if (subject) record.subject = subject;
+              if (arFemale) record.body_ar_female = arFemale;
               return record;
             })
-            .filter((r) => String(r.body_en).trim().length > 0 || String(r.body_ar || '').trim().length > 0);
+            .filter((r) => [r.body_en, r.body_ar, r.body_ar_female].some((x) => String(x || '').trim().length > 0));
 
           if (recordsToInsert.length === 0) {
             setIsError(true);
-            setStatusMsg('CSV Error: Could not find valid template rows. Headers: title, category, body_en, body_ar (optional: type = FL or Escalation, subject).');
+            setStatusMsg('CSV Error: Could not find valid template rows. Headers: title, category, body_en, body_ar (optional: type = FL or Escalation, subject, body_ar_female).');
             setUploading(false);
             return;
           }
@@ -319,14 +330,15 @@ export function EmailTemplatesTab() {
       setStatusMsg('Please write a template title.');
       return;
     }
-    if (!newLangs.en && !newLangs.ar) {
+    if (!newLangs.en && !newLangs.ar && !newLangs.arf) {
       setIsError(true);
-      setStatusMsg('Please select at least one language (English or Arabic).');
+      setStatusMsg('Please select at least one language (English, Arabic Male or Arabic Female).');
       return;
     }
     const en = newLangs.en ? newBodyEN.trim() : '';
     const ar = newLangs.ar ? newBodyAR.trim() : '';
-    if (!en && !ar) {
+    const arf = newLangs.arf ? newBodyARF.trim() : '';
+    if (!en && !ar && !arf) {
       setIsError(true);
       setStatusMsg('Please write the response text for at least one of the selected languages.');
       return;
@@ -341,6 +353,8 @@ export function EmailTemplatesTab() {
     };
     // only touch the subject column when it is used, so older databases keep working
     if (newSubject.trim() || (editingId && editingHadSubject)) record.subject = newSubject.trim() || null;
+    // same for the Arabic (Female) text: only sent when used, so older databases keep working
+    if (arf || (editingId && editingHadFemale)) record.body_ar_female = arf || null;
 
     const wasEditing = !!editingId;
     const { error } = editingId
@@ -463,7 +477,7 @@ export function EmailTemplatesTab() {
       if (favOnly && !(t.id && favorites.has(t.id))) return false;
       const term = searchTerm.trim().toLowerCase();
       if (!term) return true;
-      return [t.title, t.category, t.subject, t.body_en, t.body_ar].some((x) => String(x || '').toLowerCase().includes(term));
+      return [t.title, t.category, t.subject, t.body_en, t.body_ar, t.body_ar_female].some((x) => String(x || '').toLowerCase().includes(term));
     })
     .sort((a, b) => Number(!!(b.id && favorites.has(b.id))) - Number(!!(a.id && favorites.has(a.id))));
 
@@ -630,7 +644,8 @@ export function EmailTemplatesTab() {
                       <div className="flex flex-wrap gap-2">
                         {([
                           { k: 'en', label: 'English' },
-                          { k: 'ar', label: 'Arabic' },
+                          { k: 'ar', label: 'Arabic (Male)' },
+                          { k: 'arf', label: 'Arabic (Female)' },
                         ] as const).map((l) => {
                           const on = newLangs[l.k];
                           return (
@@ -660,15 +675,20 @@ export function EmailTemplatesTab() {
                               </button>
                             )}
                             {newLangs.ar && (
-                              <button type="button" onClick={() => appendTag('ar', p.tag)} title={`Add ${p.tag} to the Arabic text`} className="rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-mono text-slate-500 hover:border-emerald-500/60 hover:text-emerald-500">
-                                AR {p.tag}
+                              <button type="button" onClick={() => appendTag('ar', p.tag)} title={`Add ${p.tag} to the Arabic (Male) text`} className="rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-mono text-slate-500 hover:border-emerald-500/60 hover:text-emerald-500">
+                                AR♂ {p.tag}
+                              </button>
+                            )}
+                            {newLangs.arf && (
+                              <button type="button" onClick={() => appendTag('arf', p.tag)} title={`Add ${p.tag} to the Arabic (Female) text`} className="rounded-md border border-slate-300 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-mono text-slate-500 hover:border-emerald-500/60 hover:text-emerald-500">
+                                AR♀ {p.tag}
                               </button>
                             )}
                           </span>
                         ))}
                       </div>
 
-                      <div className={`grid grid-cols-1 ${newLangs.en && newLangs.ar ? 'md:grid-cols-2' : ''} gap-3`}>
+                      <div className={`grid grid-cols-1 ${[newLangs.en, newLangs.ar, newLangs.arf].filter(Boolean).length >= 2 ? 'md:grid-cols-2' : ''} ${[newLangs.en, newLangs.ar, newLangs.arf].filter(Boolean).length === 3 ? 'xl:grid-cols-3' : ''} gap-3`}>
                         {newLangs.en && (
                           <div className="space-y-1">
                             <label className="font-semibold text-slate-500">English Response Body</label>
@@ -680,9 +700,21 @@ export function EmailTemplatesTab() {
                             />
                           </div>
                         )}
+                        {newLangs.arf && (
+                          <div className="space-y-1">
+                            <label className="font-semibold text-slate-500">Arabic (Female) Response Body</label>
+                            <Textarea
+                              dir="rtl"
+                              placeholder="عزيزتي {{customer_name}}، نشكر تواصلكِ مع تابي..."
+                              value={newBodyARF}
+                              onChange={(e) => setNewBodyARF(e.target.value)}
+                              className="text-xs min-h-[120px] bg-white dark:bg-slate-950"
+                            />
+                          </div>
+                        )}
                         {newLangs.ar && (
                           <div className="space-y-1">
-                            <label className="font-semibold text-slate-500">Arabic Response Body</label>
+                            <label className="font-semibold text-slate-500">Arabic (Male) Response Body</label>
                             <Textarea
                               dir="rtl"
                               placeholder="عزيزي {{customer_name}}، نشكر تواصلك مع تابي..."
@@ -826,8 +858,9 @@ export function EmailTemplatesTab() {
             const cardKey = template.id || String(idx);
             const filledEN = template.body_en ? fillText(template.body_en, false) : '';
             const filledAR = template.body_ar ? fillText(template.body_ar, true) : '';
+            const filledARF = template.body_ar_female ? fillText(template.body_ar_female, true) : '';
             const filledSubject = template.subject ? fillText(template.subject, false) : '';
-            const missing = missingPlaceholders(`${filledSubject}\n${filledEN}\n${filledAR}`);
+            const missing = missingPlaceholders(`${filledSubject}\n${filledEN}\n${filledAR}\n${filledARF}`);
             const isFav = !!(template.id && favorites.has(template.id));
 
             // everything that shares this template's topic
@@ -915,14 +948,29 @@ export function EmailTemplatesTab() {
 
                   {filledAR && (
                     <div>
-                      <div className="font-bold text-slate-500 text-[11px] mb-1">Arabic Version (النسخة العربية):</div>
+                      <div className="font-bold text-slate-500 text-[11px] mb-1">Arabic Version – Male (النسخة العربية):</div>
                       <p dir="rtl" className="font-sans text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 whitespace-pre-wrap leading-relaxed">
                         {filledAR}
                       </p>
                       <div className="flex justify-end pt-1">
                         <Button size="sm" onClick={() => handleCopy(filledAR, `ar-${cardKey}`)} className="h-7 text-[11px] font-bold gap-1 bg-slate-900 dark:bg-slate-800 text-white">
                           {copiedKey === `ar-${cardKey}` ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                          <span>{copiedKey === `ar-${cardKey}` ? 'Copied!' : 'Copy Arabic'}</span>
+                          <span>{copiedKey === `ar-${cardKey}` ? 'Copied!' : 'Copy Arabic (Male)'}</span>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {filledARF && (
+                    <div>
+                      <div className="font-bold text-slate-500 text-[11px] mb-1">Arabic Version – Female (النسخة العربية للمؤنث):</div>
+                      <p dir="rtl" className="font-sans text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 whitespace-pre-wrap leading-relaxed">
+                        {filledARF}
+                      </p>
+                      <div className="flex justify-end pt-1">
+                        <Button size="sm" onClick={() => handleCopy(filledARF, `arf-${cardKey}`)} className="h-7 text-[11px] font-bold gap-1 bg-slate-900 dark:bg-slate-800 text-white">
+                          {copiedKey === `arf-${cardKey}` ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedKey === `arf-${cardKey}` ? 'Copied!' : 'Copy Arabic (Female)'}</span>
                         </Button>
                       </div>
                     </div>
@@ -993,7 +1041,8 @@ export function EmailTemplatesTab() {
                                     <div className="flex flex-wrap gap-1.5">
                                       {o.subject && smallCopyBtn('Subject', fillText(o.subject, false), `${oKey}-sub`)}
                                       {o.body_en && smallCopyBtn('English', fillText(o.body_en, false), `${oKey}-en`)}
-                                      {o.body_ar && smallCopyBtn('Arabic', fillText(o.body_ar, true), `${oKey}-ar`)}
+                                      {o.body_ar && smallCopyBtn('Arabic (Male)', fillText(o.body_ar, true), `${oKey}-ar`)}
+                                      {o.body_ar_female && smallCopyBtn('Arabic (Female)', fillText(o.body_ar_female, true), `${oKey}-arf`)}
                                     </div>
                                   </div>
                                 );
