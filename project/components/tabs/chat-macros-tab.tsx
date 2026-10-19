@@ -1,18 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Copy, Check, Search, Plus, Trash2, Upload, UserCheck, Globe, Sparkles, ExternalLink, AlertCircle, CheckCircle2, ShieldAlert, Headphones, Pencil, Link2, ChevronDown, ChevronUp, Mail } from 'lucide-react';
+import {
+  MessageSquare, Copy, Check, Search, Plus, Trash2, Upload, Sparkles, ExternalLink, AlertCircle, CheckCircle2,
+  ShieldAlert, Headphones, Pencil, Link2, ChevronDown, ChevronUp, Mail,
+} from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import { anyTopicMatch } from '@/lib/topic-links';
+import { topicFamily } from '@/lib/smart-suggest';
+import { SmartSuggestPanel } from '@/components/smart-suggest-panel';
 import Papa from 'papaparse';
 
 type MacroType = 'FL' | 'Escalation';
-type LangKey = 'male_ar' | 'female_ar' | 'english_en';
 type TypeFilter = 'all' | MacroType;
 
 interface ChatMacro {
@@ -28,82 +32,106 @@ interface ChatMacro {
   links?: string;
 }
 
-// Macros saved before this feature have no type, so they count as Escalation
+// Macros saved before the FL / Escalation option existed count as Escalation
 const normalizeType = (value?: string | null): MacroType => {
   const v = String(value || '').trim().toLowerCase();
   if (v === 'fl' || v.includes('first') || v.includes('front')) return 'FL';
   return 'Escalation';
 };
 
-const DB_COLUMN_SQL =
-  "alter table chat_macros add column if not exists macro_type text default 'Escalation';";
+const DB_COLUMN_SQL = "alter table chat_macros add column if not exists macro_type text default 'Escalation';";
 
-const LANG_OPTIONS: { key: LangKey; label: string; hint: string; placeholder: string; dir: 'rtl' | 'ltr' }[] = [
-  { key: 'male_ar', label: 'Arabic (Male)', hint: 'AR (Male)', placeholder: 'مرحبًا أخي...', dir: 'rtl' },
-  { key: 'female_ar', label: 'Arabic (Female)', hint: 'AR (Female)', placeholder: 'مرحبًا أختي...', dir: 'rtl' },
-  { key: 'english_en', label: 'English', hint: 'EN', placeholder: 'Hello, thank you for reaching out...', dir: 'ltr' },
-];
+const nat = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// one block per language that has text; identical male + female Arabic is shown once
+const buildBlocks = (m: ChatMacro) => {
+  const blocks: { key: string; label: string; dir: 'ltr' | 'rtl'; text: string; dot: string }[] = [];
+  const en = (m.english_en || '').trim();
+  const male = (m.male_ar || '').trim();
+  const female = (m.female_ar || '').trim();
+  if (en) blocks.push({ key: 'en', label: 'English', dir: 'ltr', text: en, dot: '#60a5fa' });
+  if (male && female && male === female) {
+    blocks.push({ key: 'ar', label: 'Arabic · Male & Female', dir: 'rtl', text: male, dot: '#10b981' });
+  } else {
+    if (male) blocks.push({ key: 'arm', label: 'Arabic · Male', dir: 'rtl', text: male, dot: '#10b981' });
+    if (female) blocks.push({ key: 'arf', label: 'Arabic · Female', dir: 'rtl', text: female, dot: '#c084fc' });
+  }
+  return blocks;
+};
+
+const GRID_COLS: Record<number, string> = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3' };
 
 export function ChatMacrosTab() {
   const { currentUser } = useMetrics() as any;
   const [macros, setMacros] = useState<ChatMacro[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLang, setSelectedLang] = useState<LangKey>('male_ar');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [emailTemplates, setEmailTemplates] = useState<any[]>([]);
+
+  // filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [topicFilter, setTopicFilter] = useState('all');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [openRelated, setOpenRelated] = useState<Record<string, boolean>>({});
 
-  // Add Macro Form State
+  // add / edit form
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const formRef = useRef<HTMLDivElement>(null);
   const [newType, setNewType] = useState<MacroType | ''>('');
   const [newCategory, setNewCategory] = useState('');
-  const [newLangs, setNewLangs] = useState<Record<LangKey, boolean>>({ male_ar: true, female_ar: true, english_en: true });
+  const [newEnglishEN, setNewEnglishEN] = useState('');
   const [newMaleAR, setNewMaleAR] = useState('');
   const [newFemaleAR, setNewFemaleAR] = useState('');
-  const [newEnglishEN, setNewEnglishEN] = useState('');
+  const [sameArabic, setSameArabic] = useState(false);
   const [newHelpTips, setNewHelpTips] = useState('');
   const [newLinks, setNewLinks] = useState('');
 
-  // Status Messages
+  // status
   const [statusMsg, setStatusMsg] = useState('');
   const [isError, setIsError] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
-
-  const scriptValue: Record<LangKey, string> = { male_ar: newMaleAR, female_ar: newFemaleAR, english_en: newEnglishEN };
-  const scriptSetter: Record<LangKey, (v: string) => void> = {
-    male_ar: setNewMaleAR,
-    female_ar: setNewFemaleAR,
-    english_en: setNewEnglishEN,
-  };
 
   const fetchMacros = async () => {
     try {
-      const { data, error } = await supabase
-        .from('chat_macros')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
-        setMacros(data);
-      }
+      const { data, error } = await supabase.from('chat_macros').select('*').order('created_at', { ascending: false });
+      if (!error && data) setMacros(data);
     } catch (err: any) {
       console.error('Error fetching chat macros:', err);
     }
   };
 
-  // email templates are loaded too, so each macro can show the emails that share its topic
+  // email templates are loaded too: for the "same topic" links and for Smart Suggest
   const fetchEmailTemplates = async () => {
     try {
       const { data, error } = await supabase.from('email_templates').select('*');
       if (!error && data) setEmailTemplates(data);
     } catch (err) {
-      console.error('Error fetching email templates for linking:', err);
+      console.error('Error fetching email templates:', err);
     }
   };
 
@@ -112,70 +140,57 @@ export function ChatMacrosTab() {
     fetchEmailTemplates();
   }, []);
 
-  // Friendly message when the database column has not been created yet
-  const explainDbError = (message: string, prefix: string) => {
-    if (/macro_type/i.test(message)) {
-      return `${prefix}: the database needs one new column. Run this once in Supabase → SQL Editor: ${DB_COLUMN_SQL}`;
-    }
-    return `${prefix}: ${message}`;
-  };
+  const explainDbError = (message: string, prefix: string) =>
+    /macro_type/i.test(message)
+      ? `${prefix}: the database needs one new column. Run this once in Supabase → SQL Editor: ${DB_COLUMN_SQL}`
+      : `${prefix}: ${message}`;
 
-  const resetAddForm = () => {
+  const resetForm = () => {
     setEditingId(null);
     setNewType('');
     setNewCategory('');
-    setNewLangs({ male_ar: true, female_ar: true, english_en: true });
+    setNewEnglishEN('');
     setNewMaleAR('');
     setNewFemaleAR('');
-    setNewEnglishEN('');
+    setSameArabic(false);
     setNewHelpTips('');
     setNewLinks('');
   };
 
-  const scrollToForm = () => {
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-  };
+  const scrollTo = (ref: React.RefObject<HTMLDivElement>) => setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
-  // "Add Macro" button: open an empty form (or close it if an empty one is already open)
   const handleAddButton = () => {
     if (showAddForm && !editingId) {
-      resetAddForm();
+      resetForm();
       setShowAddForm(false);
       return;
     }
-    resetAddForm();
+    resetForm();
     setShowAddForm(true);
-    scrollToForm();
+    scrollTo(formRef);
   };
 
-  // Pencil button on a card: open the form filled with that macro
-  const handleStartEdit = (macro: ChatMacro) => {
-    if (!macro.id) return;
-    const hasAny = !!(macro.male_ar || macro.female_ar || macro.english_en);
+  const handleStartEdit = (m: ChatMacro) => {
+    if (!m.id) return;
     setStatusMsg('');
-    setEditingId(macro.id);
-    setNewType(normalizeType(macro.macro_type));
-    setNewCategory(macro.category || macro.topic || macro.category_name || '');
-    setNewMaleAR(macro.male_ar || '');
-    setNewFemaleAR(macro.female_ar || '');
-    setNewEnglishEN(macro.english_en || '');
-    setNewLangs({
-      male_ar: hasAny ? !!macro.male_ar : true,
-      female_ar: hasAny ? !!macro.female_ar : true,
-      english_en: hasAny ? !!macro.english_en : true,
-    });
-    setNewHelpTips(macro.help_tips || '');
-    setNewLinks(macro.links || '');
+    setEditingId(m.id);
+    setNewType(normalizeType(m.macro_type));
+    setNewCategory(m.category || m.topic || m.category_name || '');
+    setNewEnglishEN(m.english_en || '');
+    setNewMaleAR(m.male_ar || '');
+    setNewFemaleAR(m.female_ar || '');
+    setSameArabic(!!m.male_ar && m.male_ar === m.female_ar);
+    setNewHelpTips(m.help_tips || '');
+    setNewLinks(m.links || '');
     setShowAddForm(true);
-    scrollToForm();
+    scrollTo(formRef);
   };
 
-  // CSV Upload Handler for Chat Macros
+  // CSV upload (Admin / Team Leader)
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Rows without a type column use the filter you are viewing (FL / Escalation), otherwise Escalation
     const fallbackType: MacroType = typeFilter === 'FL' ? 'FL' : 'Escalation';
 
     setUploading(true);
@@ -188,22 +203,24 @@ export function ChatMacrosTab() {
       complete: async (results) => {
         try {
           const parsedRows: any[] = results.data;
-          const recordsToInsert = parsedRows.map((row) => {
-            const cat = row.category || row.Category || row.topic || row.Topic || 'General';
-            const rawType = row.type || row.Type || row.macro_type || row['Macro Type'] || '';
-            return {
-              category: cat,
-              topic: cat,
-              category_name: cat,
-              macro_type: rawType ? normalizeType(rawType) : fallbackType,
-              male_ar: row.male_ar || row.maleAR || row['Male AR'] || '',
-              female_ar: row.female_ar || row.femaleAR || row['Female AR'] || '',
-              english_en: row.english_en || row.englishEN || row['English EN'] || '',
-              help_tips: row.help_tips || row['Help Tips'] || null,
-              links: row.links || row.Links || null,
-              created_at: new Date().toISOString(),
-            };
-          }).filter((r) => r.male_ar || r.english_en || r.female_ar);
+          const recordsToInsert = parsedRows
+            .map((row) => {
+              const cat = row.category || row.Category || row.topic || row.Topic || 'General';
+              const rawType = row.type || row.Type || row.macro_type || row['Macro Type'] || '';
+              return {
+                category: cat,
+                topic: cat,
+                category_name: cat,
+                macro_type: rawType ? normalizeType(rawType) : fallbackType,
+                male_ar: row.male_ar || row.maleAR || row['Male AR'] || '',
+                female_ar: row.female_ar || row.femaleAR || row['Female AR'] || '',
+                english_en: row.english_en || row.englishEN || row['English EN'] || '',
+                help_tips: row.help_tips || row['Help Tips'] || null,
+                links: row.links || row.Links || null,
+                created_at: new Date().toISOString(),
+              };
+            })
+            .filter((r) => r.male_ar || r.english_en || r.female_ar);
 
           if (recordsToInsert.length === 0) {
             setIsError(true);
@@ -233,47 +250,40 @@ export function ChatMacrosTab() {
     });
   };
 
-  // Add Single Chat Macro Manually
-  const handleAddMacro = async (e: React.FormEvent) => {
+  // add or update one macro (all agents)
+  const handleSaveMacro = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMsg('');
     setIsError(false);
 
     if (!newType) {
       setIsError(true);
-      setStatusMsg('Please choose first whether this template is FL or Escalation.');
+      setStatusMsg('Please choose first whether this macro is FL or Escalation.');
       return;
     }
-
     if (!newCategory.trim()) {
       setIsError(true);
-      setStatusMsg('Please provide a Category / Topic name.');
+      setStatusMsg('Please write the topic / title of the macro.');
       return;
     }
-
-    const chosen = LANG_OPTIONS.filter((l) => newLangs[l.key]);
-    if (chosen.length === 0) {
+    const en = newEnglishEN.trim();
+    const male = newMaleAR.trim();
+    const female = sameArabic ? male : newFemaleAR.trim();
+    if (!en && !male && !female) {
       setIsError(true);
-      setStatusMsg('Please select at least one language (Arabic Male, Arabic Female or English).');
-      return;
-    }
-
-    if (!chosen.some((l) => scriptValue[l.key].trim())) {
-      setIsError(true);
-      setStatusMsg('Please write the script for at least one of the selected languages.');
+      setStatusMsg('Please write the reply in at least one language.');
       return;
     }
 
     const categoryVal = newCategory.trim();
-
     const record = {
       category: categoryVal,
       topic: categoryVal,
       category_name: categoryVal,
       macro_type: newType,
-      male_ar: newLangs.male_ar ? newMaleAR.trim() : '',
-      female_ar: newLangs.female_ar ? newFemaleAR.trim() : '',
-      english_en: newLangs.english_en ? newEnglishEN.trim() : '',
+      male_ar: male,
+      female_ar: female,
+      english_en: en,
       help_tips: newHelpTips.trim() || null,
       links: newLinks.trim() || null,
     };
@@ -289,80 +299,93 @@ export function ChatMacrosTab() {
     } else {
       setIsError(false);
       setStatusMsg(`✓ ${newType} macro ${wasEditing ? 'updated' : 'saved'} successfully!`);
-      // make sure the macro is visible under the current page filter
       if (typeFilter !== 'all' && typeFilter !== newType) setTypeFilter(newType);
-      resetAddForm();
+      resetForm();
       setShowAddForm(false);
       fetchMacros();
       setTimeout(() => setStatusMsg(''), 4000);
     }
   };
 
-  // Delete Macro
   const handleDeleteMacro = async (id: string) => {
     if (confirm('Are you sure you want to delete this chat macro?')) {
       const { error } = await supabase.from('chat_macros').delete().eq('id', id);
-      if (!error) {
-        fetchMacros();
-      } else {
+      if (!error) fetchMacros();
+      else {
         setIsError(true);
         setStatusMsg(`Delete Error: ${error.message}`);
       }
     }
   };
 
-  // Copy with iframe Fallback
-  const handleCopy = (text: string, idKey: string) => {
+  const handleCopy = async (text: string, key: string) => {
     if (!text) return;
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text);
-    } else {
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        document.execCommand('copy');
-      } catch (err) {
-        console.error('Fallback copy failed', err);
-      }
-      document.body.removeChild(textArea);
+    if (await copyToClipboard(text)) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 2000);
     }
-    setCopiedIndex(idKey);
-    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const counts = {
+  // from Smart Suggest: jump to that macro in the list
+  const showMacroInList = (category: string) => {
+    setTypeFilter('all');
+    setTopicFilter('all');
+    setSearchTerm(category);
+    scrollTo(listRef);
+  };
+
+  // ----- filtering / grouping -----
+  const categoryOf = (m: ChatMacro) => m.category || m.topic || m.category_name || 'General';
+
+  const typeCounts = {
     all: macros.length,
     Escalation: macros.filter((m) => normalizeType(m.macro_type) === 'Escalation').length,
     FL: macros.filter((m) => normalizeType(m.macro_type) === 'FL').length,
   };
 
-  const filteredMacros = macros.filter((m) => {
-    if (typeFilter !== 'all' && normalizeType(m.macro_type) !== typeFilter) return false;
+  const topicList = useMemo(() => {
+    const counts = new Map<string, number>();
+    macros
+      .filter((m) => typeFilter === 'all' || normalizeType(m.macro_type) === typeFilter)
+      .forEach((m) => {
+        const t = topicFamily(categoryOf(m)) || 'General';
+        counts.set(t, (counts.get(t) || 0) + 1);
+      });
+    return Array.from(counts.entries()).sort((a, b) => nat(a[0], b[0]));
+  }, [macros, typeFilter]);
 
-    const cat = m.category || m.topic || m.category_name || '';
-    const male = m.male_ar || '';
-    const female = m.female_ar || '';
-    const eng = m.english_en || '';
-    const term = searchTerm.toLowerCase();
+  // existing topic names (chat + email) offered while typing so names stay consistent and linked
+  const knownTopics = useMemo(() => {
+    const set = new Set<string>();
+    macros.forEach((m) => set.add(categoryOf(m).trim()));
+    emailTemplates.forEach((t) => t.category && set.add(String(t.category).trim()));
+    return Array.from(set).sort(nat);
+  }, [macros, emailTemplates]);
 
-    return (
-      cat.toLowerCase().includes(term) ||
-      male.toLowerCase().includes(term) ||
-      female.toLowerCase().includes(term) ||
-      eng.toLowerCase().includes(term)
-    );
-  });
+  const filteredMacros = macros
+    .filter((m) => {
+      if (typeFilter !== 'all' && normalizeType(m.macro_type) !== typeFilter) return false;
+      if (topicFilter !== 'all' && (topicFamily(categoryOf(m)) || 'General') !== topicFilter) return false;
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return true;
+      return [categoryOf(m), m.english_en, m.male_ar, m.female_ar, m.help_tips].some((x) => String(x || '').toLowerCase().includes(term));
+    })
+    .sort((a, b) => nat(topicFamily(categoryOf(a)), topicFamily(categoryOf(b))) || nat(categoryOf(a), categoryOf(b)));
 
   const typeButtons: { key: TypeFilter; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: counts.all },
-    { key: 'Escalation', label: 'Escalation Only', count: counts.Escalation },
-    { key: 'FL', label: 'FL Only', count: counts.FL },
+    { key: 'all', label: 'All', count: typeCounts.all },
+    { key: 'Escalation', label: 'Escalation Only', count: typeCounts.Escalation },
+    { key: 'FL', label: 'FL Only', count: typeCounts.FL },
   ];
+
+  const typeBadge = (t?: string | null) =>
+    normalizeType(t) === 'FL' ? (
+      <Badge variant="outline" className="text-[10px] font-bold border-sky-500/50 text-sky-600 dark:text-sky-400 bg-sky-500/10">FL</Badge>
+    ) : (
+      <Badge variant="outline" className="text-[10px] font-bold border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10">Escalation</Badge>
+    );
+
+  let lastTopic = '';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -372,38 +395,11 @@ export function ChatMacrosTab() {
             <MessageSquare className="h-6 w-6 text-emerald-500" /> Chat Macros
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            FL and Escalation chat macros with Arabic (Male/Female) and English scripts
+            Every reply with its English, Arabic (Male) and Arabic (Female) versions together
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900 text-xs">
-            <Button
-              variant={selectedLang === 'male_ar' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setSelectedLang('male_ar')}
-              className="h-8 text-xs gap-1 rounded-lg"
-            >
-              <UserCheck className="h-3.5 w-3.5 text-emerald-500" /> AR (Male)
-            </Button>
-            <Button
-              variant={selectedLang === 'female_ar' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setSelectedLang('female_ar')}
-              className="h-8 text-xs gap-1 rounded-lg"
-            >
-              <UserCheck className="h-3.5 w-3.5 text-purple-500" /> AR (Female)
-            </Button>
-            <Button
-              variant={selectedLang === 'english_en' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setSelectedLang('english_en')}
-              className="h-8 text-xs gap-1 rounded-lg"
-            >
-              <Globe className="h-3.5 w-3.5 text-blue-500" /> EN
-            </Button>
-          </div>
-
           {isAdminOrTL && (
             <>
               <input type="file" ref={fileInputRef} accept=".csv" onChange={handleCSVUpload} className="hidden" />
@@ -418,11 +414,7 @@ export function ChatMacrosTab() {
               </Button>
             </>
           )}
-          <Button
-            size="sm"
-            onClick={handleAddButton}
-            className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-          >
+          <Button size="sm" onClick={handleAddButton} className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
             <Plus className="h-4 w-4" /> Add Macro
           </Button>
         </div>
@@ -435,279 +427,370 @@ export function ChatMacrosTab() {
         </div>
       )}
 
-      {/* Add Macro Form */}
+      {/* Smart Suggest */}
+      <SmartSuggestPanel
+        macros={macros}
+        emails={emailTemplates}
+        defaultKind="all"
+        storageKey="chat"
+        onShowMacro={showMacroInList}
+        userEmail={currentUser?.user_email}
+      />
+
+      {/* Add / edit form */}
       {showAddForm && (
         <div ref={formRef} className="scroll-mt-4">
-        <Card className="border border-emerald-500/40 bg-emerald-500/5 dark:bg-slate-900">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-              {editingId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              {editingId ? 'Edit Chat Macro' : 'Add New Chat Macro'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAddMacro} className="space-y-4 text-xs">
-              {/* STEP 1: FL or Escalation */}
-              <div className="space-y-2">
-                <label className="font-semibold text-slate-600 dark:text-slate-300">
-                  Step 1 – Is this template for FL or Escalation?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setNewType('Escalation')}
-                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
-                      newType === 'Escalation'
-                        ? 'border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                        : 'border-slate-300 dark:border-slate-700 text-slate-500 hover:border-amber-500/60'
-                    }`}
-                  >
-                    <ShieldAlert className="h-5 w-5 shrink-0" />
-                    <span>
-                      <span className="block text-sm font-bold">Escalation</span>
-                      <span className="block text-[11px] opacity-80">Used when a case is escalated</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewType('FL')}
-                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
-                      newType === 'FL'
-                        ? 'border-sky-500 bg-sky-500/15 text-sky-600 dark:text-sky-400'
-                        : 'border-slate-300 dark:border-slate-700 text-slate-500 hover:border-sky-500/60'
-                    }`}
-                  >
-                    <Headphones className="h-5 w-5 shrink-0" />
-                    <span>
-                      <span className="block text-sm font-bold">FL</span>
-                      <span className="block text-[11px] opacity-80">First line support template</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {newType && (
-                <>
-                  {/* STEP 2: Category */}
-                  <div className="space-y-1">
-                    <label className="font-semibold text-slate-600 dark:text-slate-300">Step 2 – Macro Category / Topic</label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Greeting, KNET Explanation"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      className="h-9 text-xs bg-white dark:bg-slate-950"
-                      required
-                    />
+          <Card className="border border-emerald-500/40 bg-emerald-500/5 dark:bg-slate-900">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                {editingId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {editingId ? 'Edit Chat Macro' : 'Add New Chat Macro'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveMacro} className="space-y-4 text-xs">
+                {/* STEP 1 */}
+                <div className="space-y-2">
+                  <label className="font-semibold text-slate-600 dark:text-slate-300">Step 1 – Is this macro for FL or Escalation?</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewType('Escalation')}
+                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
+                        newType === 'Escalation'
+                          ? 'border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                          : 'border-slate-300 dark:border-slate-700 text-slate-500 hover:border-amber-500/60'
+                      }`}
+                    >
+                      <ShieldAlert className="h-5 w-5 shrink-0" />
+                      <span>
+                        <span className="block text-sm font-bold">Escalation</span>
+                        <span className="block text-[11px] opacity-80">Used when a case is escalated</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewType('FL')}
+                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
+                        newType === 'FL'
+                          ? 'border-sky-500 bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                          : 'border-slate-300 dark:border-slate-700 text-slate-500 hover:border-sky-500/60'
+                      }`}
+                    >
+                      <Headphones className="h-5 w-5 shrink-0" />
+                      <span>
+                        <span className="block text-sm font-bold">FL</span>
+                        <span className="block text-[11px] opacity-80">First line support macro</span>
+                      </span>
+                    </button>
                   </div>
+                </div>
 
-                  {/* STEP 3: Languages */}
-                  <div className="space-y-2">
-                    <label className="font-semibold text-slate-600 dark:text-slate-300">
-                      Step 3 – Choose the language(s) you want to add
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {LANG_OPTIONS.map((l) => {
-                        const on = newLangs[l.key];
-                        return (
-                          <button
-                            key={l.key}
-                            type="button"
-                            onClick={() => setNewLangs((prev) => ({ ...prev, [l.key]: !prev[l.key] }))}
-                            className={`px-3 py-1.5 rounded-full border text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
-                              on
-                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                : 'border-slate-300 dark:border-slate-700 text-slate-500'
-                            }`}
-                          >
-                            {on ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} {l.label}
-                          </button>
-                        );
-                      })}
+                {newType && (
+                  <>
+                    {/* STEP 2 */}
+                    <div className="space-y-1">
+                      <label className="font-semibold text-slate-600 dark:text-slate-300">Step 2 – Topic / title</label>
+                      <Input
+                        type="text"
+                        list="chat-topic-list"
+                        placeholder="e.g. KNET - Understand the inconvenience"
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                        className="h-9 text-xs bg-white dark:bg-slate-950"
+                        required
+                      />
+                      <datalist id="chat-topic-list">
+                        {knownTopics.map((t) => (
+                          <option key={t} value={t} />
+                        ))}
+                      </datalist>
+                      <p className="text-[11px] text-slate-500">
+                        Start the title with the topic name (for example “KNET - …”). Replies and emails with the same topic are linked automatically.
+                      </p>
                     </div>
 
-                    {LANG_OPTIONS.some((l) => newLangs[l.key]) && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                        {LANG_OPTIONS.filter((l) => newLangs[l.key]).map((l) => (
-                          <div key={l.key} className="space-y-1 md:col-span-1">
-                            <label className="font-semibold text-slate-500">{l.label}</label>
+                    {/* STEP 3 */}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="font-semibold text-slate-600 dark:text-slate-300">Step 3 – Write the reply (fill the languages you have)</label>
+                        <label className="flex items-center gap-2 cursor-pointer text-slate-500">
+                          <input
+                            type="checkbox"
+                            checked={sameArabic}
+                            onChange={(e) => setSameArabic(e.target.checked)}
+                            className="h-3.5 w-3.5 rounded accent-emerald-600"
+                          />
+                          Same Arabic text for male and female
+                        </label>
+                      </div>
+
+                      <div className={`grid grid-cols-1 gap-3 ${sameArabic ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+                        <div className="space-y-1">
+                          <label className="font-semibold text-slate-500 flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full" style={{ background: '#60a5fa' }} /> English
+                          </label>
+                          <Textarea
+                            placeholder="Hello, thank you for reaching out..."
+                            value={newEnglishEN}
+                            onChange={(e) => setNewEnglishEN(e.target.value)}
+                            className="text-xs h-28 bg-white dark:bg-slate-950"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="font-semibold text-slate-500 flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full" style={{ background: '#10b981' }} /> {sameArabic ? 'Arabic (Male & Female)' : 'Arabic (Male)'}
+                          </label>
+                          <Textarea
+                            dir="rtl"
+                            placeholder="مرحبًا أخي..."
+                            value={newMaleAR}
+                            onChange={(e) => setNewMaleAR(e.target.value)}
+                            className="text-xs h-28 bg-white dark:bg-slate-950"
+                          />
+                        </div>
+                        {!sameArabic && (
+                          <div className="space-y-1">
+                            <label className="font-semibold text-slate-500 flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full" style={{ background: '#c084fc' }} /> Arabic (Female)
+                            </label>
                             <Textarea
-                              dir={l.dir}
-                              placeholder={l.placeholder}
-                              value={scriptValue[l.key]}
-                              onChange={(e) => scriptSetter[l.key](e.target.value)}
-                              className="text-xs h-24 bg-white dark:bg-slate-950"
+                              dir="rtl"
+                              placeholder="مرحبًا أختي..."
+                              value={newFemaleAR}
+                              onChange={(e) => setNewFemaleAR(e.target.value)}
+                              className="text-xs h-28 bg-white dark:bg-slate-950"
                             />
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      type="text"
-                      placeholder="Help Tips / Internal Notes (Optional)"
-                      value={newHelpTips}
-                      onChange={(e) => setNewHelpTips(e.target.value)}
-                      className="h-8 text-xs bg-white dark:bg-slate-950"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="External URL / Reference Link (Optional)"
-                      value={newLinks}
-                      onChange={(e) => setNewLinks(e.target.value)}
-                      className="h-8 text-xs bg-white dark:bg-slate-950"
-                    />
-                  </div>
-                </>
-              )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input
+                        type="text"
+                        placeholder="Help tips / internal notes (optional)"
+                        value={newHelpTips}
+                        onChange={(e) => setNewHelpTips(e.target.value)}
+                        className="h-8 text-xs bg-white dark:bg-slate-950"
+                      />
+                      <Input
+                        type="text"
+                        placeholder="Link (optional)"
+                        value={newLinks}
+                        onChange={(e) => setNewLinks(e.target.value)}
+                        className="h-8 text-xs bg-white dark:bg-slate-950"
+                      />
+                    </div>
+                  </>
+                )}
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    resetAddForm();
-                    setShowAddForm(false);
-                  }}
-                  className="h-8 text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!newType}
-                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-                >
-                  {editingId ? 'Save Changes' : 'Save Macro'}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      resetForm();
+                      setShowAddForm(false);
+                    }}
+                    className="h-8 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={!newType} className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
+                    {editingId ? 'Save Changes' : 'Save Macro'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* Type filter + Search */}
-      <div className="flex flex-col lg:flex-row gap-3">
-        <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900 text-xs shrink-0 self-start">
-          {typeButtons.map((b) => (
-            <Button
-              key={b.key}
-              variant={typeFilter === b.key ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setTypeFilter(b.key)}
-              className="h-8 text-xs gap-1.5 rounded-lg"
-            >
-              {b.label}
-              <span className="text-[10px] font-black opacity-70">{b.count}</span>
-            </Button>
-          ))}
+      {/* Filters */}
+      <div ref={listRef} className="space-y-3 scroll-mt-4">
+        <div className="flex flex-col lg:flex-row gap-3">
+          <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900 text-xs shrink-0 self-start">
+            {typeButtons.map((b) => (
+              <Button
+                key={b.key}
+                variant={typeFilter === b.key ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => {
+                  setTypeFilter(b.key);
+                  setTopicFilter('all');
+                }}
+                className="h-8 text-xs gap-1.5 rounded-lg"
+              >
+                {b.label}
+                <span className="text-[10px] font-black opacity-70">{b.count}</span>
+              </Button>
+            ))}
+          </div>
+
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="Filter macros by topic or script content..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-10 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl"
+            />
+          </div>
         </div>
 
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-          <Input
-            type="text"
-            placeholder="Filter macros by category or script content..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-10 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl"
-          />
+        {topicList.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500">Topic:</span>
+            {([['all', macros.filter((m) => typeFilter === 'all' || normalizeType(m.macro_type) === typeFilter).length] as [string, number], ...topicList]).map(([name, count]) => {
+              const active = topicFilter === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setTopicFilter(name)}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
+                    active
+                      ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:border-emerald-500/60'
+                  }`}
+                >
+                  {name === 'all' ? 'All topics' : name} <span className="opacity-60">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="text-[11px] text-slate-400">
+          Showing {filteredMacros.length} of {macros.length} macros
         </div>
       </div>
 
-      {/* Macro Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Macro cards, grouped by topic */}
+      <div className="space-y-4">
         {filteredMacros.length > 0 ? (
           filteredMacros.map((macro, idx) => {
-            const categoryDisplay = macro.category || macro.topic || macro.category_name || 'General';
-            const scriptText = macro[selectedLang] || macro.english_en || macro.male_ar || macro.female_ar || '';
-            const keyId = `macro-${macro.id || idx}`;
-            const mType = normalizeType(macro.macro_type);
+            const category = categoryOf(macro);
+            const family = topicFamily(category) || 'General';
+            const showHeader = family !== lastTopic;
+            lastTopic = family;
+            const cardKey = macro.id || String(idx);
+            const blocks = buildBlocks(macro);
+            const labels = [macro.category, macro.topic, macro.category_name];
+            const relatedEmails = emailTemplates.filter((t) => anyTopicMatch(labels, [t.category, t.title]));
+            const relatedOpen = !!openRelated[cardKey];
 
             return (
-              <Card key={macro.id || idx} className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                      <Sparkles className="h-4 w-4 text-emerald-500" /> {categoryDisplay}
-                    </CardTitle>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] font-bold ${
-                        mType === 'FL'
-                          ? 'border-sky-500/50 text-sky-600 dark:text-sky-400 bg-sky-500/10'
-                          : 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10'
-                      }`}
-                    >
-                      {mType === 'FL' ? 'FL' : 'Escalation'}
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px]">
-                      {selectedLang === 'male_ar' ? 'AR (ذكر)' : selectedLang === 'female_ar' ? 'AR (أنثى)' : 'EN'}
-                    </Badge>
+              <div key={cardKey} className="space-y-3">
+                {showHeader && (
+                  <div className="flex items-center gap-2 pt-2">
+                    <h3 className="text-sm font-extrabold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">{family}</h3>
+                    <span className="text-[11px] text-slate-400">
+                      {filteredMacros.filter((m) => (topicFamily(categoryOf(m)) || 'General') === family).length} replies
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
                   </div>
+                )}
 
-                  <div className="flex items-center gap-1">
-                    {macro.id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleStartEdit(macro)}
-                        className="text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 h-7 px-2 text-xs"
-                        title="Edit Macro"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {isAdminOrTL && macro.id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteMacro(macro.id!)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 h-7 px-2 text-xs"
-                        title="Delete Macro"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-2 text-xs">
-                  <p className="font-sans text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 whitespace-pre-wrap leading-relaxed min-h-[60px]">
-                    {scriptText || <span className="text-slate-500 italic">No script content available for this language option.</span>}
-                  </p>
-
-                  {macro.help_tips && (
-                    <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
-                      <strong>Tip:</strong> {macro.help_tips}
+                <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                  <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                        <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" /> {category}
+                      </CardTitle>
+                      {typeBadge(macro.macro_type)}
                     </div>
-                  )}
 
-                  {(() => {
-                    const labels = [macro.category, macro.topic, macro.category_name];
-                    const relatedEmails = emailTemplates.filter((t) => anyTopicMatch(labels, [t.category, t.title]));
-                    if (relatedEmails.length === 0) return null;
-                    const open = !!openRelated[keyId];
-                    return (
+                    <div className="flex items-center gap-1 shrink-0">
+                      {macro.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStartEdit(macro)}
+                          className="text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 h-7 px-2 text-xs"
+                          title="Edit Macro"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {isAdminOrTL && macro.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteMacro(macro.id!)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 h-7 px-2 text-xs"
+                          title="Delete Macro"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-3 pt-1 text-xs">
+                    {blocks.length > 0 ? (
+                      <div className={`grid grid-cols-1 ${GRID_COLS[blocks.length] || 'lg:grid-cols-3'} gap-3`}>
+                        {blocks.map((b) => {
+                          const k = `${cardKey}-${b.key}`;
+                          return (
+                            <div key={b.key} className="flex flex-col gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500">
+                                  <span className="h-2 w-2 rounded-full" style={{ background: b.dot }} /> {b.label}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleCopy(b.text, k)}
+                                  className="h-7 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg"
+                                >
+                                  {copiedKey === k ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                  <span>{copiedKey === k ? 'Copied!' : 'Copy'}</span>
+                                </Button>
+                              </div>
+                              <p
+                                dir={b.dir}
+                                className={`font-sans text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed ${b.dir === 'rtl' ? 'text-right' : ''}`}
+                              >
+                                {b.text}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-slate-500 italic">No script text for this macro.</p>
+                    )}
+
+                    {macro.help_tips && (
+                      <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                        <strong>Tip:</strong> {macro.help_tips}
+                      </div>
+                    )}
+
+                    {macro.links && (
+                      <a href={macro.links} target="_blank" rel="noreferrer" className="inline-flex text-[11px] text-blue-500 hover:underline items-center gap-1 font-semibold break-all">
+                        <ExternalLink className="h-3 w-3 shrink-0" /> {macro.links}
+                      </a>
+                    )}
+
+                    {relatedEmails.length > 0 && (
                       <div>
                         <button
                           type="button"
-                          onClick={() => setOpenRelated((prev) => ({ ...prev, [keyId]: !prev[keyId] }))}
+                          onClick={() => setOpenRelated((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }))}
                           className="flex items-center gap-1.5 text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline"
                         >
                           <Link2 className="h-3.5 w-3.5" />
                           Same topic: {relatedEmails.length} email template{relatedEmails.length === 1 ? '' : 's'}
-                          {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          {relatedOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         </button>
 
-                        {open && (
+                        {relatedOpen && (
                           <div className="mt-2 space-y-2 p-3 rounded-xl border border-sky-500/30 bg-sky-500/5">
                             {relatedEmails.map((t, i) => {
-                              const eKey = `${keyId}-email-${t.id || i}`;
+                              const eKey = `${cardKey}-email-${t.id || i}`;
                               const tType = normalizeType(t.macro_type);
                               const btn = (label: string, text: string, k: string) => (
                                 <button
@@ -716,8 +799,8 @@ export function ChatMacrosTab() {
                                   onClick={() => handleCopy(text, k)}
                                   className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:border-emerald-500/60 hover:text-emerald-500"
                                 >
-                                  {copiedIndex === k ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                                  {copiedIndex === k ? 'Copied!' : label}
+                                  {copiedKey === k ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                  {copiedKey === k ? 'Copied!' : label}
                                 </button>
                               );
                               return (
@@ -748,40 +831,18 @@ export function ChatMacrosTab() {
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
-
-                  <div className="flex justify-between items-center pt-1">
-                    {macro.links ? (
-                      <a href={macro.links} target="_blank" rel="noreferrer" className="text-[11px] text-blue-500 hover:underline flex items-center gap-1 font-semibold">
-                        <ExternalLink className="h-3 w-3" /> External Link
-                      </a>
-                    ) : <span />}
-
-                    <Button
-                      size="sm"
-                      disabled={!scriptText}
-                      onClick={() => handleCopy(scriptText, keyId)}
-                      className="h-8 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg"
-                    >
-                      {copiedIndex === keyId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      <span>{copiedIndex === keyId ? 'Copied!' : 'Copy Script'}</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             );
           })
         ) : (
-          <Card className="p-8 text-center text-muted-foreground md:col-span-2">
+          <Card className="p-8 text-center text-muted-foreground">
             <MessageSquare className="h-10 w-10 mx-auto mb-2 text-slate-400" />
-            <p className="text-sm font-medium">
-              {typeFilter === 'all' ? 'No chat macros found.' : `No ${typeFilter} macros found.`}
-            </p>
+            <p className="text-sm font-medium">{typeFilter === 'all' ? 'No chat macros found.' : `No ${typeFilter} macros found.`}</p>
             <p className="text-xs mt-1">
-              {macros.length > 0
-                ? 'Try another filter or clear the search box.'
-                : 'Upload a CSV file or add a new macro using the buttons above.'}
+              {macros.length > 0 ? 'Try another filter or clear the search box.' : 'Upload a CSV file or add a new macro using the buttons above.'}
             </p>
           </Card>
         )}
