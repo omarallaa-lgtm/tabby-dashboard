@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import { anyTopicMatch } from '@/lib/topic-links';
+import { SmartSuggestPanel } from '@/components/smart-suggest-panel';
 import Papa from 'papaparse';
 
 type MacroType = 'FL' | 'Escalation';
@@ -142,6 +143,7 @@ export function EmailTemplatesTab() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
   const fetchTemplates = async () => {
@@ -223,6 +225,15 @@ export function EmailTemplatesTab() {
     resetForm();
     setShowAddForm(true);
     scrollToForm();
+  };
+
+  // from Smart Suggest: jump to that template in the list below
+  const showEmailInList = (title: string) => {
+    setTypeFilter('all');
+    setCategoryFilter('all');
+    setFavOnly(false);
+    setSearchTerm(title);
+    setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const handleStartEdit = (t: EmailTemplate) => {
@@ -547,6 +558,17 @@ export function EmailTemplatesTab() {
         </div>
       )}
 
+      {/* Smart Suggest: describe the case, get the best email templates (and chat macros) */}
+      <SmartSuggestPanel
+        macros={chatMacros}
+        emails={templates}
+        defaultKind="email"
+        storageKey="email"
+        fillEmail={fillText}
+        onShowEmail={showEmailInList}
+        userEmail={currentUser?.user_email}
+      />
+
       {/* Add / Edit form */}
       {showAddForm && (
         <div ref={formRef} className="scroll-mt-4">
@@ -781,7 +803,7 @@ export function EmailTemplatesTab() {
       </Card>
 
       {/* Type filter + Favorites + Search */}
-      <div className="space-y-3">
+      <div ref={listRef} className="space-y-3 scroll-mt-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900 text-xs shrink-0 self-start">
             {typeButtons.map((b) => (
