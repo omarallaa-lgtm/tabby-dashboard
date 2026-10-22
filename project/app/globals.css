@@ -739,21 +739,24 @@
 
 /* =========================================================
    INPUT TEXT VISIBILITY (autofill fix)
-   Chrome / Edge paint saved-login autofill with a light background but keep
-   our white text, so the email / password looked empty until selected.
-   Force readable colours on the login page and in dark mode.
+   Chrome / Edge paint auto-filled (saved) logins with a light background and some
+   versions ignore attempts to repaint it dark. So login fields are deliberately
+   WHITE with DARK text: readable whatever the browser paints.
    ========================================================= */
 .lg-root input:not([type="checkbox"]) {
-  color: #fff;
-  -webkit-text-fill-color: #fff;
-  caret-color: #34d399;
+  background-color: #fff;
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  caret-color: #059669;
 }
 .lg-root input::placeholder {
-  color: #64748b;
-  -webkit-text-fill-color: #64748b;
+  color: #94a3b8;
+  -webkit-text-fill-color: #94a3b8;
   opacity: 1;
 }
 
+/* auto-filled fields (login page and any field in the dark dashboard):
+   the browser background is always light, so the text is always dark */
 .lg-root input:-webkit-autofill,
 .lg-root input:-webkit-autofill:hover,
 .lg-root input:-webkit-autofill:focus,
@@ -762,21 +765,16 @@
 .dark input:-webkit-autofill:hover,
 .dark input:-webkit-autofill:focus,
 .dark input:-webkit-autofill:active {
-  -webkit-text-fill-color: #f1f5f9 !important;
-  caret-color: #34d399;
-  /* paint over the browser's light autofill background */
-  -webkit-box-shadow: 0 0 0 1000px #0b1324 inset !important;
-  box-shadow: 0 0 0 1000px #0b1324 inset !important;
-  transition: background-color 600000s ease-out 0s;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a;
+  /* where supported, paint the box plain white instead of the browser's light blue */
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
 }
-
-/* Firefox autofill */
 .lg-root input:autofill,
 .dark input:autofill {
-  color: #f1f5f9;
-  background-color: #0b1324 !important;
+  color: #0f172a !important;
 }
-
 
 /* =========================================================
    NORMAL MODE (.fx) - full effects for normal PCs (outside Citrix)

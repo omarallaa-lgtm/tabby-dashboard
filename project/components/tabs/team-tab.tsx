@@ -25,7 +25,10 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { name: 'CSAT %', short: 'CSAT', keys: ['CSAT adjusted with calls, %', 'CSAT %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
+  // CSAT = the official overall team CSAT from the Metrics CSV (chat + calls).
+  // No fallback to 'CSAT %': that one is calculated from the KSCAT survey file (mostly chat surveys),
+  // so mixing the two made the line jump whenever a new file was uploaded.
+  { name: 'CSAT %', short: 'CSAT', keys: ['CSAT adjusted with calls, %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
   { name: 'KSCAT %', short: 'KSCAT', keys: ['KSCAT %', 'kscatPercent'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true },
   { name: 'Adherence %', short: 'Adherence', keys: ['Adherence, %', 'adherencePercent'], targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
   { name: 'AHT (Average Handling Time)', short: 'AHT', keys: ['Average handling time', 'aht'], targetKey: 'aht', defaultTarget: 5, isPct: false, lowerIsBetter: true },
@@ -476,11 +479,11 @@ export function TeamTab() {
   const hasData = Object.keys(teamMetrics).length > 0 || agentMetrics.length > 0;
   const metric = METRICS.find((c) => c.name === graphMetricKey) || METRICS[0];
 
-  // CSAT % and KSCAT % use the Overview calculation (selected roster); every other metric reads the Team Overall figure
+  // KSCAT % uses the Overview calculation (selected roster); every other metric, including CSAT %,
+  // reads the saved Team Overall figure, so each point on the chart uses the same definition.
   const overview = computeOverviewTeam(agentMetrics, kpiTargets, teamMetrics);
   const teamOverride = (m: MetricDef): number | null => {
     if (!overview.hasAgents) return null;
-    if (m.name === 'CSAT %') return overview.csatPct;
     if (m.name === 'KSCAT %') return overview.kscatPct;
     return null;
   };

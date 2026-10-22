@@ -35,7 +35,10 @@ interface AgentMetric {
 }
 
 const METRICS: AgentMetric[] = [
-  { label: 'CSAT %', short: 'CSAT', field: 'csat_percent', floorKeys: ['CSAT adjusted with calls, %', 'CSAT %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, rawPct: true, countBased: true,
+  // CSAT % = the agent's overall CSAT from the Metrics CSV ("CSAT adjusted with calls, %", chat + calls),
+  // the same definition as the floor average it is compared with and the Team & Floor chart.
+  // (The survey-only CSAT is still shown in "My Survey Results" and the Survey CSAT Goal Helper.)
+  { label: 'CSAT %', short: 'CSAT', field: 'csat_adjusted', floorKeys: ['CSAT adjusted with calls, %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true,
     tip: 'Read your DSAT conversations, find the repeated reason, and finish every chat with a clear summary and next step.' },
   { label: 'KSCAT %', short: 'KSCAT', field: 'kscat_percent', floorKeys: ['KSCAT %'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, rawPct: true, countBased: true,
     tip: 'Ask your team leader which of your karma-survey conversations scored best and repeat that approach.' },
@@ -189,7 +192,7 @@ export function AgentView({
   const phone = { c: Number(row.phone_csat) || 0, k: Number(row.phone_kscat) || 0, d: Number(row.phone_dsat) || 0 };
   const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 
-  // ----- CSAT goal helper (same formula as the Overview tab: CSAT / (CSAT + DSAT)) -----
+  // ----- Survey CSAT goal helper (survey formula: CSAT / (CSAT + DSAT)) -----
   const csatDef = METRICS[0];
   const csatTarget = resolveTarget(kpiTargets[csatDef.targetKey], csatDef.defaultTarget);
   const csatNow = pct(c, c + d);
@@ -473,9 +476,9 @@ export function AgentView({
         <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-emerald-500" /> CSAT Goal Helper
+              <Calculator className="h-5 w-5 text-emerald-500" /> Survey CSAT Goal Helper
             </CardTitle>
-            <CardDescription className="text-xs">See what it takes to reach a CSAT % goal (CSAT ÷ (CSAT + DSAT))</CardDescription>
+            <CardDescription className="text-xs">See what it takes to reach a survey CSAT % goal (survey CSAT ÷ (CSAT + DSAT)). Your overall CSAT % above also includes calls.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-xs">
             <div className="flex items-center gap-3">

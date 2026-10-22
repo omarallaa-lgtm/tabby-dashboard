@@ -195,6 +195,15 @@ export function AgentDataTab() {
 
       const allEmails = Array.from(new Set([...Object.keys(kscatData), ...Object.keys(agentMetrics), ...Object.keys(pvfData)]));
 
+      // Each agent's overall CSAT ("CSAT adjusted with calls, %") from the Metrics CSV.
+      // Matched loosely (case / spaces) in case the export spells it slightly differently.
+      const norm = (t: string) => t.toLowerCase().replace(/[^a-z%]/g, '');
+      const CSAT_ADJ = norm('CSAT adjusted with calls, %');
+      const overallCsatOf = (m: Record<string, number>): number | null => {
+        const key = Object.keys(m).find((name) => norm(name) === CSAT_ADJ);
+        return key !== undefined && Number.isFinite(m[key]) ? m[key] : null;
+      };
+
       const combinedRecords = allEmails.map((email) => {
         const k = kscatData[email] || {};
         const m = agentMetrics[email] || {};
@@ -211,6 +220,7 @@ export function AgentDataTab() {
           total_wo_karma: k.totalWoKarma || 0,
           kscat_percent: k.kscatPercent || 0,
           csat_percent: k.csatPercent || 0,
+          csat_adjusted: overallCsatOf(m),
           variance: k.variance || 0,
           chat_csat: k.chatCsat || 0,
           chat_kscat: k.chatKscat || 0,
@@ -234,7 +244,16 @@ export function AgentDataTab() {
         };
       });
 
-      await supabase.from('agent_metrics').upsert(combinedRecords, { onConflict: 'period_id,agent_email' });
+      let { error: agentErr } = await supabase.from('agent_metrics').upsert(combinedRecords, { onConflict: 'period_id,agent_email' });
+
+      // If the csat_adjusted column hasn't been added in Supabase yet, save everything else instead of failing
+      let csatColumnMissing = false;
+      if (agentErr && /csat_adjusted/i.test(agentErr.message || '')) {
+        csatColumnMissing = true;
+        const withoutAdj = combinedRecords.map(({ csat_adjusted, ...rest }) => rest);
+        ({ error: agentErr } = await supabase.from('agent_metrics').upsert(withoutAdj, { onConflict: 'period_id,agent_email' }));
+      }
+      if (agentErr) throw new Error(agentErr.message || 'Could not save agent metrics');
 
       // Save Team & Floor Aggregates
       const aggRecords: any[] = [];
@@ -273,7 +292,12 @@ export function AgentDataTab() {
 
       playSaveChime();
       setIsError(false);
-      setStatusMsg(`✓ Success! Saved ${combinedRecords.length} records for date period ${periodId}.`);
+      setStatusMsg(
+        `✓ Success! Saved ${combinedRecords.length} records for date period ${periodId}.` +
+          (csatColumnMissing
+            ? ' ⚠ Per-agent overall CSAT was not saved: add the "csat_adjusted" column to agent_metrics in Supabase, then upload again.'
+            : '')
+      );
       fetchHistory();
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (e: any) {

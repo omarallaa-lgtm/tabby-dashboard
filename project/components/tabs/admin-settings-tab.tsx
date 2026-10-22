@@ -8,17 +8,15 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { 
   ShieldCheck, Users, Key, Trash2, Check, RefreshCw, AlertCircle, 
-  CheckCircle2, LayoutDashboard, BarChart3, Calculator, MessageSquare, 
-  Mail, MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, Calendar, UserCheck
+  CheckCircle2, LayoutDashboard, Calculator, MessageSquare, 
+  Mail, MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, UserCheck
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
 const ALL_SYSTEM_TABS = [
   { key: 'overview', label: 'Executive Overview', icon: LayoutDashboard },
-  { key: 'metrics', label: 'Performance Analytics', icon: BarChart3 },
   { key: 'team', label: 'Team & Floor Insights', icon: Users },
   { key: 'my-performance', label: 'My Performance', icon: UserCheck },
-  { key: 'schedule', label: 'Schedule Roster', icon: Calendar },
   { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
   { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
   { key: 'email-templates', label: 'Email Escalations', icon: Mail },
@@ -126,7 +124,7 @@ export function AdminSettingsTab() {
     if (!newEmail.trim() || !newPassword.trim()) return;
 
     const cleanEmail = newEmail.trim().toLowerCase();
-    const defaultTabs = newRole === 'Admin' ? ALL_SYSTEM_TABS.map((t) => t.key) : ['overview', 'metrics', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates'];
+    const defaultTabs = newRole === 'Admin' ? ALL_SYSTEM_TABS.map((t) => t.key) : ['overview', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates'];
 
     const newRecord = {
       user_email: cleanEmail,

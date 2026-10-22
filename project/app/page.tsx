@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
-  AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck,
+  AlertCircle, LayoutDashboard, Users2, Database, ShieldCheck,
   MessageSquarePlus, Megaphone, LogOut, Clock, KeyRound, Check,
   Eye, EyeOff, ArrowRight, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, Calendar, UserCheck
+  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, UserCheck
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
-import { MetricsTab } from '@/components/tabs/metrics-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
 import { MyPerformanceTab } from '@/components/tabs/my-performance-tab';
 import { KnetCalculatorTab } from '@/components/tabs/knet-calculator-tab';
@@ -21,7 +20,6 @@ import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
-import { ScheduleTab } from '@/components/tabs/schedule-tab';
 import { DayNightToggle } from '@/components/day-night-toggle';
 import { DisplayModeSwitch } from '@/components/display-mode-switch';
 import { supabase, useMetrics } from '@/lib/metrics-context';
@@ -406,7 +404,7 @@ export default function Home() {
         team_name: 'Support Tier 1',
         floor_name: 'Floor 1',
         account_status: 'Active' as const,
-        allowed_tabs: ['overview', 'metrics', 'team', 'my-performance', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
+        allowed_tabs: ['overview', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
       };
     } else {
       try {
@@ -583,7 +581,7 @@ export default function Home() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loginBusy}
-                  className="h-10 text-[13px] bg-slate-950/45 border-white/10 text-white placeholder:text-slate-500 rounded-lg px-3 focus-visible:border-emerald-400/70 focus-visible:ring-1 focus-visible:ring-emerald-400/60"
+                  className="h-10 text-[13px] bg-white border-white/20 text-slate-900 placeholder:text-slate-400 rounded-lg px-3 focus-visible:border-emerald-400/70 focus-visible:ring-1 focus-visible:ring-emerald-400/60"
                   required
                 />
               </div>
@@ -599,14 +597,14 @@ export default function Home() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={loginBusy}
-                    className="h-10 text-[13px] bg-slate-950/45 border-white/10 text-white placeholder:text-slate-500 rounded-lg pl-3 pr-10 focus-visible:border-emerald-400/70 focus-visible:ring-1 focus-visible:ring-emerald-400/60"
+                    className="h-10 text-[13px] bg-white border-white/20 text-slate-900 placeholder:text-slate-400 rounded-lg pl-3 pr-10 focus-visible:border-emerald-400/70 focus-visible:ring-1 focus-visible:ring-emerald-400/60"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? 'Hide passcode' : 'Show passcode'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-600 transition-colors"
                   >
                     {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                   </button>
@@ -696,7 +694,7 @@ export default function Home() {
                       placeholder="user@tabby.ai"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      className="h-10 text-xs bg-slate-950 border-slate-800 text-white"
+                      className="h-10 text-xs bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -708,7 +706,7 @@ export default function Home() {
                       placeholder="e.g. Forgot password / temporary password expired"
                       value={forgotDetails}
                       onChange={(e) => setForgotDetails(e.target.value)}
-                      className="h-10 text-xs bg-slate-950 border-slate-800 text-white"
+                      className="h-10 text-xs bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
                     />
                   </div>
 
@@ -739,15 +737,13 @@ export default function Home() {
   // ============================================================
   // DASHBOARD
   // ============================================================
-  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'metrics', 'team', 'my-performance', 'schedule', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
+  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
   const isTabAllowed = (tabKey: string) => allowedTabs.includes(tabKey) || currentUser.role === 'Admin';
 
   const navItems = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { key: 'metrics', label: 'Performance Analytics', icon: BarChart3 },
     { key: 'team', label: 'Team & Floor Insights', icon: Users2 },
     { key: 'my-performance', label: 'My Performance', icon: UserCheck },
-    { key: 'schedule', label: 'Schedule Roster', icon: Calendar },
     { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
     { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
     { key: 'email-templates', label: 'Email Escalations', icon: Mail },
@@ -1032,10 +1028,8 @@ export default function Home() {
           {/* MAIN TAB CONTENT (key = tab, so each tab starts at the top and fades in) */}
           <main key={shownTab} className="tab-fade-in flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden">
             {shownTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
-            {shownTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
             {shownTab === 'team' && isTabAllowed('team') && <TeamTab />}
             {shownTab === 'my-performance' && isTabAllowed('my-performance') && <MyPerformanceTab />}
-            {shownTab === 'schedule' && isTabAllowed('schedule') && <ScheduleTab />}
             {shownTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
             {shownTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
             {shownTab === 'email-templates' && isTabAllowed('email-templates') && <EmailTemplatesTab />}
