@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useMetrics } from '@/lib/metrics-context';
+import { supabase, useMetrics } from '@/lib/metrics-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -17,19 +17,56 @@ import {
 interface MetricDef {
   name: string;
   short: string;
-  keys: string[];
+  keys: string[]; // floor / team keys in the saved Team & Floor figures
   targetKey: string;
   defaultTarget: number;
   isPct: boolean;
   lowerIsBetter?: boolean;
+  survey?: SurveyKind; // team value is calculated from the agents' survey counts (like the Overview tables)
 }
 
+// ---------------------------------------------------------------------------
+// Survey-based percentages, exactly like the Overview tables:
+//   CSAT %       = CSAT / (CSAT + DSAT)                 (all channels, "1. Overall Performance Table")
+//   Chat CSAT %  = chat CSAT / (chat CSAT + chat DSAT)  ("4. Chat Performance Table")
+//   Phone CSAT % = phone CSAT / (phone CSAT + phone DSAT) ("5. Phone Performance Table")
+//   KSCAT %      = CSAT / (CSAT + KSCAT + DSAT)
+// ---------------------------------------------------------------------------
+export type SurveyKind = 'csat' | 'chat' | 'phone' | 'kscat';
+
+export const CSAT_COLORS = { overall: '#10b981', chat: '#38bdf8', phone: '#a78bfa' };
+
+export const surveyPct = (rows: any[], kind: SurveyKind): number | null => {
+  let c = 0;
+  let k = 0;
+  let d = 0;
+  const prefix = kind === 'chat' ? 'chat_' : kind === 'phone' ? 'phone_' : '';
+  rows.forEach((r) => {
+    if (!r) return;
+    c += Number(r[`${prefix}csat`]) || 0;
+    k += Number(r[`${prefix}kscat`]) || 0;
+    d += Number(r[`${prefix}dsat`]) || 0;
+  });
+  if (kind === 'kscat') return c + k + d > 0 ? (c / (c + k + d)) * 100 : null;
+  return c + d > 0 ? (c / (c + d)) * 100 : null;
+};
+
+// The roster selected in the Overview tab (gear icon). Empty / invalid roster = all agents.
+export const rosterEmails = (agentMetrics: any[], kpiTargets: Record<string, any>, teamMetrics: Record<string, any>): Set<string> => {
+  const allEmails = Array.from(new Set(agentMetrics.map((a: any) => a.agent_email)));
+  const globalRoster = kpiTargets.active_roster_emails || teamMetrics.active_roster_emails;
+  if (Array.isArray(globalRoster) && globalRoster.length > 0) {
+    const valid = globalRoster.filter((e: string) => allEmails.includes(e));
+    if (valid.length > 0) return new Set(valid);
+  }
+  return new Set(allEmails);
+};
+
 const METRICS: MetricDef[] = [
-  // CSAT = the official overall team CSAT from the Metrics CSV (chat + calls).
-  // No fallback to 'CSAT %': that one is calculated from the KSCAT survey file (mostly chat surveys),
-  // so mixing the two made the line jump whenever a new file was uploaded.
-  { name: 'CSAT %', short: 'CSAT', keys: ['CSAT adjusted with calls, %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true },
-  { name: 'KSCAT %', short: 'KSCAT', keys: ['KSCAT %', 'kscatPercent'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true },
+  // CSAT % and KSCAT % are calculated from the survey counts of every upload (selected roster),
+  // exactly like the Overview tables, so old and new points always use the same formula.
+  { name: 'CSAT %', short: 'CSAT', keys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, survey: 'csat' },
+  { name: 'KSCAT %', short: 'KSCAT', keys: ['KSCAT %', 'kscatPercent'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, survey: 'kscat' },
   { name: 'Adherence %', short: 'Adherence', keys: ['Adherence, %', 'adherencePercent'], targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
   { name: 'AHT (Average Handling Time)', short: 'AHT', keys: ['Average handling time', 'aht'], targetKey: 'aht', defaultTarget: 5, isPct: false, lowerIsBetter: true },
   { name: 'ABT (Average Basket Time)', short: 'ABT', keys: ['Average basket time', 'abt'], targetKey: 'abt', defaultTarget: 14, isPct: false, lowerIsBetter: true },
@@ -37,6 +74,12 @@ const METRICS: MetricDef[] = [
   { name: 'Escalation Rate %', short: 'Escalation', keys: ['Escalation rate %', 'escalationRate'], targetKey: 'escalationRate', defaultTarget: 4.5, isPct: true, lowerIsBetter: true },
   { name: 'Deescalation Rate %', short: 'Deescalation', keys: ['Deescalation rate %', 'deescalationRate'], targetKey: 'deescalationRate', defaultTarget: 4.0, isPct: true },
   { name: 'FCR %', short: 'FCR', keys: ['FCR, %', 'fcrPercent'], targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
+];
+
+// Extra scorecard rows shown under CSAT % (clicking them opens the CSAT channel chart)
+const CHANNEL_ROWS: MetricDef[] = [
+  { name: 'Chat CSAT %', short: 'Chat CSAT', keys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, survey: 'chat' },
+  { name: 'Phone CSAT %', short: 'Phone CSAT', keys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, survey: 'phone' },
 ];
 
 export const COLORS = { team: '#10b981', floor: '#60a5fa', target: '#f59e0b' };
@@ -68,37 +111,6 @@ export const resolveTarget = (raw: any, fallback: number): number => {
 // A target far away from the real data (for example 1% when the team is at 66%) is almost certainly a data entry mistake
 export const isPlausibleTarget = (target: number, ref: number | null) =>
   ref == null || ref <= 0 || (target >= ref * 0.3 && target <= ref * 3);
-
-// Same calculation as the Overview tab: Team CSAT % and KSCAT % are worked out from the agent rows
-// of the selected (active) roster, not read from the saved Team Overall figures.
-const computeOverviewTeam = (agentMetrics: any[], kpiTargets: Record<string, any>, teamMetrics: Record<string, any>) => {
-  const unique = new Map<string, any>();
-  agentMetrics.forEach((a: any) => {
-    if (!unique.has(a.agent_email)) unique.set(a.agent_email, a);
-  });
-  const agents = Array.from(unique.values());
-  const allEmails = agents.map((a: any) => a.agent_email);
-
-  const globalRoster = kpiTargets.active_roster_emails || teamMetrics.active_roster_emails;
-  let activeEmails: string[] = allEmails;
-  if (Array.isArray(globalRoster) && globalRoster.length > 0) {
-    const valid = globalRoster.filter((e: string) => allEmails.includes(e));
-    if (valid.length > 0) activeEmails = valid;
-  }
-
-  const filtered = agents.filter((a: any) => activeEmails.includes(a.agent_email));
-  const csat = filtered.reduce((sum: number, a: any) => sum + (a.csat || 0), 0);
-  const kscat = filtered.reduce((sum: number, a: any) => sum + (a.kscat || 0), 0);
-  const dsat = filtered.reduce((sum: number, a: any) => sum + (a.dsat || 0), 0);
-  const total = csat + kscat + dsat;
-  const woKarma = csat + dsat;
-
-  return {
-    hasAgents: filtered.length > 0 && total > 0,
-    csatPct: woKarma > 0 ? (csat / woKarma) * 100 : 0,
-    kscatPct: total > 0 ? (csat / total) * 100 : 0,
-  };
-};
 
 export const fmt = (n: number | null | undefined, isPct: boolean) => {
   if (n == null || isNaN(n)) return '-';
@@ -160,28 +172,41 @@ export interface ChartPoint {
   floor: number | null;
 }
 
+export interface ChartSeries {
+  key: string;
+  label: string; // legend text
+  short?: string; // tooltip text (defaults to label)
+  color: string;
+  values: (number | null)[]; // one value per period (null = no data that day)
+  area?: boolean; // soft gradient under the line
+  width?: number; // line width
+}
+
 // ---------------------------------------------------------------------------
-// Interactive trend chart (responsive, hover tooltip, clickable legend)
+// Interactive trend chart: any number of lines (responsive, hover tooltip, clickable legend)
 // ---------------------------------------------------------------------------
-export function TrendChart({
-  points,
+export function MultiTrendChart({
+  periods,
+  series,
   target,
   isPct,
   lowerIsBetter,
-  teamLabel = 'Team Score',
-  floorLabel = 'Floor Average',
+  gapPair,
+  emptyText = 'No data for this metric in the daily backups yet',
 }: {
-  points: ChartPoint[];
+  periods: string[];
+  series: ChartSeries[];
   target: number | null;
   isPct: boolean;
   lowerIsBetter: boolean;
-  teamLabel?: string;
-  floorLabel?: string;
+  gapPair?: [string, string]; // show "Gap vs <second>" in the tooltip
+  emptyText?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(760);
   const [hover, setHover] = useState<number | null>(null);
-  const [show, setShow] = useState({ team: true, floor: true, target: true });
+  const [hidden, setHidden] = useState<Record<string, boolean>>({});
+  const visible = (key: string) => !hidden[key];
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -207,15 +232,14 @@ export function TrendChart({
   const padB = 34;
   const plotW = Math.max(width - padL - padR, 10);
   const plotH = H - padT - padB;
-  const n = points.length;
+  const n = periods.length;
 
   // ----- y domain from the visible series only -----
   const vals: number[] = [];
-  points.forEach((p) => {
-    if (show.team && p.team != null) vals.push(p.team);
-    if (show.floor && p.floor != null) vals.push(p.floor);
+  series.forEach((s) => {
+    if (visible(s.key)) s.values.forEach((v) => v != null && vals.push(v));
   });
-  if (show.target && target != null) vals.push(target);
+  if (visible('target') && target != null) vals.push(target);
 
   let lo = 0;
   let hi = 100;
@@ -239,11 +263,10 @@ export function TrendChart({
   const xOf = (i: number) => (n === 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW);
   const baseY = padT + plotH;
 
-  const buildRuns = (key: 'team' | 'floor') => {
+  const buildRuns = (values: (number | null)[]) => {
     const runs: { x: number; y: number }[][] = [];
     let cur: { x: number; y: number }[] = [];
-    points.forEach((p, i) => {
-      const v = p[key];
+    values.forEach((v, i) => {
       if (v == null) {
         if (cur.length) runs.push(cur);
         cur = [];
@@ -255,24 +278,31 @@ export function TrendChart({
     return runs;
   };
 
-  const teamRuns = buildRuns('team');
-  const floorRuns = buildRuns('floor');
-  const teamPath = teamRuns.map(monotonePath).join(' ');
-  const floorPath = floorRuns.map(monotonePath).join(' ');
-  const teamArea = teamRuns
-    .filter((r) => r.length > 1)
-    .map((r) => `${monotonePath(r)} L ${r[r.length - 1].x.toFixed(1)} ${baseY} L ${r[0].x.toFixed(1)} ${baseY} Z`)
-    .join(' ');
+  const drawn = series.map((s) => {
+    const runs = buildRuns(s.values);
+    return {
+      s,
+      path: runs.map(monotonePath).join(' '),
+      area: s.area
+        ? runs
+            .filter((r) => r.length > 1)
+            .map((r) => `${monotonePath(r)} L ${r[r.length - 1].x.toFixed(1)} ${baseY} L ${r[0].x.toFixed(1)} ${baseY} Z`)
+            .join(' ')
+        : '',
+    };
+  });
+  // first series is drawn last so it sits on top
+  const drawOrder = [...drawn].reverse();
 
   const maxLabels = Math.max(2, Math.floor(plotW / 64));
   const every = Math.max(1, Math.ceil(n / maxLabels));
   const dotR = n > 24 ? 2 : 3.5;
 
-  const hasAnyData = points.some((p) => p.team != null || p.floor != null);
+  const hasAnyData = series.some((s) => s.values.some((v) => v != null));
 
   const onMove = (e: React.PointerEvent<SVGRectElement>) => {
     const svg = e.currentTarget.ownerSVGElement;
-    if (!svg) return;
+    if (!svg || n === 0) return;
     const rect = svg.getBoundingClientRect();
     const px = e.clientX - rect.left;
     let idx = n === 1 ? 0 : Math.round(((px - padL) / plotW) * (n - 1));
@@ -280,20 +310,26 @@ export function TrendChart({
     setHover(idx);
   };
 
-  const hp = hover != null ? points[hover] : null;
   const hx = hover != null ? xOf(hover) : 0;
   const tipLeft = Math.max(4, hx > width * 0.6 ? hx - 196 : hx + 14);
-  const gap = hp && hp.team != null && hp.floor != null ? hp.team - hp.floor : null;
+  const valueAt = (key: string, i: number) => series.find((s) => s.key === key)?.values[i] ?? null;
+  let gap: number | null = null;
+  if (hover != null && gapPair) {
+    const a = valueAt(gapPair[0], hover);
+    const b = valueAt(gapPair[1], hover);
+    gap = a != null && b != null ? a - b : null;
+  }
   const gapGood = gap == null ? null : lowerIsBetter ? gap <= 0 : gap >= 0;
+  const gapName = gapPair ? (series.find((s) => s.key === gapPair[1])?.short || gapPair[1]).toLowerCase() : '';
 
-  const legendBtn = (key: 'team' | 'floor' | 'target', label: string, color: string) => (
+  const legendBtn = (key: string, label: string, color: string) => (
     <button
       key={key}
       type="button"
-      onClick={() => setShow((s) => ({ ...s, [key]: !s[key] }))}
+      onClick={() => setHidden((h) => ({ ...h, [key]: !h[key] }))}
       title="Click to show / hide"
       className={`flex items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-semibold transition-opacity ${
-        show[key] ? 'border-slate-300 dark:border-slate-700 opacity-100' : 'border-dashed border-slate-300 dark:border-slate-700 opacity-40'
+        visible(key) ? 'border-slate-300 dark:border-slate-700 opacity-100' : 'border-dashed border-slate-300 dark:border-slate-700 opacity-40'
       }`}
     >
       <span className="h-2.5 w-2.5 rounded-sm inline-block shrink-0" style={{ background: color }} />
@@ -304,8 +340,7 @@ export function TrendChart({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        {legendBtn('team', teamLabel, COLORS.team)}
-        {legendBtn('floor', floorLabel, COLORS.floor)}
+        {series.map((s) => legendBtn(s.key, s.label, s.color))}
         {target != null && legendBtn('target', `Target ${fmtTick(target, isPct)}`, COLORS.target)}
         <span className="text-[11px] text-slate-400 ml-auto hidden sm:inline">Hover the chart for details · click a label to hide it</span>
       </div>
@@ -317,13 +352,17 @@ export function TrendChart({
           viewBox={`0 0 ${width} ${H}`}
           className="block text-slate-500 dark:text-slate-400"
           role="img"
-          aria-label="Team versus floor trend chart"
+          aria-label="Trend chart"
         >
           <defs>
-            <linearGradient id="tt-area-team" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor={COLORS.team} stopOpacity="0.28" />
-              <stop offset="1" stopColor={COLORS.team} stopOpacity="0" />
-            </linearGradient>
+            {series
+              .filter((s) => s.area)
+              .map((s) => (
+                <linearGradient key={s.key} id={`tt-area-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor={s.color} stopOpacity="0.28" />
+                  <stop offset="1" stopColor={s.color} stopOpacity="0" />
+                </linearGradient>
+              ))}
           </defs>
 
           {/* grid + y labels */}
@@ -337,16 +376,16 @@ export function TrendChart({
           ))}
 
           {/* x labels */}
-          {points.map((p, i) =>
+          {periods.map((p, i) =>
             i % every === 0 ? (
               <text key={i} x={xOf(i)} y={H - 12} textAnchor="middle" fill="currentColor" fillOpacity="0.75" fontSize="10.5" fontFamily="sans-serif">
-                {fmtPeriod(p.period)}
+                {fmtPeriod(p)}
               </text>
             ) : null
           )}
 
           {/* target */}
-          {show.target && target != null && (
+          {visible('target') && target != null && (
             <g>
               <line x1={padL} y1={yOf(target)} x2={width - padR} y2={yOf(target)} stroke={COLORS.target} strokeWidth="1.5" strokeDasharray="5 4" />
               <text x={width - padR} y={yOf(target) - 5} textAnchor="end" fill={COLORS.target} fontSize="10.5" fontWeight="600" fontFamily="sans-serif">
@@ -355,41 +394,35 @@ export function TrendChart({
             </g>
           )}
 
-          {/* team area + lines */}
-          {show.team && teamArea && <path d={teamArea} fill="url(#tt-area-team)" />}
-          {show.floor && floorPath && (
-            <path d={floorPath} fill="none" stroke={COLORS.floor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          {/* areas, lines, dots */}
+          {drawOrder.map(({ s, area }) => (visible(s.key) && area ? <path key={`a${s.key}`} d={area} fill={`url(#tt-area-${s.key})`} /> : null))}
+          {drawOrder.map(({ s, path }) =>
+            visible(s.key) && path ? (
+              <path key={`l${s.key}`} d={path} fill="none" stroke={s.color} strokeWidth={s.width ?? 2.5} strokeLinecap="round" strokeLinejoin="round" />
+            ) : null
           )}
-          {show.team && teamPath && (
-            <path d={teamPath} fill="none" stroke={COLORS.team} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {drawOrder.map(({ s }) =>
+            visible(s.key)
+              ? s.values.map((v, i) => (v != null ? <circle key={`d${s.key}${i}`} cx={xOf(i)} cy={yOf(v)} r={dotR} fill={s.color} /> : null))
+              : null
           )}
-
-          {/* dots */}
-          {show.floor &&
-            points.map((p, i) =>
-              p.floor != null ? <circle key={`f${i}`} cx={xOf(i)} cy={yOf(p.floor)} r={dotR} fill={COLORS.floor} /> : null
-            )}
-          {show.team &&
-            points.map((p, i) =>
-              p.team != null ? <circle key={`t${i}`} cx={xOf(i)} cy={yOf(p.team)} r={dotR} fill={COLORS.team} /> : null
-            )}
 
           {/* hover crosshair */}
-          {hp && (
+          {hover != null && (
             <g pointerEvents="none">
               <line x1={hx} y1={padT} x2={hx} y2={baseY} stroke="currentColor" strokeOpacity="0.35" strokeDasharray="3 3" />
-              {show.floor && hp.floor != null && (
-                <circle cx={hx} cy={yOf(hp.floor)} r="5.5" fill={COLORS.floor} stroke="#fff" strokeWidth="2" />
-              )}
-              {show.team && hp.team != null && (
-                <circle cx={hx} cy={yOf(hp.team)} r="5.5" fill={COLORS.team} stroke="#fff" strokeWidth="2" />
-              )}
+              {drawOrder.map(({ s }) => {
+                const v = s.values[hover];
+                return visible(s.key) && v != null ? (
+                  <circle key={`h${s.key}`} cx={hx} cy={yOf(v)} r="5.5" fill={s.color} stroke="#fff" strokeWidth="2" />
+                ) : null;
+              })}
             </g>
           )}
 
           {!hasAnyData && (
             <text x={width / 2} y={H / 2} textAnchor="middle" fill="currentColor" fillOpacity="0.7" fontSize="13" fontFamily="sans-serif">
-              No data for this metric in the daily backups yet
+              {emptyText}
             </text>
           )}
 
@@ -406,21 +439,22 @@ export function TrendChart({
           />
         </svg>
 
-        {hp && (
+        {hover != null && (
           <div
             className="pointer-events-none absolute z-10 w-[182px] rounded-lg border border-white/15 p-2.5 text-xs text-slate-100 shadow-lg"
             style={{ left: tipLeft, top: padT, background: 'rgba(11, 18, 32, 0.96)' }}
           >
-            <div className="font-bold mb-1.5">{hp.period}</div>
+            <div className="font-bold mb-1.5">{periods[hover]}</div>
             <div className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.team }} />{teamLabel === 'Team Score' ? 'Team' : teamLabel}</span>
-                <span className="font-bold">{fmt(hp.team, isPct)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.floor }} />{floorLabel === 'Floor Average' ? 'Floor' : floorLabel}</span>
-                <span className="font-bold">{fmt(hp.floor, isPct)}</span>
-              </div>
+              {series.map((s) => (
+                <div key={s.key} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: s.color }} />
+                    {s.short || s.label}
+                  </span>
+                  <span className="font-bold">{fmt(s.values[hover], isPct)}</span>
+                </div>
+              ))}
               {target != null && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORS.target }} />Target</span>
@@ -429,7 +463,7 @@ export function TrendChart({
               )}
               {gap != null && (
                 <div className="flex items-center justify-between gap-2 pt-1 mt-1 border-t border-white/10">
-                  <span>Gap vs floor</span>
+                  <span>Gap vs {gapName}</span>
                   <span className={`font-bold ${gapGood ? 'text-emerald-400' : 'text-red-400'}`}>
                     {gap > 0 ? '+' : ''}
                     {Number(gap.toFixed(2))}
@@ -442,6 +476,69 @@ export function TrendChart({
         )}
       </div>
     </div>
+  );
+}
+
+// Two-line version (team / me vs floor), used for every metric except the CSAT channel view
+export function TrendChart({
+  points,
+  target,
+  isPct,
+  lowerIsBetter,
+  teamLabel = 'Team Score',
+  floorLabel = 'Floor Average',
+}: {
+  points: ChartPoint[];
+  target: number | null;
+  isPct: boolean;
+  lowerIsBetter: boolean;
+  teamLabel?: string;
+  floorLabel?: string;
+}) {
+  return (
+    <MultiTrendChart
+      periods={points.map((p) => p.period)}
+      series={[
+        { key: 'team', label: teamLabel, short: teamLabel === 'Team Score' ? 'Team' : teamLabel, color: COLORS.team, values: points.map((p) => p.team), area: true, width: 3 },
+        { key: 'floor', label: floorLabel, short: floorLabel === 'Floor Average' ? 'Floor' : floorLabel, color: COLORS.floor, values: points.map((p) => p.floor), width: 2.5 },
+      ]}
+      target={target}
+      isPct={isPct}
+      lowerIsBetter={lowerIsBetter}
+      gapPair={['team', 'floor']}
+    />
+  );
+}
+
+// Overall / Chat / Phone CSAT % lines (same formula as the Overview tables: CSAT ÷ (CSAT + DSAT))
+export function CsatChannelChart({
+  periods,
+  overall,
+  chat,
+  phone,
+  target,
+  overallLabel = 'Overall CSAT',
+}: {
+  periods: string[];
+  overall: (number | null)[];
+  chat: (number | null)[];
+  phone: (number | null)[];
+  target: number | null;
+  overallLabel?: string;
+}) {
+  return (
+    <MultiTrendChart
+      periods={periods}
+      series={[
+        { key: 'overall', label: overallLabel, short: 'Overall', color: CSAT_COLORS.overall, values: overall, area: true, width: 3 },
+        { key: 'chat', label: 'Chat CSAT', short: 'Chat', color: CSAT_COLORS.chat, values: chat, width: 2.5 },
+        { key: 'phone', label: 'Phone CSAT', short: 'Phone', color: CSAT_COLORS.phone, values: phone, width: 2.5 },
+      ]}
+      target={target}
+      isPct
+      lowerIsBetter={false}
+      emptyText="No survey data in the daily backups yet"
+    />
   );
 }
 
@@ -476,34 +573,99 @@ export function TeamTab() {
   const { agentMetrics = [], teamMetrics = {}, floorAverages = {}, kpiTargets = {}, dailyProgressData = [] } = useMetrics() as any;
   const [graphMetricKey, setGraphMetricKey] = useState('CSAT %');
 
+  // Survey counts of every agent for every upload (to rebuild CSAT / Chat / Phone / KSCAT history)
+  const [surveyRows, setSurveyRows] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const all: any[] = [];
+        for (let from = 0; from < 50000; from += 1000) {
+          const { data, error } = await supabase
+            .from('agent_metrics')
+            .select('period_id, created_at, agent_email, csat, kscat, dsat, chat_csat, chat_kscat, chat_dsat, phone_csat, phone_kscat, phone_dsat')
+            .range(from, from + 999);
+          if (error) throw error;
+          all.push(...(data || []));
+          if (!data || data.length < 1000) break;
+        }
+        if (!cancelled) setSurveyRows(all);
+      } catch (e) {
+        console.error('Could not load survey history:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agentMetrics]);
+
   const hasData = Object.keys(teamMetrics).length > 0 || agentMetrics.length > 0;
   const metric = METRICS.find((c) => c.name === graphMetricKey) || METRICS[0];
+  const isCsatView = metric.survey === 'csat';
 
-  // KSCAT % uses the Overview calculation (selected roster); every other metric, including CSAT %,
-  // reads the saved Team Overall figure, so each point on the chart uses the same definition.
-  const overview = computeOverviewTeam(agentMetrics, kpiTargets, teamMetrics);
-  const teamOverride = (m: MetricDef): number | null => {
-    if (!overview.hasAgents) return null;
-    if (m.name === 'KSCAT %') return overview.kscatPct;
-    return null;
+  // ----- survey history: selected roster, grouped by upload date -----
+  const roster = rosterEmails(agentMetrics, kpiTargets, teamMetrics);
+  const rowsByPeriod = new Map<string, any[]>();
+  surveyRows.forEach((r: any) => {
+    if (!roster.has(r.agent_email)) return;
+    const period = String(r.period_id || String(r.created_at || '').slice(0, 10));
+    if (!period) return;
+    if (!rowsByPeriod.has(period)) rowsByPeriod.set(period, []);
+    rowsByPeriod.get(period)!.push(r);
+  });
+  const surveyPeriods = Array.from(rowsByPeriod.keys()).sort((a, b) => a.localeCompare(b));
+  const surveySeries = (kind: SurveyKind) => surveyPeriods.map((p) => surveyPct(rowsByPeriod.get(p) || [], kind));
+
+  // fallback while the history loads: the latest row of each agent (same as the Overview tab)
+  const latestRosterRows = (() => {
+    const unique = new Map<string, any>();
+    agentMetrics.forEach((a: any) => {
+      if (!unique.has(a.agent_email)) unique.set(a.agent_email, a);
+    });
+    return Array.from(unique.values()).filter((a: any) => roster.has(a.agent_email));
+  })();
+
+  const lastNonNull = (vals: (number | null)[]) => {
+    for (let i = vals.length - 1; i >= 0; i--) if (vals[i] != null) return i;
+    return -1;
   };
-  const teamCurrent = (m: MetricDef): number | null => teamOverride(m) ?? getNum(teamMetrics, m.keys, m.isPct);
+  const latestAndPrevious = (vals: (number | null)[]) => {
+    const i = lastNonNull(vals);
+    let before: number | null = null;
+    for (let j = i - 1; j >= 0; j--)
+      if (vals[j] != null) {
+        before = vals[j];
+        break;
+      }
+    return { now: i < 0 ? null : vals[i], before };
+  };
 
-  // chart series for the selected metric (oldest -> newest)
-  const basePoints: ChartPoint[] = [...dailyProgressData]
-    .sort((a: any, b: any) => String(a.period).localeCompare(String(b.period)))
-    .map((d: any) => ({
-      period: String(d.period),
-      team: getNum(d.teamMetrics, metric.keys, metric.isPct),
-      floor: getNum(d.floorMetrics, metric.keys, metric.isPct),
-    }));
+  const surveyNow = (kind: SurveyKind) => {
+    const { now } = latestAndPrevious(surveySeries(kind));
+    return now ?? surveyPct(latestRosterRows, kind);
+  };
 
-  // the newest point shows the same Team number as the Overview tab; older days come from the saved daily backups
-  const liveTeam = teamOverride(metric);
-  const points: ChartPoint[] =
-    liveTeam != null && basePoints.length
-      ? basePoints.map((p, i) => (i === basePoints.length - 1 ? { ...p, team: liveTeam } : p))
-      : basePoints;
+  const teamCurrent = (m: MetricDef): number | null => (m.survey ? surveyNow(m.survey) : getNum(teamMetrics, m.keys, m.isPct));
+
+  // ----- chart series for the selected metric (oldest -> newest) -----
+  const floorByPeriod = new Map<string, Record<string, any>>();
+  const teamByPeriod = new Map<string, Record<string, any>>();
+  (dailyProgressData as any[]).forEach((d: any) => {
+    floorByPeriod.set(String(d.period), d.floorMetrics || {});
+    teamByPeriod.set(String(d.period), d.teamMetrics || {});
+  });
+  const allPeriods = Array.from(new Set([...Array.from(floorByPeriod.keys()), ...(metric.survey ? surveyPeriods : [])])).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const points: ChartPoint[] = allPeriods.map((period) => ({
+    period,
+    team: metric.survey
+      ? rowsByPeriod.has(period)
+        ? surveyPct(rowsByPeriod.get(period) || [], metric.survey)
+        : null
+      : getNum(teamByPeriod.get(period), metric.keys, metric.isPct),
+    floor: getNum(floorByPeriod.get(period), metric.keys, metric.isPct),
+  }));
 
   const lastIdx = (key: 'team' | 'floor') => {
     for (let i = points.length - 1; i >= 0; i--) if (points[i][key] != null) return i;
@@ -537,6 +699,22 @@ export function TeamTab() {
     const ref = teamCurrent(m) ?? getNum(floorAverages, m.keys, m.isPct);
     return !isPlausibleTarget(t, ref);
   });
+
+  // ----- CSAT channel view -----
+  const csatChannels = [
+    { kind: 'csat' as SurveyKind, label: 'Overall CSAT', color: CSAT_COLORS.overall, values: surveySeries('csat') },
+    { kind: 'chat' as SurveyKind, label: 'Chat CSAT', color: CSAT_COLORS.chat, values: surveySeries('chat') },
+    { kind: 'phone' as SurveyKind, label: 'Phone CSAT', color: CSAT_COLORS.phone, values: surveySeries('phone') },
+  ].map((c) => {
+    const { now, before } = latestAndPrevious(c.values);
+    return { ...c, now: now ?? surveyPct(latestRosterRows, c.kind), before };
+  });
+  const overallNow = csatChannels[0].now;
+  const csatTargetOk = isPlausibleTarget(targetValue, overallNow);
+  const csatMeeting = overallNow == null || !csatTargetOk ? null : overallNow >= targetValue;
+
+  // scorecard rows: CSAT %, then Chat / Phone CSAT %, then the rest
+  const scorecardRows: MetricDef[] = [METRICS[0], ...CHANNEL_ROWS, ...METRICS.slice(1)];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
@@ -582,94 +760,141 @@ export function TeamTab() {
                       : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:border-emerald-500/60'
                   }`}
                 >
-                  {m.short}
+                  {m.survey === 'csat' ? 'CSAT · Chat · Phone' : m.short}
                 </button>
               );
             })}
           </div>
 
           {/* KPI SUMMARY */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm" style={{ background: COLORS.team }} /> Team (latest)
-                </div>
-                <div className="text-2xl font-black" style={{ color: COLORS.team }}>{fmt(teamNow, metric.isPct)}</div>
-                {liveTeam != null ? (
-                  <span className="text-[11px] text-slate-400">Same value as the Overview tab</span>
-                ) : (
+          {isCsatView ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {csatChannels.map((c) => (
+                <Card key={c.kind} className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                  <CardContent className="p-4 space-y-1">
+                    <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: c.color }} /> {c.label} (latest)
+                    </div>
+                    <div className="text-2xl font-black" style={{ color: c.color }}>{fmt(c.now, true)}</div>
+                    <Delta now={c.now} before={c.before} isPct lowerIsBetter={false} />
+                  </CardContent>
+                </Card>
+              ))}
+
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4 space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
+                    <TargetIcon className="h-3 w-3" style={{ color: COLORS.target }} /> Target {csatTargetOk ? fmtTick(targetValue, true) : ''}
+                  </div>
+                  <div
+                    className={`text-xl font-black ${
+                      !csatTargetOk ? 'text-amber-500' : csatMeeting == null ? 'text-slate-400' : csatMeeting ? 'text-emerald-500' : 'text-red-500'
+                    }`}
+                  >
+                    {!csatTargetOk ? 'Check target' : csatMeeting == null ? '-' : csatMeeting ? 'Meeting target' : 'Missing target'}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {!csatTargetOk
+                      ? `Saved target is ${fmtTick(targetValue, true)}, which looks wrong`
+                      : overallNow == null
+                      ? 'Not enough data'
+                      : `Overall is ${Number(Math.abs(overallNow - targetValue).toFixed(2))} pts ${overallNow >= targetValue ? 'above' : 'below'} target`}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4 space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: COLORS.team }} /> Team (latest)
+                  </div>
+                  <div className="text-2xl font-black" style={{ color: COLORS.team }}>{fmt(teamNow, metric.isPct)}</div>
                   <Delta now={latestOf('team')} before={previousOf('team')} isPct={metric.isPct} lowerIsBetter={!!metric.lowerIsBetter} />
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm" style={{ background: COLORS.floor }} /> Floor average (latest)
-                </div>
-                <div className="text-2xl font-black" style={{ color: COLORS.floor }}>{fmt(floorNow, metric.isPct)}</div>
-                <Delta now={latestOf('floor')} before={previousOf('floor')} isPct={metric.isPct} lowerIsBetter={!!metric.lowerIsBetter} />
-              </CardContent>
-            </Card>
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4 space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: COLORS.floor }} /> Floor average (latest)
+                  </div>
+                  <div className="text-2xl font-black" style={{ color: COLORS.floor }}>{fmt(floorNow, metric.isPct)}</div>
+                  <Delta now={latestOf('floor')} before={previousOf('floor')} isPct={metric.isPct} lowerIsBetter={!!metric.lowerIsBetter} />
+                </CardContent>
+              </Card>
 
-            <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-bold uppercase text-slate-500">Gap vs floor</div>
-                <div className={`text-2xl font-black ${gapGood == null ? 'text-slate-400' : gapGood ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {gapNow == null ? '-' : `${gapNow > 0 ? '+' : ''}${Number(gapNow.toFixed(2))}${metric.isPct ? ' pts' : ''}`}
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  {gapGood == null ? 'Not enough data' : gapGood ? 'Team is ahead of the floor' : 'Team is behind the floor'}
-                  {metric.lowerIsBetter ? ' (lower is better)' : ''}
-                </div>
-              </CardContent>
-            </Card>
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4 space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Gap vs floor</div>
+                  <div className={`text-2xl font-black ${gapGood == null ? 'text-slate-400' : gapGood ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {gapNow == null ? '-' : `${gapNow > 0 ? '+' : ''}${Number(gapNow.toFixed(2))}${metric.isPct ? ' pts' : ''}`}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {gapGood == null ? 'Not enough data' : gapGood ? 'Team is ahead of the floor' : 'Team is behind the floor'}
+                    {metric.lowerIsBetter ? ' (lower is better)' : ''}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
-                  <TargetIcon className="h-3 w-3" style={{ color: COLORS.target }} /> Target {targetOk ? fmtTick(targetValue, metric.isPct) : ''}
-                </div>
-                <div
-                  className={`text-xl font-black ${
-                    !targetOk ? 'text-amber-500' : meetingTarget == null ? 'text-slate-400' : meetingTarget ? 'text-emerald-500' : 'text-red-500'
-                  }`}
-                >
-                  {!targetOk ? 'Check target' : meetingTarget == null ? '-' : meetingTarget ? 'Meeting target' : 'Missing target'}
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  {!targetOk
-                    ? `Saved target is ${fmtTick(targetValue, metric.isPct)}, which looks wrong`
-                    : teamNow == null
-                    ? 'Not enough data'
-                    : `${Number(Math.abs(teamNow - targetValue).toFixed(2))}${metric.isPct ? ' pts' : ''} ${
-                        (teamNow - targetValue >= 0) === !metric.lowerIsBetter ? 'better than' : 'worse than'
-                      } target`}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4 space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
+                    <TargetIcon className="h-3 w-3" style={{ color: COLORS.target }} /> Target {targetOk ? fmtTick(targetValue, metric.isPct) : ''}
+                  </div>
+                  <div
+                    className={`text-xl font-black ${
+                      !targetOk ? 'text-amber-500' : meetingTarget == null ? 'text-slate-400' : meetingTarget ? 'text-emerald-500' : 'text-red-500'
+                    }`}
+                  >
+                    {!targetOk ? 'Check target' : meetingTarget == null ? '-' : meetingTarget ? 'Meeting target' : 'Missing target'}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {!targetOk
+                      ? `Saved target is ${fmtTick(targetValue, metric.isPct)}, which looks wrong`
+                      : teamNow == null
+                      ? 'Not enough data'
+                      : `${Number(Math.abs(teamNow - targetValue).toFixed(2))}${metric.isPct ? ' pts' : ''} ${
+                          (teamNow - targetValue >= 0) === !metric.lowerIsBetter ? 'better than' : 'worse than'
+                        } target`}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* TREND CHART */}
           <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                {metric.name} – Progress Trajectory
+                {isCsatView ? 'CSAT % – Overall, Chat & Phone Progress' : `${metric.name} – Progress Trajectory`}
               </CardTitle>
               <CardDescription className="text-xs">
-                Team vs floor average for each daily backup{metric.lowerIsBetter ? ' · lower is better for this metric' : ''}
-                {liveTeam != null ? ' · the latest Team value matches the Overview tab (selected roster)' : ''}
+                {isCsatView
+                  ? 'Team CSAT ÷ (CSAT + DSAT) for each daily upload, calculated like the Overview tables (selected roster)'
+                  : `Team vs floor average for each daily backup${metric.lowerIsBetter ? ' · lower is better for this metric' : ''}${
+                      metric.survey ? ' · Team value calculated from the survey counts (selected roster), like the Overview tab' : ''
+                    }`}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
-              <TrendChart
-                points={points}
-                target={targetOk ? targetValue : null}
-                isPct={metric.isPct}
-                lowerIsBetter={!!metric.lowerIsBetter}
-              />
+              {isCsatView ? (
+                <CsatChannelChart
+                  periods={surveyPeriods}
+                  overall={csatChannels[0].values}
+                  chat={csatChannels[1].values}
+                  phone={csatChannels[2].values}
+                  target={csatTargetOk ? targetValue : null}
+                />
+              ) : (
+                <TrendChart
+                  points={points}
+                  target={targetOk ? targetValue : null}
+                  isPct={metric.isPct}
+                  lowerIsBetter={!!metric.lowerIsBetter}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -679,7 +904,9 @@ export function TeamTab() {
               <CardTitle className="text-base flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-emerald-500" /> Benchmark Scorecard
               </CardTitle>
-              <CardDescription className="text-xs">Click a row to show it in the chart above</CardDescription>
+              <CardDescription className="text-xs">
+                Click a row to show it in the chart above · CSAT, Chat and Phone CSAT come from the survey counts, so the floor has no matching figure
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -696,7 +923,7 @@ export function TeamTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {METRICS.map((item) => {
+                    {scorecardRows.map((item) => {
                       const t = teamCurrent(item);
                       const f = getNum(floorAverages, item.keys, item.isPct);
                       const target = resolveTarget(kpiTargets[item.targetKey], item.defaultTarget);
@@ -704,15 +931,23 @@ export function TeamTab() {
                       const gap = t != null && f != null ? t - f : null;
                       const better = gap == null ? null : item.lowerIsBetter ? gap <= 0 : gap >= 0;
                       const meets = t == null || !okTarget ? null : item.lowerIsBetter ? t <= target : t >= target;
-                      const active = item.name === metric.name;
+                      const isChannelRow = item.survey === 'chat' || item.survey === 'phone';
+                      const goTo = isChannelRow ? 'CSAT %' : item.name;
+                      const active = goTo === metric.name;
 
                       return (
                         <TableRow
                           key={item.name}
-                          onClick={() => setGraphMetricKey(item.name)}
+                          onClick={() => setGraphMetricKey(goTo)}
                           className={`cursor-pointer hover:bg-slate-500/5 ${active ? 'bg-emerald-500/5' : ''}`}
                         >
-                          <TableCell className="font-semibold">
+                          <TableCell className={`font-semibold ${isChannelRow ? 'pl-6' : ''}`}>
+                            {isChannelRow && (
+                              <span
+                                className="inline-block h-2 w-2 rounded-sm mr-1.5"
+                                style={{ background: item.survey === 'chat' ? CSAT_COLORS.chat : CSAT_COLORS.phone }}
+                              />
+                            )}
                             {item.name}
                             {item.lowerIsBetter && <span className="ml-1.5 text-[10px] font-normal text-slate-400">(lower is better)</span>}
                           </TableCell>

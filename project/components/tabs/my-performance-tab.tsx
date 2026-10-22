@@ -10,7 +10,7 @@ import {
   UserCheck, Inbox, TrendingUp, TrendingDown, Target as TargetIcon, AlertTriangle, MessageSquare, Phone,
   Lightbulb, Trophy, Calculator, Search, ArrowUpRight, ArrowDownRight, Minus,
 } from 'lucide-react';
-import { TrendChart, COLORS, resolveTarget, isPlausibleTarget, fmt, fmtTick } from '@/components/tabs/team-tab';
+import { TrendChart, CsatChannelChart, COLORS, CSAT_COLORS, surveyPct, resolveTarget, isPlausibleTarget, fmt, fmtTick } from '@/components/tabs/team-tab';
 import type { ChartPoint } from '@/components/tabs/team-tab';
 
 // Set to true if people with the role "Agent" must only ever see their own data (the name picker is then hidden)
@@ -31,15 +31,19 @@ interface AgentMetric {
   countBased?: boolean; // only valid when the agent has survey responses
   zeroIsData?: boolean; // 0 is a real result, not "missing"
   lowerIsBetter?: boolean;
+  channel?: 'chat' | 'phone'; // Chat / Phone CSAT %: calculated from that channel's survey counts
   tip: string;
 }
 
 const METRICS: AgentMetric[] = [
-  // CSAT % = the agent's overall CSAT from the Metrics CSV ("CSAT adjusted with calls, %", chat + calls),
-  // the same definition as the floor average it is compared with and the Team & Floor chart.
-  // (The survey-only CSAT is still shown in "My Survey Results" and the Survey CSAT Goal Helper.)
-  { label: 'CSAT %', short: 'CSAT', field: 'csat_adjusted', floorKeys: ['CSAT adjusted with calls, %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true,
+  // CSAT %, Chat CSAT % and Phone CSAT % = CSAT / (CSAT + DSAT), exactly like the Overview tables.
+  // The floor files have no survey counts, so these three have no floor comparison.
+  { label: 'CSAT %', short: 'CSAT', field: 'csat_percent', floorKeys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, rawPct: true, countBased: true,
     tip: 'Read your DSAT conversations, find the repeated reason, and finish every chat with a clear summary and next step.' },
+  { label: 'Chat CSAT %', short: 'Chat CSAT', field: 'chat_csat', floorKeys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, channel: 'chat',
+    tip: 'Review your chat DSATs: confirm the solution and end with a clear summary and next step.' },
+  { label: 'Phone CSAT %', short: 'Phone CSAT', field: 'phone_csat', floorKeys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, channel: 'phone',
+    tip: 'On calls, recap the solution before hanging up and check the customer has no other question.' },
   { label: 'KSCAT %', short: 'KSCAT', field: 'kscat_percent', floorKeys: ['KSCAT %'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, rawPct: true, countBased: true,
     tip: 'Ask your team leader which of your karma-survey conversations scored best and repeat that approach.' },
   { label: 'Adherence %', short: 'Adherence', field: 'adherence', floorKeys: ['Adherence, %'], targetKey: 'adherencePercent', defaultTarget: 90, isPct: true,
@@ -73,6 +77,7 @@ const HERO_METRICS = ['CSAT %', 'KSCAT %', 'FCR %', 'Adherence %'];
 // ---------------------------------------------------------------------------
 const agentValue = (row: any, m: AgentMetric): number | null => {
   if (!row) return null;
+  if (m.channel) return surveyPct([row], m.channel);
   const raw = row[m.field];
   if (raw === undefined || raw === null || raw === '') return null;
   let n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace('%', ''));
@@ -144,6 +149,8 @@ export function AgentView({
   const [goalInput, setGoalInput] = useState('');
 
   const chartMetric = METRICS.find((m) => m.label === chartLabel) || METRICS[0];
+  const isCsatView = chartMetric.label === 'CSAT %' || !!chartMetric.channel;
+  const metricOf = (label: string) => METRICS.find((m) => m.label === label)!;
 
   const floorByPeriod = useMemo(() => {
     const map = new Map<string, Record<string, any>>();
@@ -177,6 +184,10 @@ export function AgentView({
     return { period, team: agentValue(r, chartMetric), floor };
   });
   const sel = scorecard.find((s) => s.m.label === chartMetric.label)!;
+  const csatSel = scorecard.find((s) => s.m.label === 'CSAT %')!;
+  const csatSeries = (label: string) => rows.map((r) => agentValue(r, metricOf(label)));
+  const chatNow = scorecard.find((s) => s.m.label === 'Chat CSAT %')!;
+  const phoneNow = scorecard.find((s) => s.m.label === 'Phone CSAT %')!;
 
   // ----- focus / strengths -----
   const ranked = scorecard.filter((s) => s.relative != null).sort((a, b) => (a.relative as number) - (b.relative as number));
@@ -192,7 +203,7 @@ export function AgentView({
   const phone = { c: Number(row.phone_csat) || 0, k: Number(row.phone_kscat) || 0, d: Number(row.phone_dsat) || 0 };
   const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 
-  // ----- Survey CSAT goal helper (survey formula: CSAT / (CSAT + DSAT)) -----
+  // ----- CSAT goal helper (same formula as the Overview tab: CSAT / (CSAT + DSAT)) -----
   const csatDef = METRICS[0];
   const csatTarget = resolveTarget(kpiTargets[csatDef.targetKey], csatDef.defaultTarget);
   const csatNow = pct(c, c + d);
@@ -224,14 +235,27 @@ export function AgentView({
               <div className="text-[10px] font-bold uppercase text-slate-500">My {s.m.short}</div>
               <div className="text-3xl font-black" style={{ color: COLORS.team }}>{fmt(s.you, s.m.isPct)}</div>
               <Delta now={s.you} before={s.before} isPct={s.m.isPct} lowerIsBetter={s.m.lowerIsBetter} />
-              <div className="text-[11px] text-slate-400 pt-1">
-                Floor {fmt(s.floor, s.m.isPct)}
-                {s.gap != null && (
-                  <span className={`ml-1.5 font-semibold ${s.aheadOfFloor ? 'text-emerald-500' : 'text-red-500'}`}>
-                    ({signed(s.gap, s.m.isPct)})
+              {s.m.label === 'CSAT %' ? (
+                <div className="text-[11px] text-slate-400 pt-1 flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: CSAT_COLORS.chat }} /> Chat{' '}
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">{fmt(chatNow.you, true)}</span>
                   </span>
-                )}
-              </div>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: CSAT_COLORS.phone }} /> Phone{' '}
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">{fmt(phoneNow.you, true)}</span>
+                  </span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-400 pt-1">
+                  Floor {fmt(s.floor, s.m.isPct)}
+                  {s.gap != null && (
+                    <span className={`ml-1.5 font-semibold ${s.aheadOfFloor ? 'text-emerald-500' : 'text-red-500'}`}>
+                      ({signed(s.gap, s.m.isPct)})
+                    </span>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -240,15 +264,19 @@ export function AgentView({
       {/* TREND CHART */}
       <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-semibold text-slate-700 dark:text-slate-200">{chartMetric.label} – My Progress</CardTitle>
+          <CardTitle className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+            {isCsatView ? 'CSAT % – Overall, Chat & Phone' : chartMetric.label} – My Progress
+          </CardTitle>
           <CardDescription className="text-xs">
-            My result for each upload compared with the floor average{chartMetric.lowerIsBetter ? ' · lower is better for this metric' : ''}
+            {isCsatView
+              ? 'My CSAT ÷ (CSAT + DSAT) for each upload, calculated like the Overview tables'
+              : `My result for each upload compared with the floor average${chartMetric.lowerIsBetter ? ' · lower is better for this metric' : ''}`}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2 space-y-4">
           <div className="flex flex-wrap gap-2">
-            {METRICS.map((m) => {
-              const active = m.label === chartMetric.label;
+            {METRICS.filter((m) => !m.channel).map((m) => {
+              const active = m.label === 'CSAT %' ? isCsatView : m.label === chartMetric.label;
               return (
                 <button
                   key={m.label}
@@ -260,7 +288,7 @@ export function AgentView({
                       : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:border-emerald-500/60'
                   }`}
                 >
-                  {m.short}
+                  {m.label === 'CSAT %' ? 'CSAT · Chat · Phone' : m.short}
                 </button>
               );
             })}
@@ -272,14 +300,25 @@ export function AgentView({
             </div>
           )}
 
-          <TrendChart
-            points={points}
-            target={sel.targetOk ? sel.target : null}
-            isPct={chartMetric.isPct}
-            lowerIsBetter={!!chartMetric.lowerIsBetter}
-            teamLabel="Me"
-            floorLabel="Floor Average"
-          />
+          {isCsatView ? (
+            <CsatChannelChart
+              periods={points.map((p) => p.period)}
+              overall={csatSeries('CSAT %')}
+              chat={csatSeries('Chat CSAT %')}
+              phone={csatSeries('Phone CSAT %')}
+              target={csatSel.targetOk ? csatSel.target : null}
+              overallLabel="My Overall CSAT"
+            />
+          ) : (
+            <TrendChart
+              points={points}
+              target={sel.targetOk ? sel.target : null}
+              isPct={chartMetric.isPct}
+              lowerIsBetter={!!chartMetric.lowerIsBetter}
+              teamLabel="Me"
+              floorLabel="Floor Average"
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -366,9 +405,14 @@ export function AgentView({
                   <TableRow
                     key={s.m.label}
                     onClick={() => setChartLabel(s.m.label)}
-                    className={`cursor-pointer hover:bg-slate-500/5 ${s.m.label === chartMetric.label ? 'bg-emerald-500/5' : ''}`}
+                    className={`cursor-pointer hover:bg-slate-500/5 ${
+                      s.m.label === chartMetric.label || (isCsatView && (s.m.label === 'CSAT %' || s.m.channel)) ? 'bg-emerald-500/5' : ''
+                    }`}
                   >
-                    <TableCell className="font-semibold">
+                    <TableCell className={`font-semibold ${s.m.channel ? 'pl-6' : ''}`}>
+                      {s.m.channel && (
+                        <span className="inline-block h-2 w-2 rounded-sm mr-1.5" style={{ background: CSAT_COLORS[s.m.channel] }} />
+                      )}
                       {s.m.label}
                       {s.m.lowerIsBetter && <span className="ml-1.5 text-[10px] font-normal text-slate-400">(lower is better)</span>}
                     </TableCell>
@@ -476,9 +520,9 @@ export function AgentView({
         <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-emerald-500" /> Survey CSAT Goal Helper
+              <Calculator className="h-5 w-5 text-emerald-500" /> CSAT Goal Helper
             </CardTitle>
-            <CardDescription className="text-xs">See what it takes to reach a survey CSAT % goal (survey CSAT ÷ (CSAT + DSAT)). Your overall CSAT % above also includes calls.</CardDescription>
+            <CardDescription className="text-xs">See what it takes to reach a CSAT % goal (CSAT ÷ (CSAT + DSAT))</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-xs">
             <div className="flex items-center gap-3">
