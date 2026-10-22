@@ -58,16 +58,24 @@
   }
 }
 
-/* Dark theme: frosted-glass panels floating over the aurora background */
+/* =========================================================
+   DISPLAY MODES
+   Citrix mode (class "citrix") = everything in this file by default:
+     static aurora image, no blur, no endless animation. Smooth on Citrix / remote desktop.
+   Normal mode (class "fx") = the rules in the "NORMAL MODE" section at the end of this
+     file switch the full effects back on: animated aurora, frosted-glass blur, 3D card
+     tilt, spinning border, light sweep, snow, page-flip, always-moving toggle.
+   ========================================================= */
+
+/* Dark theme: tinted glass panels over the aurora background.
+   No backdrop-filter blur in Citrix mode: it is redrawn on every scroll (main cause of lag). */
 .dark .bg-white,
 .dark [class*="bg-slate-900"],
 .dark [class*="bg-slate-950"],
 .dark [class*="bg-[#101a30]"],
 .dark [class*="bg-[#182238]"],
 .dark [class*="bg-[#080E1E]"] {
-  background-color: rgba(15, 23, 42, 0.46) !important;
-  backdrop-filter: blur(12px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
+  background-color: rgba(13, 20, 38, 0.74) !important;
   border-color: rgba(255, 255, 255, 0.10) !important;
   color: #f8fafc !important;
 }
@@ -75,16 +83,12 @@
 /* whole-token match so hover:bg-slate-800 on buttons is NOT affected */
 .dark [class~="dark:bg-slate-800"],
 .dark [class~="dark:bg-slate-800/80"] {
-  background-color: rgba(30, 41, 59, 0.45) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  background-color: rgba(30, 41, 59, 0.66) !important;
   border-color: rgba(255, 255, 255, 0.10) !important;
 }
 
 .dark .sidebar-rail {
-  background-color: rgba(8, 14, 28, 0.58) !important;
-  backdrop-filter: blur(18px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+  background-color: rgba(8, 14, 28, 0.9) !important;
 }
 
 .dark .text-slate-900,
@@ -108,13 +112,18 @@
 .sidebar-rail {
   width: 82px;
   height: 100vh;
-  transition: width 0.35s ease;
+  transition: width 0.25s ease, margin-right 0.25s ease;
   white-space: nowrap;
 }
 
 .sidebar-rail:hover,
 .sidebar-rail.expanded {
   width: 265px;
+}
+/* hover = temporary: float over the content (negative margin keeps the page width unchanged)
+   clicked / pinned (.expanded) = push the content as before */
+.sidebar-rail:hover:not(.expanded) {
+  margin-right: -183px;
 }
 
 .sidebar-rail nav {
@@ -151,7 +160,7 @@
 
 .sidebar-rail .rail-search {
   width: 42px;
-  transition: width 0.35s ease;
+  transition: width 0.25s ease;
 }
 
 .sidebar-rail:hover .rail-search,
@@ -159,89 +168,37 @@
   width: 100%;
 }
 
-/* --- GLASS & GLOW REFLECTION EFFECTS --- */
+/* --- NAV GLOW (hover = soft radial glow, selected = static green glow) ---
+   The old lift + drop-shadow filter + diagonal shine sweep were removed: filters
+   force a repaint of the button on every hover frame. */
 .icon-reflection-container {
   position: relative;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .icon-reflection-container::before {
   content: '';
   position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0) 70%);
+  inset: 0;
+  background: radial-gradient(circle at 30% 50%, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 70%);
   opacity: 0;
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity 0.2s ease;
   pointer-events: none;
-  transform: scale(0.5);
 }
 
 .icon-reflection-container:hover::before {
   opacity: 1;
-  transform: scale(1);
-}
-
-.icon-reflection-container:hover {
-  transform: translateY(-2px) scale(1.02);
-  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.35));
-}
-
-.icon-reflection-container::after {
-  content: '';
-  position: absolute;
-  top: -100%;
-  left: -100%;
-  width: 300%;
-  height: 300%;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.05) 40%,
-    rgba(255, 255, 255, 0.35) 50%,
-    rgba(255, 255, 255, 0.05) 60%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  transform: rotate(45deg);
-  transition: all 0.6s ease;
-  pointer-events: none;
-  opacity: 0;
-}
-
-.icon-reflection-container:active::after,
-.icon-reflection-selected::after {
-  opacity: 1;
-  animation: shineSweep 0.75s ease-out forwards;
 }
 
 .icon-reflection-selected {
   border-color: rgba(16, 185, 129, 0.8) !important;
-  box-shadow: 0 0 15px rgba(16, 185, 129, 0.35), inset 0 0 10px rgba(16, 185, 129, 0.15) !important;
-}
-
-@keyframes shineSweep {
-  0% {
-    top: -100%;
-    left: -100%;
-  }
-  100% {
-    top: 100%;
-    left: 100%;
-  }
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(16, 185, 129, 0.12) !important;
 }
 
 /* ==========================================================
    LOGIN PAGE – aurora background + glass card
    ========================================================== */
-
-@property --lg-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
 
 .lg-root {
   position: relative;
@@ -256,13 +213,17 @@
   background: #101722;
 }
 
-/* ---------- Aurora ---------- */
+/* ---------- Aurora ----------
+   /aurora-bg.jpg is a snapshot of the former animated aurora (blurred SVG ribbons,
+   blue glows and particles). One static image = same look, ~0 CPU/GPU. */
 .lg-aurora {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: linear-gradient(155deg, #2a3340 0%, #1b2432 42%, #0f1724 100%);
+  background:
+    url('/aurora-bg.jpg') center / cover no-repeat,
+    linear-gradient(155deg, #2a3340 0%, #1b2432 42%, #0f1724 100%);
 }
 .lg-aurora::after {
   /* soft vignette */
@@ -271,78 +232,6 @@
   inset: 0;
   background: radial-gradient(95% 85% at 50% 50%, transparent 55%, rgba(5, 8, 14, 0.4) 100%);
   pointer-events: none;
-}
-
-/* blue glows */
-.lg-wave {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  will-change: transform;
-}
-.lg-wave-3 {
-  width: 60vw; height: 50vh; left: 12vw; top: -22vh;
-  background: radial-gradient(closest-side, rgba(37, 99, 235, 0.34), rgba(37, 99, 235, 0));
-  animation: lg-drift-c 30s ease-in-out infinite alternate;
-}
-.lg-wave-5 {
-  width: 55vw; height: 45vh; left: -18vw; top: 4vh;
-  background: radial-gradient(closest-side, rgba(30, 64, 175, 0.32), rgba(30, 64, 175, 0));
-  animation: lg-drift-b 34s ease-in-out infinite alternate-reverse;
-}
-
-/* flowing green wave ribbons (SVG) */
-.lg-ribbons {
-  position: absolute;
-  inset: -4%;
-  width: 108%;
-  height: 108%;
-  opacity: 0.88;
-  filter: blur(12px);
-}
-.lg-rb { will-change: transform; }
-.lg-rb-1 { animation: lg-rb-a 20s ease-in-out infinite alternate; }
-.lg-rb-2 { animation: lg-rb-b 26s ease-in-out infinite alternate; }
-.lg-rb-3 { animation: lg-rb-c 23s ease-in-out infinite alternate; }
-.lg-rb-4 { animation: lg-rb-a 30s ease-in-out infinite alternate-reverse; }
-
-@keyframes lg-rb-a {
-  from { transform: translate(-70px, 18px); }
-  to   { transform: translate(80px, -34px); }
-}
-@keyframes lg-rb-b {
-  from { transform: translate(50px, 26px); }
-  to   { transform: translate(-90px, -22px); }
-}
-@keyframes lg-rb-c {
-  from { transform: translate(-40px, -16px); }
-  to   { transform: translate(60px, 30px); }
-}
-@keyframes lg-drift-b {
-  from { translate: 3vw 3vh; }
-  to   { translate: -6vw -5vh; }
-}
-@keyframes lg-drift-c {
-  from { translate: -5vw 0; }
-  to   { translate: 5vw 6vh; }
-}
-
-/* ---------- Floating particles ---------- */
-.lg-dot {
-  position: absolute;
-  z-index: 1;
-  border-radius: 50%;
-  background: rgba(167, 243, 208, 0.55);
-  box-shadow: 0 0 8px rgba(110, 231, 183, 0.5);
-  opacity: 0;
-  animation: lg-float linear infinite;
-  pointer-events: none;
-}
-@keyframes lg-float {
-  0%   { opacity: 0;   transform: translateY(0); }
-  15%  { opacity: 0.8; }
-  85%  { opacity: 0.6; }
-  100% { opacity: 0;   transform: translateY(-32vh); }
 }
 
 /* ---------- Card ---------- */
@@ -358,23 +247,19 @@
   border-radius: 16px;
   padding: 22px 24px 18px;
   color: #fff;
-  background: linear-gradient(135deg, rgba(71, 85, 105, 0.38), rgba(15, 23, 42, 0.55));
+  background: linear-gradient(135deg, rgba(51, 65, 85, 0.78), rgba(15, 23, 42, 0.9));
   border: 1px solid rgba(255, 255, 255, 0.1);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
   box-shadow:
     0 30px 80px -24px rgba(0, 0, 0, 0.65),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-  transition: transform 0.18s ease-out;
-  animation: lg-card-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: lg-card-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 @keyframes lg-card-in {
   from { opacity: 0; translate: 0 14px; }
   to   { opacity: 1; translate: 0 0; }
 }
 
-/* glowing edge that travels around the card */
+/* glowing green edge on the top-right of the card (static: drawn once) */
 .lg-card::before {
   content: '';
   position: absolute;
@@ -382,51 +267,18 @@
   border-radius: inherit;
   padding: 1.5px;
   background: conic-gradient(
-    from var(--lg-angle),
-    transparent 0 68%,
-    rgba(52, 211, 153, 0.15) 76%,
-    rgba(110, 231, 183, 0.95) 88%,
+    from 300deg,
+    transparent 0 52%,
+    rgba(52, 211, 153, 0.15) 62%,
+    rgba(110, 231, 183, 0.9) 76%,
+    rgba(52, 211, 153, 0.15) 88%,
     transparent 96%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   mask-composite: exclude;
-  animation: lg-spin 7s linear infinite;
   pointer-events: none;
-}
-@keyframes lg-spin {
-  to { --lg-angle: 360deg; }
-}
-
-/* diagonal light sweep */
-.lg-sweep-clip {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  overflow: hidden;
-  pointer-events: none;
-}
-.lg-sweep-clip::before {
-  content: '';
-  position: absolute;
-  top: -10%;
-  bottom: -10%;
-  left: 0;
-  width: 34%;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0),
-    rgba(255, 255, 255, 0.16),
-    rgba(255, 255, 255, 0)
-  );
-  transform: translateX(-160%) skewX(-22deg);
-  animation: lg-sweep 8s ease-in-out 1.2s infinite;
-}
-@keyframes lg-sweep {
-  0%   { transform: translateX(-160%) skewX(-22deg); }
-  38%  { transform: translateX(380%)  skewX(-22deg); }
-  100% { transform: translateX(380%)  skewX(-22deg); }
 }
 
 /* ---------- Checkbox ---------- */
@@ -550,29 +402,28 @@
   40%, 80% { translate: 5px 0; }
 }
 
-/* ---------- Idle snow (dashboard) ---------- */
-.lg-snowflake {
-  position: absolute;
-  top: -6%;
-  animation: lg-snowfall 7s linear infinite;
+/* ---------- Idle freeze overlay (static, no blur) ---------- */
+.frozen-overlay {
+  background: radial-gradient(circle at center, rgba(8, 47, 73, 0.82), rgba(2, 6, 23, 0.94));
 }
-@keyframes lg-snowfall {
-  to { transform: translateY(115vh) rotate(360deg); }
+
+/* ---------- Tab switch: short fade-in of the new tab ---------- */
+.tab-fade-in {
+  animation: tab-fade-in 0.16s ease-out both;
+}
+@keyframes tab-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .lg-wave,
-  .lg-rb,
-  .lg-dot,
   .lg-card,
-  .lg-card::before,
-  .lg-sweep-clip::before,
   .lg-ring,
-  .lg-snowflake {
+  .tab-fade-in,
+  .switch * {
     animation: none !important;
   }
-  .lg-card { transition: none; }
 }
 
 /* ---------- Dashboard background (inside the app) ---------- */
@@ -592,66 +443,6 @@
     radial-gradient(60% 50% at 12% 8%, rgba(16, 185, 129, 0.14), transparent 70%),
     radial-gradient(55% 45% at 92% 92%, rgba(56, 189, 248, 0.16), transparent 70%),
     #f1f5f9;
-}
-
-/* =========================================================
-   LITE / PERFORMANCE MODE  (Citrix, remote desktops, weak PCs)
-   No blur, no continuous animation, static background
-   ========================================================= */
-.lg-aurora-static {
-  background:
-    radial-gradient(60% 45% at 85% 100%, rgba(16, 185, 129, 0.34), transparent 70%),
-    radial-gradient(70% 40% at 10% 95%, rgba(13, 148, 136, 0.28), transparent 70%),
-    radial-gradient(60% 40% at 30% 0%, rgba(37, 99, 235, 0.26), transparent 70%),
-    linear-gradient(155deg, #2a3340, #1b2432 42%, #0f1724);
-}
-.lg-aurora-static::after { display: none; }
-
-/* kill every backdrop blur (dark-mode glass rules are more specific, so repeat with .dark) */
-.lite *,
-.lite.dark [class] {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* glass panels become solid-ish, readable without blur */
-.lite.dark .bg-white,
-.lite.dark [class*="bg-slate-900"],
-.lite.dark [class*="bg-slate-950"],
-.lite.dark [class*="bg-[#101a30]"],
-.lite.dark [class*="bg-[#182238]"],
-.lite.dark [class*="bg-[#080E1E]"] {
-  background-color: rgba(15, 23, 42, 0.9) !important;
-}
-.lite.dark [class~="dark:bg-slate-800"],
-.lite.dark [class~="dark:bg-slate-800/80"] {
-  background-color: rgba(30, 41, 59, 0.9) !important;
-}
-.lite.dark .sidebar-rail {
-  background-color: rgba(8, 14, 28, 0.94) !important;
-}
-.lite .lg-card {
-  background: rgba(20, 28, 42, 0.94);
-  animation: none;
-  transition: none;
-  transform: none;
-}
-.lite .lg-card::before,
-.lite .lg-sweep-clip { display: none; }
-
-/* stop endless animations */
-.lite .animate-pulse,
-.lite .cloud-track,
-.lite .bird,
-.lite .bird .wing,
-.lite .toggle-shooting,
-.lite .lg-snowflake,
-.lite .icon-reflection-container::after {
-  animation: none !important;
-}
-.lite .icon-reflection-container:hover {
-  transform: none;
-  filter: none;
 }
 
 /* =========================================
@@ -899,6 +690,25 @@
   to { transform: translateX(-50%); }
 }
 
+/* Citrix: endless motion forces the screen to be re-sent constantly.
+   The toggle keeps its look but only animates while the mouse is over it. */
+.switch .cloud-track,
+.switch .bird,
+.switch .bird .wing,
+.switch .toggle-shooting {
+  animation-play-state: paused;
+}
+.switch:hover .cloud-track,
+.switch:hover .bird,
+.switch:hover .bird .wing,
+.switch:hover .toggle-shooting,
+.switch:focus-visible .cloud-track,
+.switch:focus-visible .bird,
+.switch:focus-visible .bird .wing,
+.switch:focus-visible .toggle-shooting {
+  animation-play-state: running;
+}
+
 /* KNOB */
 .knob {
   position: absolute;
@@ -925,4 +735,257 @@
 
 .switch.on .knob {
   left: 70.5%;
+}
+
+/* =========================================================
+   INPUT TEXT VISIBILITY (autofill fix)
+   Chrome / Edge paint saved-login autofill with a light background but keep
+   our white text, so the email / password looked empty until selected.
+   Force readable colours on the login page and in dark mode.
+   ========================================================= */
+.lg-root input:not([type="checkbox"]) {
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  caret-color: #34d399;
+}
+.lg-root input::placeholder {
+  color: #64748b;
+  -webkit-text-fill-color: #64748b;
+  opacity: 1;
+}
+
+.lg-root input:-webkit-autofill,
+.lg-root input:-webkit-autofill:hover,
+.lg-root input:-webkit-autofill:focus,
+.lg-root input:-webkit-autofill:active,
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+  -webkit-text-fill-color: #f1f5f9 !important;
+  caret-color: #34d399;
+  /* paint over the browser's light autofill background */
+  -webkit-box-shadow: 0 0 0 1000px #0b1324 inset !important;
+  box-shadow: 0 0 0 1000px #0b1324 inset !important;
+  transition: background-color 600000s ease-out 0s;
+}
+
+/* Firefox autofill */
+.lg-root input:autofill,
+.dark input:autofill {
+  color: #f1f5f9;
+  background-color: #0b1324 !important;
+}
+
+
+/* =========================================================
+   NORMAL MODE (.fx) - full effects for normal PCs (outside Citrix)
+   ========================================================= */
+
+/* ---- frosted-glass panels (blur) ---- */
+.fx.dark .bg-white,
+.fx.dark [class*="bg-slate-900"],
+.fx.dark [class*="bg-slate-950"],
+.fx.dark [class*="bg-[#101a30]"],
+.fx.dark [class*="bg-[#182238]"],
+.fx.dark [class*="bg-[#080E1E]"] {
+  background-color: rgba(15, 23, 42, 0.46) !important;
+  backdrop-filter: blur(12px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
+}
+.fx.dark [class~="dark:bg-slate-800"],
+.fx.dark [class~="dark:bg-slate-800/80"] {
+  background-color: rgba(30, 41, 59, 0.45) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+.fx.dark .sidebar-rail {
+  background-color: rgba(8, 14, 28, 0.58) !important;
+  backdrop-filter: blur(18px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+}
+
+/* ---- nav buttons: lift + glow + shine sweep ---- */
+.fx .icon-reflection-container {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fx .icon-reflection-container:hover {
+  transform: translateY(-2px) scale(1.02);
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.35));
+}
+.fx .icon-reflection-container::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.05) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(45deg);
+  pointer-events: none;
+  opacity: 0;
+}
+.fx .icon-reflection-container:active::after,
+.fx .icon-reflection-selected::after {
+  opacity: 1;
+  animation: shineSweep 0.75s ease-out forwards;
+}
+@keyframes shineSweep {
+  0%   { top: -100%; left: -100%; }
+  100% { top: 100%;  left: 100%; }
+}
+
+/* ---- live aurora: blurred blue glows + flowing green ribbons + particles ---- */
+.lg-aurora.lg-aurora-live {
+  background: linear-gradient(155deg, #2a3340 0%, #1b2432 42%, #0f1724 100%);
+}
+.lg-wave {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  will-change: transform;
+}
+.lg-wave-3 {
+  width: 60vw; height: 50vh; left: 12vw; top: -22vh;
+  background: radial-gradient(closest-side, rgba(37, 99, 235, 0.34), rgba(37, 99, 235, 0));
+  animation: lg-drift-c 30s ease-in-out infinite alternate;
+}
+.lg-wave-5 {
+  width: 55vw; height: 45vh; left: -18vw; top: 4vh;
+  background: radial-gradient(closest-side, rgba(30, 64, 175, 0.32), rgba(30, 64, 175, 0));
+  animation: lg-drift-b 34s ease-in-out infinite alternate-reverse;
+}
+.lg-ribbons {
+  position: absolute;
+  inset: -4%;
+  width: 108%;
+  height: 108%;
+  opacity: 0.88;
+  filter: blur(12px);
+}
+.lg-rb { will-change: transform; }
+.lg-rb-1 { animation: lg-rb-a 20s ease-in-out infinite alternate; }
+.lg-rb-2 { animation: lg-rb-b 26s ease-in-out infinite alternate; }
+.lg-rb-3 { animation: lg-rb-c 23s ease-in-out infinite alternate; }
+.lg-rb-4 { animation: lg-rb-a 30s ease-in-out infinite alternate-reverse; }
+@keyframes lg-rb-a { from { transform: translate(-70px, 18px); } to { transform: translate(80px, -34px); } }
+@keyframes lg-rb-b { from { transform: translate(50px, 26px); }  to { transform: translate(-90px, -22px); } }
+@keyframes lg-rb-c { from { transform: translate(-40px, -16px); } to { transform: translate(60px, 30px); } }
+@keyframes lg-drift-b { from { translate: 3vw 3vh; } to { translate: -6vw -5vh; } }
+@keyframes lg-drift-c { from { translate: -5vw 0; }  to { translate: 5vw 6vh; } }
+
+.lg-dot {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  background: rgba(167, 243, 208, 0.55);
+  box-shadow: 0 0 8px rgba(110, 231, 183, 0.5);
+  opacity: 0;
+  animation: lg-float linear infinite;
+  pointer-events: none;
+}
+@keyframes lg-float {
+  0%   { opacity: 0;   transform: translateY(0); }
+  15%  { opacity: 0.8; }
+  85%  { opacity: 0.6; }
+  100% { opacity: 0;   transform: translateY(-32vh); }
+}
+
+/* ---- login card: frosted glass, 3D tilt, spinning glowing edge, light sweep ---- */
+@property --lg-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.fx .lg-card {
+  background: linear-gradient(135deg, rgba(71, 85, 105, 0.38), rgba(15, 23, 42, 0.55));
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.18s ease-out;
+}
+.fx .lg-card::before {
+  background: conic-gradient(
+    from var(--lg-angle),
+    transparent 0 68%,
+    rgba(52, 211, 153, 0.15) 76%,
+    rgba(110, 231, 183, 0.95) 88%,
+    transparent 96%
+  );
+  animation: lg-spin 7s linear infinite;
+}
+@keyframes lg-spin {
+  to { --lg-angle: 360deg; }
+}
+.lg-sweep-clip {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lg-sweep-clip::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
+  transform: translateX(-160%) skewX(-22deg);
+  animation: lg-sweep 8s ease-in-out 1.2s infinite;
+}
+@keyframes lg-sweep {
+  0%   { transform: translateX(-160%) skewX(-22deg); }
+  38%  { transform: translateX(380%)  skewX(-22deg); }
+  100% { transform: translateX(380%)  skewX(-22deg); }
+}
+
+/* ---- idle snow ---- */
+.lg-snowflake {
+  position: absolute;
+  top: -6%;
+  animation: lg-snowfall 7s linear infinite;
+}
+@keyframes lg-snowfall {
+  to { transform: translateY(115vh) rotate(360deg); }
+}
+.fx .frozen-overlay {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  background: radial-gradient(circle at center, rgba(8, 47, 73, 0.55), rgba(8, 47, 73, 0.85));
+}
+
+/* ---- tab switch: 3D page-flip in ---- */
+.fx .tab-fade-in {
+  animation: tab-flip-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes tab-flip-in {
+  from { opacity: 0; transform: perspective(1400px) rotateY(-10deg) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- day/night toggle: clouds, birds and shooting stars always moving ---- */
+.fx .switch .cloud-track,
+.fx .switch .bird,
+.fx .switch .bird .wing,
+.fx .switch .toggle-shooting {
+  animation-play-state: running;
+}
+
+/* ---- respect "reduce motion" in Normal mode too ---- */
+@media (prefers-reduced-motion: reduce) {
+  .lg-wave, .lg-rb, .lg-dot, .lg-snowflake,
+  .fx .lg-card, .fx .lg-card::before, .lg-sweep-clip::before,
+  .fx .tab-fade-in, .fx .switch * {
+    animation: none !important;
+  }
+  .fx .lg-card { transition: none; transform: none; }
 }

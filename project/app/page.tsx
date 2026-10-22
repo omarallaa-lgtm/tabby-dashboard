@@ -8,7 +8,7 @@ import {
   AlertCircle, LayoutDashboard, BarChart3, Users2, Database, ShieldCheck,
   MessageSquarePlus, Megaphone, LogOut, Clock, KeyRound, Check,
   Eye, EyeOff, ArrowRight, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, Calendar, Zap, UserCheck
+  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, Calendar, UserCheck
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { MetricsTab } from '@/components/tabs/metrics-tab';
@@ -23,27 +23,12 @@ import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
 import { ScheduleTab } from '@/components/tabs/schedule-tab';
 import { DayNightToggle } from '@/components/day-night-toggle';
+import { DisplayModeSwitch } from '@/components/display-mode-switch';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
 const IDLE_MS = 100000; // inactivity time before the dashboard "freezes"
-
-// Fixed values (not Math.random) so server and client render the same markup
-const AURORA_PARTICLES = [
-  { left: '8%',  top: '78%', size: 3, dur: 16, delay: 0 },
-  { left: '17%', top: '40%', size: 2, dur: 20, delay: 3 },
-  { left: '26%', top: '88%', size: 3, dur: 18, delay: 6 },
-  { left: '34%', top: '22%', size: 2, dur: 22, delay: 1 },
-  { left: '43%', top: '70%', size: 2, dur: 17, delay: 9 },
-  { left: '57%', top: '85%', size: 3, dur: 19, delay: 4 },
-  { left: '66%', top: '30%', size: 2, dur: 21, delay: 7 },
-  { left: '74%', top: '64%', size: 3, dur: 16, delay: 2 },
-  { left: '83%', top: '82%', size: 2, dur: 23, delay: 10 },
-  { left: '91%', top: '45%', size: 3, dur: 18, delay: 5 },
-  { left: '12%', top: '58%', size: 2, dur: 24, delay: 12 },
-  { left: '48%', top: '12%', size: 2, dur: 20, delay: 8 },
-  { left: '95%', top: '18%', size: 2, dur: 22, delay: 11 },
-  { left: '3%',  top: '20%', size: 3, dur: 19, delay: 13 },
-];
+const TAB_KEY = 'tabby-active-tab'; // last open tab, restored after a refresh
+const MODE_KEY = 'tabby-display-mode'; // 'citrix' (soft, lightweight) or 'normal' (full effects)
 
 // Guess whether this browser is software-rendered / low power (Citrix, VDI, old PCs)
 function detectLowPower(): boolean {
@@ -64,14 +49,16 @@ function detectLowPower(): boolean {
   }
 }
 
-// Clock lives in its own component so the per-second update does NOT re-render the whole dashboard
-function LiveClock() {
+// Clock lives in its own component. Citrix mode shows hh:mm (re-renders once a minute), Normal mode adds seconds
+function LiveClock({ showSeconds }: { showSeconds?: boolean }) {
   const [time, setTime] = useState('');
   useEffect(() => {
     const tick = () => {
       const now = new Date();
       setTime(
-        now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+        now.toLocaleTimeString('en-US', showSeconds
+          ? { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }
+          : { hour12: true, hour: '2-digit', minute: '2-digit' }) +
         ' • ' +
         now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       );
@@ -81,19 +68,47 @@ function LiveClock() {
       if (!document.hidden) tick();
     }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [showSeconds]);
   return <span>{time || 'Syncing live clock...'}</span>;
 }
 
-// Aurora waves + floating particles (shared by login page and dashboard)
-// lite = plain static gradient (no blur, no animation)
-function Aurora({ lite }: { lite?: boolean }) {
-  if (lite) {
-    return <div className="lg-aurora lg-aurora-static" aria-hidden="true" />;
+// Fixed values (not Math.random) so server and client render the same markup
+const AURORA_PARTICLES = [
+  { left: '8%',  top: '78%', size: 3, dur: 16, delay: 0 },
+  { left: '17%', top: '40%', size: 2, dur: 20, delay: 3 },
+  { left: '26%', top: '88%', size: 3, dur: 18, delay: 6 },
+  { left: '34%', top: '22%', size: 2, dur: 22, delay: 1 },
+  { left: '43%', top: '70%', size: 2, dur: 17, delay: 9 },
+  { left: '57%', top: '85%', size: 3, dur: 19, delay: 4 },
+  { left: '66%', top: '30%', size: 2, dur: 21, delay: 7 },
+  { left: '74%', top: '64%', size: 3, dur: 16, delay: 2 },
+  { left: '83%', top: '82%', size: 2, dur: 23, delay: 10 },
+  { left: '91%', top: '45%', size: 3, dur: 18, delay: 5 },
+  { left: '12%', top: '58%', size: 2, dur: 24, delay: 12 },
+  { left: '48%', top: '12%', size: 2, dur: 20, delay: 8 },
+  { left: '95%', top: '18%', size: 2, dur: 22, delay: 11 },
+  { left: '3%',  top: '20%', size: 3, dur: 19, delay: 13 },
+];
+
+// Snowflakes shown while the dashboard is frozen (Normal mode only)
+const SNOWFLAKES = [
+  { left: '10%', size: 'h-4 w-4', color: 'text-cyan-200', delay: '0s' },
+  { left: '25%', size: 'h-3 w-3', color: 'text-cyan-100', delay: '1.5s' },
+  { left: '50%', size: 'h-5 w-5', color: 'text-sky-200', delay: '0.6s' },
+  { left: '75%', size: 'h-4 w-4', color: 'text-cyan-300', delay: '2.4s' },
+  { left: '90%', size: 'h-3 w-3', color: 'text-cyan-100', delay: '1s' },
+];
+
+// Aurora background (login page + dark dashboard)
+// - Citrix mode: a pre-rendered image of the aurora (same look, no blur or animation, ~0 CPU)
+// - Normal mode: the live animated waves, ribbons and floating particles
+function Aurora({ animated }: { animated?: boolean }) {
+  if (!animated) {
+    return <div className="lg-aurora" aria-hidden="true" />;
   }
   return (
     <>
-      <div className="lg-aurora" aria-hidden="true">
+      <div className="lg-aurora lg-aurora-live" aria-hidden="true">
         <span className="lg-wave lg-wave-3" />
         <span className="lg-wave lg-wave-5" />
         <svg className="lg-ribbons" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
@@ -151,7 +166,7 @@ function Aurora({ lite }: { lite?: boolean }) {
 }
 
 export default function Home() {
-  const { currentUser, setCurrentUser, refreshMetrics } = useMetrics() as any;
+  const { currentUser, setCurrentUser, refreshMetrics, sessionChecked } = useMetrics() as any;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -159,7 +174,9 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [liteMode, setLiteMode] = useState(false); // performance mode for Citrix / weak PCs
+  // Display mode: true = Citrix (soft, lightweight), false = Normal (full effects).
+  // Starts in Citrix mode so a slow machine never renders the heavy version first.
+  const [citrixMode, setCitrixMode] = useState(true);
 
   // Sidebar Expanding Rail State (Desktop & Touch)
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -177,11 +194,7 @@ export default function Home() {
   // Mobile Menu Drawer State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Tab Flip Transition State
-  const [isFlipping, setIsFlipping] = useState(false);
-
-  // Snow & Freeze Inactivity Timer State
-  const [showSnow, setShowSnow] = useState(false);
+  // Freeze-on-inactivity State
   const [isFrozen, setIsFrozen] = useState(false);
   const [iceShattered, setIceShattered] = useState(false);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -200,7 +213,7 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
-  // 3D Card Tilt Refs
+  // 3D tilt of the login card (Normal mode only)
   const stageRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -278,24 +291,28 @@ export default function Home() {
     }
   }, [currentUser]);
 
-  // Lite mode: saved choice wins, otherwise auto-detect weak/software rendering
+  // Display mode: saved choice wins, otherwise guess (software rendering / weak PC => Citrix mode)
   useEffect(() => {
     let saved: string | null = null;
-    try { saved = localStorage.getItem('tabby-lite'); } catch {}
-    setLiteMode(saved !== null ? saved === '1' : detectLowPower());
+    try {
+      saved = localStorage.getItem(MODE_KEY);
+      if (saved === null) {
+        // older versions stored a Lite on/off flag
+        const oldLite = localStorage.getItem('tabby-lite');
+        if (oldLite !== null) saved = oldLite === '1' ? 'citrix' : 'normal';
+      }
+    } catch {}
+    setCitrixMode(saved === 'citrix' || saved === 'normal' ? saved === 'citrix' : detectLowPower());
   }, []);
 
-  const toggleLite = () => {
-    setLiteMode((v) => {
-      const next = !v;
-      try { localStorage.setItem('tabby-lite', next ? '1' : '0'); } catch {}
-      return next;
-    });
+  const changeDisplayMode = (citrix: boolean) => {
+    setCitrixMode(citrix);
+    try { localStorage.setItem(MODE_KEY, citrix ? 'citrix' : 'normal'); } catch {}
   };
 
-  // Pointer Move Event for subtle 3D tilt of the login card
+  // Pointer move: subtle 3D tilt of the login card (skipped in Citrix mode)
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (liteMode || !stageRef.current || !cardRef.current) return;
+    if (citrixMode || !stageRef.current || !cardRef.current) return;
     const r = stageRef.current.getBoundingClientRect();
     const nx = (e.clientX - r.left) / r.width;
     const ny = (e.clientY - r.top) / r.height;
@@ -311,7 +328,6 @@ export default function Home() {
 
   // Idle Timer for Freezing
   const resetIdleTimer = () => {
-    if (showSnow) setShowSnow(false);
     if (isFrozen) {
       setIceShattered(true);
       setTimeout(() => {
@@ -324,7 +340,6 @@ export default function Home() {
 
     idleTimerRef.current = setTimeout(() => {
       if (currentUser && isDarkMode) {
-        setShowSnow(true);
         setIsFrozen(true);
       }
     }, IDLE_MS);
@@ -352,20 +367,22 @@ export default function Home() {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, isDarkMode, isFrozen, showSnow]);
+  }, [currentUser, isDarkMode, isFrozen]);
 
-  // Page-Flip Transition Between Sidebar Tabs
+  // Reopen the last tab after a refresh
+  useEffect(() => {
+    try {
+      const savedTab = sessionStorage.getItem(TAB_KEY);
+      if (savedTab) setActiveTab(savedTab);
+    } catch {}
+  }, []);
+
+  // Switch tabs instantly (the new tab fades in with a short CSS animation)
   const handleTabChange = (tabKey: string) => {
-    if (tabKey === activeTab) {
-      setMobileMenuOpen(false);
-      return;
-    }
-    setIsFlipping(true);
     setMobileMenuOpen(false);
-    setTimeout(() => {
-      setActiveTab(tabKey);
-      setTimeout(() => setIsFlipping(false), 300);
-    }, 200);
+    if (tabKey === activeTab) return;
+    try { sessionStorage.setItem(TAB_KEY, tabKey); } catch {}
+    setActiveTab(tabKey);
   };
 
   // Login Authentication
@@ -400,6 +417,12 @@ export default function Home() {
           .single();
 
         if (userProfile && (userProfile.password_hash === password || userProfile.password === password)) {
+          if (userProfile.account_status === 'Disabled') {
+            setErrorMessage('This account is disabled. Please contact your Admin.');
+            setShake(true);
+            setTimeout(() => setShake(false), 400);
+            return;
+          }
           userToSet = userProfile;
         }
       } catch (err) {
@@ -421,9 +444,23 @@ export default function Home() {
     welcomeChime();
 
     setTimeout(() => {
-      setCurrentUser(userToSet);
+      setCurrentUser(userToSet, rememberMe);
+      setPassword('');
       if (typeof refreshMetrics === 'function') refreshMetrics(userToSet);
     }, 1500);
+  };
+
+  // Log out: clear the saved session and reset the login form so it's usable again
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setLoginBusy(false);
+    setLoginSuccess(false);
+    setShowWelcomeMsg(false);
+    setPassword('');
+    setShowProfile(false);
+    setMobileMenuOpen(false);
+    setActiveTab('overview');
+    try { sessionStorage.removeItem(TAB_KEY); } catch {}
   };
 
   const handleRaiseForgotPasswordRequest = async (e: React.FormEvent) => {
@@ -488,10 +525,19 @@ export default function Home() {
   // ============================================================
   // LOGIN PAGE – aurora background + glass card
   // ============================================================
+  // Checking for a saved session: show only the background so the login form doesn't flash
+  if (!sessionChecked) {
+    return (
+      <div className={`lg-root font-sans ${citrixMode ? 'citrix' : 'fx'}`}>
+        <Aurora animated={!citrixMode} />
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
-      <div className={`lg-root font-sans ${liteMode ? 'lite' : ''}`}>
-        <Aurora lite={liteMode} />
+      <div className={`lg-root font-sans ${citrixMode ? 'citrix' : 'fx'}`}>
+        <Aurora animated={!citrixMode} />
 
         <div
           ref={stageRef}
@@ -500,7 +546,7 @@ export default function Home() {
           className="lg-stage"
         >
           <div ref={cardRef} className={`lg-card ${shake ? 'lg-shake' : ''}`}>
-            <div className="lg-sweep-clip" aria-hidden="true" />
+            {!citrixMode && <div className="lg-sweep-clip" aria-hidden="true" />}
 
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
@@ -617,20 +663,16 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Performance mode switch */}
-        <button
-          type="button"
-          onClick={toggleLite}
-          className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-emerald-300 transition-colors"
-          title="Turn on if the page feels slow (Citrix / remote desktop)"
-        >
-          <Zap className="h-3.5 w-3.5" /> Lite mode: {liteMode ? 'On' : 'Off'}
-        </button>
+        {/* Display mode switch: Citrix (soft) / Normal (full effects) */}
+        <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+          <span className="hidden sm:inline text-[11px] text-slate-400">Display</span>
+          <DisplayModeSwitch citrixMode={citrixMode} onChange={changeDisplayMode} tone="dark" />
+        </div>
 
         {/* FORGOT PASSWORD MODAL */}
         {showForgotModal && (
-          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in">
-            <Card className="w-full max-w-md border-white/10 bg-slate-900/90 text-slate-100 shadow-2xl rounded-2xl backdrop-blur-xl">
+          <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <Card className="w-full max-w-md border-white/10 bg-slate-900/95 text-slate-100 shadow-2xl rounded-2xl">
               <CardHeader className="border-b border-white/10 pb-3">
                 <CardTitle className="text-base flex items-center justify-between">
                   <span className="flex items-center gap-2 text-emerald-400">
@@ -715,41 +757,34 @@ export default function Home() {
     { key: 'admin', label: 'Admin Settings', icon: ShieldCheck },
   ];
 
+  // If the saved / current tab isn't permitted for this user, fall back to the first one they can open
+  const shownTab = isTabAllowed(activeTab)
+    ? activeTab
+    : (navItems.find((item) => isTabAllowed(item.key))?.key ?? 'overview');
+
   const filteredNavItems = navItems.filter((item) =>
     searchQuery.trim() === ''
       ? true
       : item.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const snowflakes = [
-    { left: '10%', size: 'h-4 w-4', color: 'text-cyan-200', delay: '0s' },
-    { left: '25%', size: 'h-3 w-3', color: 'text-cyan-100', delay: '1.5s' },
-    { left: '50%', size: 'h-5 w-5', color: 'text-sky-200', delay: '0.6s' },
-    { left: '75%', size: 'h-4 w-4', color: 'text-cyan-300', delay: '2.4s' },
-    { left: '90%', size: 'h-3 w-3', color: 'text-cyan-100', delay: '1s' },
-  ];
-
   return (
-    <div className={`${isDarkMode ? 'dark' : ''} ${liteMode ? 'lite' : ''}`}>
+    <div className={`${isDarkMode ? 'dark' : ''} ${citrixMode ? 'citrix' : 'fx'}`}>
       <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
 
         {/* BACKGROUND: aurora in dark mode, soft pastel in light mode */}
         {isDarkMode ? (
-          <div className="dash-aurora"><Aurora lite={liteMode} /></div>
+          <div className="dash-aurora"><Aurora animated={!citrixMode} /></div>
         ) : (
           <div className="dash-light-bg" aria-hidden="true" />
         )}
 
-        {/* SNOW ACCENT ON INACTIVITY */}
-        {showSnow && isDarkMode && !liteMode && (
+        {/* SNOW ON INACTIVITY (Normal mode only) */}
+        {isFrozen && isDarkMode && !citrixMode && (
           <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden opacity-50 animate-in fade-in">
-            {snowflakes.map((s, i) => (
-              <div
-                key={i}
-                className={`lg-snowflake ${s.color}`}
-                style={{ left: s.left, animationDelay: s.delay }}
-              >
-                <Snowflake className={s.size} />
+            {SNOWFLAKES.map((f, i) => (
+              <div key={i} className={`lg-snowflake ${f.color}`} style={{ left: f.left, animationDelay: f.delay }}>
+                <Snowflake className={f.size} />
               </div>
             ))}
           </div>
@@ -759,14 +794,13 @@ export default function Home() {
         {isFrozen && (
           <div
             onClick={resetIdleTimer}
-            className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-cyan-950/70 cursor-pointer transition-all duration-300 ${
-              iceShattered ? 'scale-110 opacity-0' : 'opacity-100 scale-100'
+            className={`frozen-overlay fixed inset-0 z-50 flex items-center justify-center cursor-pointer transition-opacity duration-300 ${
+              iceShattered ? 'opacity-0' : 'opacity-100'
             }`}
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(186,230,253,0.25),rgba(8,47,73,0.85))] pointer-events-none"></div>
-            <div className="relative z-10 text-center space-y-3 p-8 bg-slate-950/80 border-2 border-cyan-300/60 rounded-3xl backdrop-blur-2xl shadow-[0_0_80px_rgba(56,189,248,0.5)] max-w-sm animate-pulse">
+            <div className={`relative z-10 text-center space-y-3 p-8 bg-slate-950/90 border-2 border-cyan-300/60 rounded-3xl shadow-[0_0_60px_rgba(56,189,248,0.35)] max-w-sm ${citrixMode ? '' : 'animate-pulse'}`}>
               <div className="mx-auto h-16 w-16 rounded-full bg-cyan-500/20 border-2 border-cyan-300 flex items-center justify-center text-cyan-200">
-                <Snowflake className="h-8 w-8 animate-spin" style={{ animationDuration: '10s' }} />
+                <Snowflake className={`h-8 w-8 ${citrixMode ? '' : 'animate-spin'}`} style={citrixMode ? undefined : { animationDuration: '10s' }} />
               </div>
               <div>
                 <h2 className="text-xl font-extrabold tracking-tight text-cyan-200 uppercase">Dashboard Frozen</h2>
@@ -781,7 +815,7 @@ export default function Home() {
 
         {/* EXPANDING RAIL SIDEBAR NAVIGATION (DESKTOP) */}
         <aside
-          className={`hidden md:flex sidebar-rail flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-slate-800 backdrop-blur-xl z-20 bg-white/90 dark:bg-[#101a30]/90 shadow-2xl ${
+          className={`hidden md:flex sidebar-rail flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-slate-800 z-20 bg-white/95 ${citrixMode ? '' : 'backdrop-blur-xl'} dark:bg-[#101a30]/90 shadow-2xl ${
             sidebarExpanded ? 'expanded' : ''
           }`}
         >
@@ -828,7 +862,7 @@ export default function Home() {
               {filteredNavItems.map((item) => {
                 if (!isTabAllowed(item.key)) return null;
                 const Icon = item.icon;
-                const isActive = activeTab === item.key;
+                const isActive = shownTab === item.key;
 
                 return (
                   <button
@@ -843,7 +877,7 @@ export default function Home() {
                     <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-emerald-500' : 'text-slate-400'}`} />
                     <span className="rail-label truncate text-xs">{item.label}</span>
                     {item.badge !== undefined && (
-                      <span className="absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse">
+                      <span className={`absolute right-2 bg-emerald-500 text-slate-950 text-[10px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center ${citrixMode ? '' : 'animate-pulse'}`}>
                         {item.badge}
                       </span>
                     )}
@@ -856,7 +890,7 @@ export default function Home() {
           {/* Bottom Actions: Log Out */}
           <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
             <button
-              onClick={() => setCurrentUser(null)}
+              onClick={handleLogout}
               className="w-full flex items-center gap-3.5 h-10 px-2.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
             >
               <LogOut className="h-5 w-5 shrink-0" />
@@ -868,7 +902,7 @@ export default function Home() {
         {/* MOBILE SLIDE-OUT MENU DRAWER */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 md:hidden flex">
-            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+            <div className="fixed inset-0 bg-slate-950/85" onClick={() => setMobileMenuOpen(false)} />
             <div className="relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between z-50 h-full">
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
@@ -890,7 +924,7 @@ export default function Home() {
                   {navItems.map((item) => {
                     if (!isTabAllowed(item.key)) return null;
                     const Icon = item.icon;
-                    const isActive = activeTab === item.key;
+                    const isActive = shownTab === item.key;
 
                     return (
                       <button
@@ -922,7 +956,7 @@ export default function Home() {
                   <KeyRound className="h-4 w-4" /> Change Password
                 </button>
                 <button
-                  onClick={() => setCurrentUser(null)}
+                  onClick={handleLogout}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 rounded-lg"
                 >
                   <LogOut className="h-4 w-4" /> Log Out
@@ -936,7 +970,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col h-screen overflow-hidden z-10 w-full min-w-0">
 
           {/* HEADER BAR WITH DAY/NIGHT TOGGLE */}
-          <header className="h-16 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between backdrop-blur-md shrink-0 bg-white/80 dark:bg-[#080E1E]/80">
+          <header className={`h-16 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between shrink-0 bg-white/90 ${citrixMode ? '' : 'backdrop-blur-md'} dark:bg-[#080E1E]/80`}>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setMobileMenuOpen(true)}
@@ -947,20 +981,12 @@ export default function Home() {
 
               <div className="hidden sm:flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-600 dark:text-emerald-400">
                 <Clock className="h-3.5 w-3.5 text-emerald-500" />
-                <LiveClock />
+                <LiveClock showSeconds={!citrixMode} />
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleLite}
-                title="Turn on if the dashboard feels slow (Citrix / remote desktop)"
-                className="h-8 text-xs gap-1.5 border-slate-500/40 text-slate-500 dark:text-slate-300 hover:bg-slate-500/10 font-bold rounded-lg"
-              >
-                <Zap className="h-3.5 w-3.5" /> Lite: {liteMode ? 'On' : 'Off'}
-              </Button>
+              <DisplayModeSwitch citrixMode={citrixMode} onChange={changeDisplayMode} />
 
               <Button
                 variant="outline"
@@ -1003,22 +1029,20 @@ export default function Home() {
             </div>
           )}
 
-          {/* MAIN TAB CONTENT WITH 3D PAGE-FLIP ANIMATION */}
-          <main className={`flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden transition-all duration-300 origin-center ${
-            isFlipping ? 'rotate-y-90 opacity-0 scale-95' : 'rotate-y-0 opacity-100 scale-100'
-          }`}>
-            {activeTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
-            {activeTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
-            {activeTab === 'team' && isTabAllowed('team') && <TeamTab />}
-            {activeTab === 'my-performance' && isTabAllowed('my-performance') && <MyPerformanceTab />}
-            {activeTab === 'schedule' && isTabAllowed('schedule') && <ScheduleTab />}
-            {activeTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
-            {activeTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
-            {activeTab === 'email-templates' && isTabAllowed('email-templates') && <EmailTemplatesTab />}
-            {activeTab === 'requests' && isTabAllowed('requests') && <RequestsTab currentUser={currentUser} />}
-            {activeTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
-            {activeTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}
-            {activeTab === 'admin' && isTabAllowed('admin') && <AdminSettingsTab />}
+          {/* MAIN TAB CONTENT (key = tab, so each tab starts at the top and fades in) */}
+          <main key={shownTab} className="tab-fade-in flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden">
+            {shownTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
+            {shownTab === 'metrics' && isTabAllowed('metrics') && <MetricsTab />}
+            {shownTab === 'team' && isTabAllowed('team') && <TeamTab />}
+            {shownTab === 'my-performance' && isTabAllowed('my-performance') && <MyPerformanceTab />}
+            {shownTab === 'schedule' && isTabAllowed('schedule') && <ScheduleTab />}
+            {shownTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
+            {shownTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
+            {shownTab === 'email-templates' && isTabAllowed('email-templates') && <EmailTemplatesTab />}
+            {shownTab === 'requests' && isTabAllowed('requests') && <RequestsTab currentUser={currentUser} />}
+            {shownTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
+            {shownTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}
+            {shownTab === 'admin' && isTabAllowed('admin') && <AdminSettingsTab />}
           </main>
         </div>
       </div>

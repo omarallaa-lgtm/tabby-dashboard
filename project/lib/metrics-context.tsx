@@ -22,8 +22,121 @@ export interface UserProfile {
 
 const MetricsContext = createContext<any>(null);
 
+// ---------------------------------------------------------------------------
+// Session persistence
+// - "Remember Session" ticked   -> localStorage   (survives closing the browser, for REMEMBER_DAYS)
+// - "Remember Session" unticked -> sessionStorage (survives refresh, cleared when the tab/browser closes)
+// Passwords are never written to storage.
+// ---------------------------------------------------------------------------
+const SESSION_KEY = 'tabby-session';
+const REMEMBER_DAYS = 14;
+
+interface StoredSession {
+  user: any;
+  remember: boolean;
+  expiresAt: number | null;
+}
+
+const stripSecrets = (user: any) => {
+  if (!user) return user;
+  const { password, password_hash, ...safe } = user;
+  return safe;
+};
+
+const readStoredSession = (): StoredSession | null => {
+  for (const store of [() => localStorage, () => sessionStorage]) {
+    try {
+      const raw = store().getItem(SESSION_KEY);
+      if (!raw) continue;
+      const parsed: StoredSession = JSON.parse(raw);
+      if (!parsed?.user?.user_email) continue;
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+        store().removeItem(SESSION_KEY);
+        continue;
+      }
+      return parsed;
+    } catch {
+      /* storage blocked or corrupted entry: ignore */
+    }
+  }
+  return null;
+};
+
+const writeStoredSession = (user: any, remember: boolean) => {
+  const payload: StoredSession = {
+    user: stripSecrets(user),
+    remember,
+    expiresAt: remember ? Date.now() + REMEMBER_DAYS * 24 * 60 * 60 * 1000 : null,
+  };
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(payload));
+  } catch {
+    /* storage blocked: the session simply won't survive a refresh */
+  }
+};
+
+const clearStoredSession = () => {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+};
+
 export const MetricsProvider = ({ children }: { children: React.ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUserState] = useState<any>(null);
+  // false until the saved session has been checked, so the login page doesn't flash on refresh
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  // Log in (remember = keep after the browser closes) or log out (user = null)
+  const setCurrentUser = (user: any, remember?: boolean) => {
+    if (!user) {
+      clearStoredSession();
+      setCurrentUserState(null);
+      return;
+    }
+    const keep = remember ?? readStoredSession()?.remember ?? false;
+    writeStoredSession(user, keep);
+    setCurrentUserState(stripSecrets(user));
+  };
+
+  // Restore the saved session on page load, then re-check the account in Supabase
+  // so role / tab permission changes apply and disabled accounts are signed out.
+  useEffect(() => {
+    const saved = readStoredSession();
+    if (!saved) {
+      setSessionChecked(true);
+      return;
+    }
+    setCurrentUserState(saved.user);
+    setSessionChecked(true);
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_email', saved.user.user_email)
+          .maybeSingle();
+        if (error) return; // network / permission problem: keep the cached session
+        if (!data) {
+          // built-in admin account is not stored in user_profiles
+          if (saved.user.user_email === 'omar.allaa@tabby.ai') return;
+          clearStoredSession();
+          setCurrentUserState(null);
+          return;
+        }
+        if (data.account_status === 'Disabled') {
+          clearStoredSession();
+          setCurrentUserState(null);
+          return;
+        }
+        writeStoredSession(data, saved.remember);
+        setCurrentUserState(stripSecrets(data));
+      } catch {
+        /* offline: keep the cached session */
+      }
+    })();
+  }, []);
   const [agentMetrics, setAgentMetrics] = useState<any[]>([]);
   const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({});
   const [floorAverages, setFloorAverages] = useState<Record<string, any>>({});
@@ -188,6 +301,7 @@ export const MetricsProvider = ({ children }: { children: React.ReactNode }) => 
       value={{
         currentUser,
         setCurrentUser,
+        sessionChecked,
         agentMetrics,
         teamMetrics,
         floorAverages,

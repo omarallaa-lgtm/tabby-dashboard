@@ -488,7 +488,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
 
       {/* POPUP MODAL: VIEWPORT-STATIONARY OVERLAY (MOUNTED DIRECTLY TO DOCUMENT.BODY) */}
       {selectedRequest && isMounted && createPortal(
-        <div className="fixed inset-0 z-[99999] h-screen w-screen flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-hidden pointer-events-auto">
+        <div className="fixed inset-0 z-[99999] h-screen w-screen flex items-center justify-center bg-slate-950/85 p-4 overflow-hidden pointer-events-auto">
           <Card className="w-full max-w-xl shadow-2xl border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden my-auto animate-fade-in flex flex-col max-h-[90vh]">
             <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between shrink-0">
               <div>

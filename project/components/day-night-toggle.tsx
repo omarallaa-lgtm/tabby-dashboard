@@ -58,10 +58,10 @@ export function DayNightToggle({ isDarkMode, onToggle }: DayNightToggleProps) {
         {/* Moving Cloud Infinite Track */}
         <div className="clouds">
           <div className="cloud-track">
-            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
-            <img src="/cloud2.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud-toggle.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud-toggle.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud-toggle.png" alt="" aria-hidden="true" draggable={false} />
+            <img src="/cloud-toggle.png" alt="" aria-hidden="true" draggable={false} />
           </div>
         </div>
       </div>
