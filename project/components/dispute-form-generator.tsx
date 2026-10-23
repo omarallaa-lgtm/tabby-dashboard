@@ -32,7 +32,7 @@ const CURRENCIES = ['AED', 'KWD', 'USD', 'EUR', 'GBP', 'SAR'];
 
 interface Txn {
   id: number;
-  date: string; // yyyy-mm-dd from the date picker
+  date: string; // as pasted / typed (from the CRM)
   merchant: string;
   amount: string;
   currency: string;
@@ -45,9 +45,69 @@ const newTxn = (currency = 'AED'): Txn => ({ id: ++txnCounter, date: '', merchan
 const latinOnly = (t: string) => !/[^\u0000-ÿ‘’“”–—]/.test(t);
 const toLatin1 = (t: string) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 
-const ddmmyyyy = (iso: string) => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+// ---------------------------------------------------------------------------
+// Dates pasted from the CRM -> dd/mm/yyyy
+// Understands 2026-10-05, 2026-10-05T14:32, 05/10/2026, 5.10.26, 5 Oct 2026, Oct 5, 2026 14:32 ...
+// Numbers with slashes are read day first (UAE / Kuwait style) unless that is impossible (e.g. 10/25/2026).
+// ---------------------------------------------------------------------------
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
+};
+const pad = (n: number) => String(n).padStart(2, '0');
+const validDate = (d: number, m: number, y: number) => {
+  if (y < 100) y += 2000;
+  if (m < 1 || m > 12 || d < 1 || y < 2000 || y > 2100) return null;
+  const dt = new Date(y, m - 1, d);
+  return dt.getMonth() === m - 1 ? `${pad(d)}/${pad(m)}/${y}` : null;
+};
+export const parseCrmDate = (raw: string): string | null => {
+  const t = String(raw || '').trim().replace(/\s+/g, ' ');
+  if (!t) return null;
+  let m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(t); // 2026-10-05
+  if (m) return validDate(+m[3], +m[2], +m[1]);
+  m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/.exec(t); // 05/10/2026
+  if (m) {
+    const a = +m[1];
+    const b = +m[2];
+    const y = +m[3];
+    return a > 12 || b <= 12 ? validDate(a, b, y) : validDate(b, a, y);
+  }
+  const monthOf = (name: string) => MONTHS[name.slice(0, 3).toLowerCase()];
+  m = /^(\d{1,2})(?:st|nd|rd|th)?[ -]([a-z]{3,9})\.?[ ,-]*(\d{2,4})/i.exec(t); // 5 Oct 2026 / 05-Oct-2026
+  if (m && monthOf(m[2])) return validDate(+m[1], monthOf(m[2]), +m[3]);
+  m = /^(?:[a-z]{3,9},? )?([a-z]{3,9})\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})/i.exec(t); // Oct 5, 2026 / Mon, Oct 5 2026
+  if (m && monthOf(m[1])) return validDate(+m[2], monthOf(m[1]), +m[3]);
+  return null;
+};
+
+// amount pasted with or without a currency: "AED 1,250.00", "349.99 KWD", "12.500"
+const parseAmount = (raw: string): { amount: string; currency?: string } | null => {
+  const t = String(raw || '').trim().toUpperCase();
+  const m = /^([A-Z]{3})?\s*(-?[\d,]*\.?\d+)\s*([A-Z]{3})?$/.exec(t);
+  if (!m) return null;
+  const cur = m[1] || m[3];
+  let num = m[2];
+  if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(num)) num = num.replace(/,/g, '');
+  return { amount: num.replace(/^-/, ''), currency: cur && CURRENCIES.includes(cur) ? cur : undefined };
+};
+
+// a row of cells copied from the CRM: work out which cell is the date, the amount and the merchant
+const rowFromCells = (cells: string[], fallbackCurrency: string) => {
+  let date = '';
+  let amount = '';
+  let currency = fallbackCurrency;
+  const rest: string[] = [];
+  cells.forEach((c) => {
+    const v = c.trim();
+    if (!v) return;
+    if (!date && parseCrmDate(v)) date = v;
+    else if (!amount && parseAmount(v)) {
+      const a = parseAmount(v)!;
+      amount = a.amount;
+      if (a.currency) currency = a.currency;
+    } else rest.push(v);
+  });
+  return { date, merchant: rest[0] || '', amount, currency }; // extra columns (status etc.) are ignored
 };
 
 function loadPdfLib(): Promise<any> {
@@ -96,7 +156,32 @@ export function DisputeFormGenerator({ minimized, onToggle }: { minimized: boole
     setMsg(null);
   };
 
-  const filled = txns.filter((t) => t.date || t.merchant.trim() || t.amount.trim());
+  // Paste one value, or several rows copied from the CRM (one transaction per line, cells separated by tabs)
+  const onPaste = (e: React.ClipboardEvent<HTMLInputElement>, id: number, field: 'date' | 'merchant' | 'amount') => {
+    const text = e.clipboardData.getData('text');
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const multi = lines.length > 1 || /\t/.test(text);
+    if (!multi) {
+      if (field === 'amount') {
+        const a = parseAmount(text);
+        if (a) {
+          e.preventDefault();
+          setTxns((list) => list.map((t) => (t.id === id ? { ...t, amount: a.amount, currency: a.currency || t.currency } : t)));
+        }
+      }
+      return; // normal paste
+    }
+    e.preventDefault();
+    setTxns((list) => {
+      const at = Math.max(0, list.findIndex((t) => t.id === id));
+      const cur = list[at]?.currency || 'AED';
+      const pasted = lines.map((l) => ({ ...newTxn(cur), ...rowFromCells(l.split('\t'), cur) }));
+      const next = [...list.slice(0, at), ...pasted, ...list.slice(at + 1)].slice(0, MAX_ROWS);
+      return next.length ? next : [newTxn()];
+    });
+  };
+
+  const filled = txns.filter((t) => t.date.trim() || t.merchant.trim() || t.amount.trim());
 
   const generate = async () => {
     setMsg(null);
@@ -105,8 +190,11 @@ export function DisputeFormGenerator({ minimized, onToggle }: { minimized: boole
     if (!/^\d{4}$/.test(first4) || !/^\d{4}$/.test(last4)) return setMsg({ ok: false, text: 'Please enter exactly 4 digits for the first and the last 4 card digits.' });
     const texts = [cleanName, ...filled.map((t) => t.merchant)];
     if (!texts.every(latinOnly)) return setMsg({ ok: false, text: 'Please type the name and merchant names in English letters (as printed on the card / statement).' });
-    const badAmount = filled.find((t) => t.amount.trim() && !/^\d+([.,]\d{1,3})?$/.test(t.amount.trim()));
+    const badAmount = filled.find((t) => t.amount.trim() && !parseAmount(t.amount));
     if (badAmount) return setMsg({ ok: false, text: 'Amounts should be numbers only, for example 250.00' });
+    const badDate = filled.findIndex((t) => t.date.trim() && !parseCrmDate(t.date));
+    if (badDate >= 0)
+      return setMsg({ ok: false, text: `Couldn’t read the date in row ${badDate + 1}. Paste it as shown in the CRM, for example 05/10/2026 or 5 Oct 2026.` });
 
     setBusy(true);
     try {
@@ -126,9 +214,9 @@ export function DisputeFormGenerator({ minimized, onToggle }: { minimized: boole
       last4.split('').forEach((d, i) => set(`card_digit_${13 + i}`, d, true));
       filled.slice(0, MAX_ROWS).forEach((t, i) => {
         const n = i + 1;
-        if (t.date) set(`txn_date_${n}`, ddmmyyyy(t.date));
+        if (t.date.trim()) set(`txn_date_${n}`, parseCrmDate(t.date) || t.date.trim());
         if (t.merchant.trim()) set(`merchant_name_${n}`, t.merchant.trim());
-        if (t.amount.trim()) set(`txn_amount_${n}`, `${t.currency} ${t.amount.trim().replace(',', '.')}`);
+        if (t.amount.trim()) set(`txn_amount_${n}`, `${t.currency} ${parseAmount(t.amount)?.amount || t.amount.trim()}`);
       });
       if (reason) form.getCheckBox(reason).check();
 
@@ -230,11 +318,33 @@ export function DisputeFormGenerator({ minimized, onToggle }: { minimized: boole
             {txns.map((t, idx) => (
               <div
                 key={t.id}
-                className="grid grid-cols-1 md:grid-cols-[32px_170px_minmax(0,1fr)_110px_150px_40px] gap-2 items-center p-2 md:p-0 rounded-xl border border-slate-200/70 dark:border-slate-800 md:border-0"
+                className="grid grid-cols-1 md:grid-cols-[32px_170px_minmax(0,1fr)_110px_150px_40px] gap-2 items-start p-2 md:p-0 rounded-xl border border-slate-200/70 dark:border-slate-800 md:border-0"
               >
-                <div className="hidden md:block text-xs font-bold text-slate-400 text-center">{idx + 1}</div>
-                <input type="date" value={t.date} onChange={(e) => update(t.id, 'date', e.target.value)} className={input} />
-                <input value={t.merchant} onChange={(e) => update(t.id, 'merchant', e.target.value)} placeholder="Merchant name" className={input} spellCheck={false} />
+                <div className="hidden md:block text-xs font-bold text-slate-400 text-center pt-2.5">{idx + 1}</div>
+                <div className="min-w-0">
+                  <input
+                    value={t.date}
+                    onChange={(e) => update(t.id, 'date', e.target.value)}
+                    onPaste={(e) => onPaste(e, t.id, 'date')}
+                    placeholder="Paste date from CRM"
+                    className={`${input} ${t.date.trim() && !parseCrmDate(t.date) ? 'border-red-400 dark:border-red-500/60' : ''}`}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  {t.date.trim() && (
+                    <div className={`text-[10px] mt-0.5 px-1 ${parseCrmDate(t.date) ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                      {parseCrmDate(t.date) ? `✓ ${parseCrmDate(t.date)}` : 'Date not recognised'}
+                    </div>
+                  )}
+                </div>
+                <input
+                  value={t.merchant}
+                  onChange={(e) => update(t.id, 'merchant', e.target.value)}
+                  onPaste={(e) => onPaste(e, t.id, 'merchant')}
+                  placeholder="Merchant name"
+                  className={input}
+                  spellCheck={false}
+                />
                 <select value={t.currency} onChange={(e) => update(t.id, 'currency', e.target.value)} className={input}>
                   {CURRENCIES.map((c) => (
                     <option key={c} value={c}>
@@ -245,6 +355,7 @@ export function DisputeFormGenerator({ minimized, onToggle }: { minimized: boole
                 <input
                   value={t.amount}
                   onChange={(e) => update(t.id, 'amount', e.target.value.replace(/[^\d.,]/g, ''))}
+                  onPaste={(e) => onPaste(e, t.id, 'amount')}
                   inputMode="decimal"
                   placeholder="0.00"
                   className={`${input} font-mono`}
@@ -259,6 +370,9 @@ export function DisputeFormGenerator({ minimized, onToggle }: { minimized: boole
                 </button>
               </div>
             ))}
+            <p className="text-[11px] text-slate-500 px-1">
+              Tip: copy several rows from the CRM (date, merchant, amount) and paste them into any date box – each line becomes a transaction.
+            </p>
             <button
               type="button"
               onClick={addTxn}

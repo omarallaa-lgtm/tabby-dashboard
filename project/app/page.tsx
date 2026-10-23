@@ -768,12 +768,16 @@ export default function Home() {
   );
 
   return (
-    <div className={`${isDarkMode ? 'dark' : ''} ${citrixMode ? 'citrix' : 'fx'}`}>
+    <div className={`app-shell ${isDarkMode ? 'dark' : ''} ${citrixMode ? 'citrix' : 'fx'}`}>
       <div className="min-h-screen flex flex-col md:flex-row font-sans relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#020208] text-slate-900 dark:text-slate-100">
 
-        {/* BACKGROUND: aurora in dark mode, soft pastel in light mode */}
+        {/* BACKGROUND: day = Ink wash paper · night = Ink night (Normal mode keeps the live aurora) */}
         {isDarkMode ? (
-          <div className="dash-aurora"><Aurora animated={!citrixMode} /></div>
+          citrixMode ? (
+            <div className="dash-ink-bg" aria-hidden="true" />
+          ) : (
+            <div className="dash-aurora"><Aurora animated /></div>
+          )
         ) : (
           <div className="dash-light-bg" aria-hidden="true" />
         )}
@@ -814,7 +818,7 @@ export default function Home() {
 
         {/* EXPANDING RAIL SIDEBAR NAVIGATION (DESKTOP) */}
         <aside
-          className={`hidden md:flex sidebar-rail flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-slate-800 z-20 bg-white/95 ${citrixMode ? '' : 'backdrop-blur-xl'} dark:bg-[#101a30]/90 shadow-2xl ${
+          className={`hidden md:flex sidebar-rail side-ink flex-col justify-between shrink-0 p-4 border-r border-slate-200 dark:border-slate-800 z-20 bg-white/95 ${citrixMode ? '' : 'backdrop-blur-xl'} dark:bg-[#101a30]/90 shadow-2xl ${
             sidebarExpanded ? 'expanded' : ''
           }`}
         >
@@ -902,7 +906,7 @@ export default function Home() {
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 md:hidden flex">
             <div className="fixed inset-0 bg-slate-950/85" onClick={() => setMobileMenuOpen(false)} />
-            <div className="relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between z-50 h-full">
+            <div className="side-ink relative w-72 bg-white dark:bg-[#080E1E] border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between z-50 h-full">
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-3">

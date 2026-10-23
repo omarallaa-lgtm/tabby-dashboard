@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Copy, Check, Search, Star, Clock, ChevronRight, ChevronDown, MessageSquare, Mail, Lightbulb, Info, GitBranch,
-  ArrowLeft, ArrowRight, X, Keyboard, BookOpen, Pencil, Zap, Settings2, ListTree, LifeBuoy, AlertTriangle, Link2, Plus, EyeOff, Database,
+  ArrowLeft, ArrowRight, X, Keyboard, BookOpen, Pencil, Zap, Settings2, ListTree, LifeBuoy, AlertTriangle, Link2, Plus, EyeOff, Database, Home,
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import { TicketLinks } from '@/components/ticket-links';
@@ -653,6 +653,19 @@ export function TicketAssistanceTab() {
     </div>
   );
 
+  // ---- Home: close any open template / editor and go back to the start screen ----
+  const goHome = () => {
+    if (editing && !window.confirm('Leave the editor? Changes you haven’t saved will be lost.')) return;
+    setEditing(null);
+    setView('assist');
+    setSelectedId('');
+    setQuery('');
+    setCopied(new Set());
+    setShowKeys(false);
+    setShowSig(false);
+    setTimeout(() => viewerRef.current?.closest('main')?.scrollTo({ top: 0 }), 0);
+  };
+
   // ---- keyboard ----
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
@@ -668,6 +681,7 @@ export function TicketAssistanceTab() {
       return;
     }
     if (k === '?') return setShowKeys((v) => !v);
+    if (k === 'h' || k === 'escape') return goHome();
     if (!sel) return;
     if (/^[1-9]$/.test(k)) {
       const i = Number(k) - 1;
@@ -770,6 +784,14 @@ export function TicketAssistanceTab() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={goHome}
+            title="Home – close the open template (H)"
+            className="h-8 px-3 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1.5"
+          >
+            <Home className="h-3.5 w-3.5" /> Home
+          </button>
           <Seg
             value={view}
             onChange={setView}
@@ -1060,6 +1082,7 @@ export function TicketAssistanceTab() {
                 <span><Kbd>N</Kbd> <Kbd>P</Kbd> next / previous step</span>
                 <span><Kbd>F</Kbd> favourite</span>
                 <span><Kbd>Esc</Kbd> clear search</span>
+                <span><Kbd>H</Kbd> Home</span>
               </div>
             )}
 

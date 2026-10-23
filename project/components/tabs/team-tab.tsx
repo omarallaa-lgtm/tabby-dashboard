@@ -68,13 +68,18 @@ const METRICS: MetricDef[] = [
   // The floor average comes from the Metrics CSV floor rows (keys below).
   { name: 'CSAT %', short: 'CSAT', keys: ['CSAT adjusted with calls, %', 'CSAT %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, survey: 'csat' },
   { name: 'KSCAT %', short: 'KSCAT', keys: ['KSCAT %', 'kscatPercent'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, survey: 'kscat' },
-  { name: 'Adherence %', short: 'Adherence', keys: ['Adherence, %', 'adherencePercent'], targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
-  { name: 'AHT (Average Handling Time)', short: 'AHT', keys: ['Average handling time', 'aht'], targetKey: 'aht', defaultTarget: 5, isPct: false, lowerIsBetter: true },
+  // the rest follow the column order of the Overview performance table
   { name: 'ABT (Average Basket Time)', short: 'ABT', keys: ['Average basket time', 'abt'], targetKey: 'abt', defaultTarget: 14, isPct: false, lowerIsBetter: true },
-  { name: 'Productivity 8-hrs', short: 'Productivity', keys: ['Productivity 8-hrs', 'productivity8hrs'], targetKey: 'productivity8hrs', defaultTarget: 30, isPct: false },
-  { name: 'Escalation Rate %', short: 'Escalation', keys: ['Escalation rate %', 'escalationRate'], targetKey: 'escalationRate', defaultTarget: 4.5, isPct: true, lowerIsBetter: true },
-  { name: 'Deescalation Rate %', short: 'Deescalation', keys: ['Deescalation rate %', 'deescalationRate'], targetKey: 'deescalationRate', defaultTarget: 4.0, isPct: true },
-  { name: 'FCR %', short: 'FCR', keys: ['FCR, %', 'fcrPercent'], targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
+  { name: 'Productivity 8-hrs', short: 'Productivity 8-hrs', keys: ['Productivity 8-hrs', 'productivity8hrs'], targetKey: 'productivity8hrs', defaultTarget: 30, isPct: false },
+  { name: 'Productivity Online 8-hrs', short: 'Productivity Online', keys: ['Productivity Online 8-hrs', 'productivityOnline8hrs'], targetKey: 'productivityOnline8hrs', defaultTarget: 40, isPct: false },
+  { name: 'Escalation Rate %', short: 'Escalation %', keys: ['Escalation rate %', 'escalationRate'], targetKey: 'escalationRate', defaultTarget: 4.5, isPct: true, lowerIsBetter: true },
+  { name: 'Deescalation Rate %', short: 'Deescalation %', keys: ['Deescalation rate %', 'deescalationRate'], targetKey: 'deescalationRate', defaultTarget: 4.0, isPct: true },
+  { name: 'Adherence %', short: 'Adherence %', keys: ['Adherence, %', 'adherencePercent'], targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
+  { name: 'AGBT (Average Group Basket Time)', short: 'AGBT', keys: ['Average group basket time', 'agbt'], targetKey: 'agbt', defaultTarget: 25, isPct: false, lowerIsBetter: true },
+  { name: 'AHT (Average Handling Time)', short: 'AHT', keys: ['Average handling time', 'aht'], targetKey: 'aht', defaultTarget: 5, isPct: false, lowerIsBetter: true },
+  { name: 'Closed After Resolution %', short: 'Closed Res %', keys: ['Closed after resolution, %', 'closedAfterRes'], targetKey: 'closedAfterRes', defaultTarget: 60, isPct: true },
+  { name: 'Closed Tickets %', short: 'Closed Tickets %', keys: ['Closed tickets, %', 'closedTickets'], targetKey: 'closedTickets', defaultTarget: 50, isPct: true },
+  { name: 'FCR %', short: 'FCR %', keys: ['FCR, %', 'fcrPercent'], targetKey: 'fcrPercent', defaultTarget: 70, isPct: true },
 ];
 
 // Extra scorecard rows shown under CSAT % (clicking them opens the CSAT channel chart)
@@ -791,22 +796,41 @@ export function TeamTab() {
             </div>
           )}
 
-          {/* METRIC PICKER */}
-          <div className="flex flex-wrap gap-2">
+          {/* ALL METRICS AT A GLANCE – click a tile to show it in the chart */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 gap-2">
             {METRICS.map((m) => {
               const active = m.name === metric.name;
+              const t = teamCurrent(m);
+              const f = floorFor(m, floorAverages);
+              const gap = t != null && f != null ? t - f : null;
+              const good = gap == null ? null : m.lowerIsBetter ? gap <= 0 : gap >= 0;
               return (
                 <button
                   key={m.name}
                   type="button"
                   onClick={() => setGraphMetricKey(m.name)}
-                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                  title={`${m.name}${m.lowerIsBetter ? ' (lower is better)' : ''} – click to show the chart`}
+                  className={`text-left rounded-xl border px-3 py-2 transition-colors ${
                     active
-                      ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                      : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:border-emerald-500/60'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/40'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-500/60'
                   }`}
                 >
-                  {m.survey === 'csat' ? 'CSAT · Chat · Phone' : m.short}
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 truncate">
+                    {m.survey === 'csat' ? 'CSAT · Chat · Phone' : m.short}
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-base font-black" style={{ color: COLORS.team }}>
+                      {fmt(t, m.isPct)}
+                    </span>
+                    {gap != null && (
+                      <span className={`text-[10px] font-bold ${good ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {gap > 0 ? '+' : ''}
+                        {Number(gap.toFixed(2))}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-400 truncate">Floor {fmt(f, m.isPct)}</div>
                 </button>
               );
             })}
