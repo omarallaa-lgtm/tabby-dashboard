@@ -8,18 +8,21 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { 
   ShieldCheck, Users, Key, Trash2, Check, RefreshCw, AlertCircle, 
-  CheckCircle2, LayoutDashboard, Calculator, MessageSquare, 
-  Mail, MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, UserCheck
+  CheckCircle2, LayoutDashboard, Calculator, LifeBuoy, 
+  MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, UserCheck
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
+
+// Old tab keys from before Chat Macros + Email Escalations were merged into Ticket Assistance
+const normalizeTabs = (tabs: string[] = []) =>
+  Array.from(new Set(tabs.map((k) => (k === 'chat-macros' || k === 'email-templates' ? 'ticket-assist' : k))));
 
 const ALL_SYSTEM_TABS = [
   { key: 'overview', label: 'Executive Overview', icon: LayoutDashboard },
   { key: 'team', label: 'Team & Floor Insights', icon: Users },
   { key: 'my-performance', label: 'My Performance', icon: UserCheck },
   { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
-  { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
-  { key: 'email-templates', label: 'Email Escalations', icon: Mail },
+  { key: 'ticket-assist', label: 'Ticket Assistance', icon: LifeBuoy },
   { key: 'requests', label: 'Requests', icon: MessageSquarePlus },
   { key: 'announcements', label: 'Announcements', icon: Megaphone },
   { key: 'agent-data', label: 'Data & Backups', icon: Database },
@@ -75,7 +78,7 @@ export function AdminSettingsTab() {
   const handleToggleTabPermission = async (tabKey: string) => {
     if (!selectedUser) return;
 
-    const currentAllowed: string[] = selectedUser.allowed_tabs || [];
+    const currentAllowed: string[] = normalizeTabs(selectedUser.allowed_tabs || []);
     let updatedTabs: string[];
 
     if (currentAllowed.includes(tabKey)) {
@@ -124,7 +127,7 @@ export function AdminSettingsTab() {
     if (!newEmail.trim() || !newPassword.trim()) return;
 
     const cleanEmail = newEmail.trim().toLowerCase();
-    const defaultTabs = newRole === 'Admin' ? ALL_SYSTEM_TABS.map((t) => t.key) : ['overview', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates'];
+    const defaultTabs = newRole === 'Admin' ? ALL_SYSTEM_TABS.map((t) => t.key) : ['overview', 'team', 'my-performance', 'knet-calc', 'ticket-assist'];
 
     const newRecord = {
       user_email: cleanEmail,
@@ -246,7 +249,7 @@ export function AdminSettingsTab() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {ALL_SYSTEM_TABS.map((tab) => {
                   const IconComp = tab.icon;
-                  const isChecked = (selectedUser.allowed_tabs || []).includes(tab.key);
+                  const isChecked = normalizeTabs(selectedUser.allowed_tabs || []).includes(tab.key);
 
                   return (
                     <label

@@ -1,0 +1,524 @@
+import type { Scenario } from './types';
+
+// Orders, refunds and order disputes (BNPL)
+export const ORDERS: Scenario[] = [
+  // ---------------- Cancel / return ----------------
+  {
+    id: 'ord-cancel',
+    topic: 'ord-cancel',
+    title: 'Customer wants to cancel an order',
+    when: 'The customer asks Tabby to cancel an order.',
+    keys: 'cancel order cancellation stop order إلغاء الطلب ابي الغي الطلب',
+    tip: 'Tabby is the payment method; the merchant cancels. If the merchant does not respond, use the dispute (report an issue) flow.',
+    en: {
+      ack: 'I understand you’d like to cancel your order, and I’ll explain the quickest way to do it.',
+      body: [
+        'Tabby is the payment method for your order, and order cancellations are handled by the store. Please contact the store and ask them to cancel the order.',
+        'Once the store cancels it on their side, the update reaches Tabby automatically: upcoming payments stop, and any amount you’ve paid is refunded to your original payment method.',
+      ],
+      next: 'If the store doesn’t respond, let us know and we’ll guide you through reporting the issue in the app.',
+    },
+    ar: {
+      ack: 'أتفهم رغبتك في إلغاء طلبك، وسأوضح لك أسرع طريقة لذلك.',
+      body: [
+        'تابي هي وسيلة الدفع لطلبك، أما إلغاء الطلبات فيتم من خلال المتجر، لذلك يُرجى التواصل مع المتجر وطلب إلغاء الطلب.',
+        'وبمجرد إلغاء المتجر للطلب من جهته، يصل التحديث إلى تابي تلقائيًا، فتتوقف الدفعات القادمة، ويُرد أي مبلغ دفعته إلى وسيلة الدفع الأصلية.',
+      ],
+      next: 'وإذا لم يتجاوب المتجر، أخبرنا وسنرشدك إلى طريقة الإبلاغ عن المشكلة من التطبيق.',
+    },
+    subject: { en: 'Cancelling your order', ar: 'إلغاء طلبك' },
+    related: ['ord-dispute-how'],
+  },
+  {
+    id: 'ord-return',
+    topic: 'ord-cancel',
+    title: 'Return or exchange an item',
+    when: 'The customer wants to return or exchange a product.',
+    keys: 'return exchange item send back refund إرجاع استبدال',
+    en: {
+      ack: 'Sure, I’ll be happy to explain how returns work with Tabby.',
+      body: ['Returns and exchanges are handled by the store, so please contact them and follow their return process. Once the store processes the return and refund, the update will be reflected on your Tabby order automatically.'],
+    },
+    ar: {
+      ack: 'بالتأكيد، يسعدني توضيح طريقة الإرجاع مع تابي.',
+      body: ['تتم عمليات الإرجاع والاستبدال من خلال المتجر، لذلك يُرجى التواصل معهم واتباع إجراءات الإرجاع الخاصة بهم. وبعد معالجة المتجر للإرجاع والاسترداد، سيظهر التحديث على طلبك في تابي تلقائيًا.'],
+    },
+    subject: { en: 'Returning your item', ar: 'إرجاع المنتج' },
+  },
+  {
+    id: 'ord-merchant-cancelled',
+    topic: 'ord-cancel',
+    title: 'Order was cancelled by the store',
+    when: 'The order shows as cancelled by the merchant.',
+    keys: 'cancelled by store merchant cancelled order الطلب ملغي من المتجر',
+    en: {
+      ack: 'I’ve checked your order, and I can see it was cancelled by the store.',
+      body: ['The order is cancelled on Tabby as well, so there are no further payments due for it. If you’d like to know the exact reason for the cancellation, the store will be able to explain it.'],
+    },
+    ar: {
+      ack: 'راجعت طلبك، ولاحظت أنه تم إلغاؤه من قبل المتجر.',
+      body: ['والطلب ملغي في تابي أيضًا، لذلك لا توجد عليه أي دفعات مستحقة. وإذا رغبت في معرفة سبب الإلغاء بالتحديد، يمكن للمتجر توضيحه لك.'],
+    },
+    subject: { en: 'About your cancelled order', ar: 'بخصوص طلبك الملغي' },
+  },
+  {
+    id: 'ord-still-active',
+    topic: 'ord-cancel',
+    title: 'Order still active after returning it',
+    when: 'The customer returned the order but it still shows as active.',
+    keys: 'returned still active payments continue الطلب لا يزال نشط بعد الإرجاع',
+    en: {
+      ack: 'I understand you’ve already returned the order, and it’s confusing to still see it as active.',
+      body: ['I’ve checked, and the store hasn’t updated the return on the platform they share with Tabby yet, so the refund hasn’t reached us.'],
+      next: 'Please contact the store and ask them to confirm the return on their system. As soon as they do, the order will update and the refund will go back to your original payment method automatically.',
+      close: 'Please rest assured that your rights are fully protected with us. If you face any issue with the store, just reach out to us.',
+    },
+    ar: {
+      ack: 'أتفهم أنك أرجعت الطلب بالفعل، وأن ظهوره كطلب نشط أمر مربك.',
+      body: ['راجعت الأمر، والمتجر لم يحدّث حالة الإرجاع بعد على المنصة المشتركة بينه وبين تابي، لذلك لم يصلنا الاسترداد حتى الآن.'],
+      next: 'يُرجى التواصل مع المتجر وطلب تأكيد الإرجاع على نظامهم، وبمجرد ذلك سيتحدث الطلب ويُرد المبلغ إلى وسيلة الدفع الأصلية تلقائيًا.',
+      close: 'وكن مطمئنًا بأن حقك محفوظ تمامًا معنا، وإذا واجهت أي مشكلة مع المتجر فقط تواصل معنا.',
+    },
+    subject: { en: 'About your returned order', ar: 'بخصوص طلبك المُرجَع' },
+  },
+
+  // ---------------- Refund status ----------------
+  {
+    id: 'ord-refund-not-processed',
+    topic: 'ord-refund',
+    title: 'Refund – store hasn’t processed it yet',
+    when: 'The customer asks for a refund but the merchant has not initiated it.',
+    keys: 'refund not received store did not refund waiting refund لم يتم الاسترداد مسترد استرجاع فلوسي ما رجعت ما وصلني المبلغ',
+    en: {
+      ack: 'I understand you’re waiting for your refund, and I’ll clarify where things stand.',
+      body: ['I’ve checked the order, and the refund hasn’t been processed by the store yet. As the store handles the order and its refund directly, the refund process starts once they initiate it.'],
+      next: 'Please contact the store and ask them to process the refund. Once they do, it will be reflected on your Tabby account according to the refund timeline.',
+    },
+    ar: {
+      ack: 'أتفهم أنك بانتظار استرداد المبلغ، وسأوضح لك وضع الطلب حاليًا.',
+      body: ['راجعت الطلب، والمتجر لم يقم بمعالجة الاسترداد حتى الآن، وبما أن المتجر هو المسؤول عن الطلب واسترداده، فإن الإجراء يبدأ بمجرد قيامه بذلك.'],
+      next: 'يُرجى التواصل مع المتجر وطلب معالجة الاسترداد، وبعدها سيظهر على حسابك في تابي حسب المدة المعتادة.',
+    },
+    subject: { en: 'About your refund', ar: 'بخصوص استرداد المبلغ' },
+  },
+  {
+    id: 'ord-refund-15days',
+    topic: 'ord-refund',
+    title: 'Refund – store processed it, not in Tabby yet (up to 15 days)',
+    when: 'The merchant confirmed the refund but it does not show in Tabby yet, within 15 calendar days.',
+    keys: 'merchant refunded not showing in tabby 15 days التاجر أرجع المبلغ ولم يظهر المبلغ المسترد ما وصل',
+    en: {
+      ack: 'Thank you for checking with the store, and I understand you’d like to see the refund on your account.',
+      body: ['When a store processes a refund, it can take up to 15 calendar days to be reflected in Tabby. Once it appears, it will be applied to your order automatically.'],
+      next: 'If it still doesn’t appear after 15 days, please share the store’s refund confirmation and we’ll look into it.',
+    },
+    ar: {
+      ack: 'شكرًا لتواصلك مع المتجر، وأتفهم رغبتك في رؤية الاسترداد على حسابك.',
+      body: ['عندما يعالج المتجر الاسترداد، قد يستغرق ظهوره في تابي مدة تصل إلى 15 يومًا تقويميًا، وبمجرد ظهوره سيتم تطبيقه على طلبك تلقائيًا.'],
+      next: 'وإذا لم يظهر بعد مرور 15 يومًا، يُرجى مشاركة تأكيد الاسترداد من المتجر وسنتحقق من الأمر.',
+    },
+    subject: { en: 'About your refund', ar: 'بخصوص استرداد المبلغ' },
+  },
+  {
+    id: 'ord-refund-15plus',
+    topic: 'ord-refund',
+    title: 'Refund – more than 15 days, still not in Tabby',
+    when: 'The merchant refunded more than 15 calendar days ago and Tabby still shows nothing.',
+    keys: 'more than 15 days refund missing proof أكثر من 15 يوم',
+    en: {
+      ack: 'I understand you’ve been waiting a while for this refund, and I’d like to look into it for you.',
+      body: ['To check it with the relevant team, please share the official refund confirmation from the store, showing the store name, the refund amount and the refund date.'],
+      next: 'Once we receive it, we’ll continue the review and keep you updated.',
+    },
+    ar: {
+      ack: 'أتفهم أنك تنتظر هذا الاسترداد منذ فترة، وأود التحقق من الأمر لك.',
+      body: ['ولمراجعته مع الفريق المختص، يُرجى مشاركة تأكيد الاسترداد الرسمي من المتجر، يظهر فيه اسم المتجر ومبلغ الاسترداد وتاريخه.'],
+      next: 'وفور استلامه، سنكمل المراجعة ونوافيك بالمستجدات.',
+    },
+    subject: { en: 'Information needed for your refund', ar: 'معلومات مطلوبة بخصوص الاسترداد' },
+  },
+  {
+    id: 'ord-refund-bank',
+    topic: 'ord-refund',
+    title: 'Refund sent to the bank card (5–7 working days)',
+    when: 'The refund was processed to the bank card and is within the bank timeline.',
+    keys: 'refund bank card 5 7 working days not received yet الاسترداد للبطاقة البنكية 5 إلى 7 أيام',
+    tip: 'SLA not passed: explain the timeframe only. Do not escalate before 7 working days.',
+    en: {
+      ack: 'I understand you’re waiting for your refund to appear in your bank account.',
+      body: [
+        'Your refund has been processed successfully to your original bank card. Refunds usually take 5–7 working days to appear, depending on your bank, and some banks don’t send a notification when the credit arrives.',
+        'If needed, you can share this reference with your bank to locate it: {{reference}}',
+      ],
+    },
+    ar: {
+      ack: 'أتفهم أنك بانتظار ظهور المبلغ المسترد في حسابك البنكي.',
+      body: [
+        'تمت معالجة الاسترداد بنجاح إلى بطاقتك البنكية الأصلية، وعادةً ما يستغرق ظهوره من 5 إلى 7 أيام عمل حسب البنك، وبعض البنوك لا ترسل إشعارًا عند وصول المبلغ.',
+        'وعند الحاجة، يمكنك مشاركة هذا الرقم المرجعي مع البنك لتتبع المبلغ: {{reference}}',
+      ],
+    },
+    subject: { en: 'Your refund has been processed', ar: 'تمت معالجة الاسترداد' },
+  },
+  {
+    id: 'ord-refund-after-sla',
+    topic: 'ord-refund',
+    title: 'Refund not received after 7 working days',
+    when: 'The 7-working-day bank timeframe has passed and the customer still has not received it.',
+    keys: 'refund missing after 7 days bank statement trace rrn لم يصل الاسترداد بعد 7 أيام',
+    en: {
+      ack: 'I understand your concern, especially as the expected timeframe has now passed.',
+      body: ['Please contact your bank first and share the refund reference {{reference}}, so they can trace the credit on their side.'],
+      next: 'If the bank can’t locate it, please send us an official bank statement covering the period from the refund date until today, and we’ll continue the investigation with the payment team.',
+    },
+    ar: {
+      ack: 'أتفهم قلقك، خاصة أن المدة المتوقعة قد انتهت.',
+      body: ['يُرجى التواصل مع البنك أولًا ومشاركة الرقم المرجعي للاسترداد {{reference}} حتى يتمكنوا من تتبع المبلغ من جهتهم.'],
+      next: 'وإذا لم يتمكن البنك من تحديده، يُرجى إرسال كشف حساب رسمي يغطي الفترة من تاريخ الاسترداد حتى اليوم، وسنكمل التحقق مع فريق المدفوعات.',
+    },
+    subject: { en: 'Tracing your refund', ar: 'تتبع المبلغ المسترد' },
+  },
+  {
+    id: 'ord-refund-card-closed',
+    topic: 'ord-refund',
+    title: 'Refund – bank card was replaced or closed',
+    when: 'The refund went to a card the customer no longer has.',
+    keys: 'card closed replaced expired refund old card البطاقة ملغاة منتهية',
+    en: {
+      ack: 'I understand your concern about receiving the refund now that your card has changed.',
+      body: ['If the bank account linked to the old card is still active, your bank can usually receive the refund and credit it to that account.'],
+      next: 'Please contact your bank and share the refund reference {{reference}} so they can trace it and confirm how it will be credited.',
+    },
+    ar: {
+      ack: 'أتفهم قلقك بخصوص استلام المبلغ المسترد بعد تغيير بطاقتك.',
+      body: ['إذا كان الحساب البنكي المرتبط بالبطاقة القديمة لا يزال نشطًا، فعادةً ما يستطيع البنك استقبال المبلغ وإضافته إلى ذلك الحساب.'],
+      next: 'يُرجى التواصل مع البنك ومشاركة الرقم المرجعي للاسترداد {{reference}} حتى يتمكنوا من تتبعه وتأكيد طريقة إضافته.',
+    },
+    subject: { en: 'About your refund', ar: 'بخصوص استرداد المبلغ' },
+  },
+  {
+    id: 'ord-refund-to-balance',
+    topic: 'ord-refund',
+    title: 'Refund used for remaining instalments (not sent to card)',
+    when: 'The customer expected the full refund on the card but it covered the unpaid instalments.',
+    keys: 'refund not full to card applied to instalments remaining balance لم يرجع كامل المبلغ',
+    tip: 'Check how the refund was applied before answering. Never say the full refund always goes back to the card.',
+    en: {
+      ack: 'I understand why the amount returned to your card may look different from the full refund.',
+      body: ['The refunded amount is first used to cover your remaining unpaid instalments on the order. Only the amount left after those are covered is returned to your bank card, so you only pay for what you kept.'],
+    },
+    ar: {
+      ack: 'أتفهم سبب اختلاف المبلغ الذي وصل إلى بطاقتك عن قيمة الاسترداد الكاملة.',
+      body: ['يُستخدم المبلغ المسترد أولًا لتغطية الأقساط المتبقية غير المدفوعة على الطلب، ثم يُرد ما يتبقى بعد ذلك فقط إلى بطاقتك البنكية، وبذلك تدفع فقط قيمة ما احتفظت به.'],
+    },
+    subject: { en: 'How your refund was applied', ar: 'طريقة تطبيق المبلغ المسترد' },
+  },
+  {
+    id: 'ord-refund-split',
+    topic: 'ord-refund',
+    title: 'Refund split between wallet and card',
+    when: 'Part was paid from the Tabby wallet and part from a card.',
+    keys: 'refund split wallet and card part wallet part card جزء للمحفظة وجزء للبطاقة',
+    en: {
+      ack: 'Thank you for your patience while I checked your refund.',
+      body: ['The refund was returned according to the payment methods used for the purchase: the part paid from your Tabby wallet went back to the wallet instantly, and the part paid by card went back to your bank card, which can take 5–7 working days to appear.'],
+    },
+    ar: {
+      ack: 'شكرًا لصبرك أثناء مراجعة الاسترداد.',
+      body: ['تم رد المبلغ حسب طرق الدفع المستخدمة في الشراء: الجزء المدفوع من محفظة تابي عاد إلى المحفظة فورًا، والجزء المدفوع بالبطاقة عاد إلى بطاقتك البنكية، وقد يستغرق ظهوره من 5 إلى 7 أيام عمل.'],
+    },
+    subject: { en: 'How your refund was returned', ar: 'طريقة رد المبلغ المسترد' },
+  },
+  {
+    id: 'ord-refund-wallet',
+    topic: 'ord-refund',
+    title: 'Refund credited to the Tabby wallet',
+    when: 'The refund went to the Tabby wallet / cashback balance.',
+    keys: 'refund wallet cashback balance credited المحفظة الكاش باك',
+    en: {
+      ack: 'Good news! Your refund has been credited to your Tabby wallet.',
+      body: ['You can find it in the app under Profile → Funds / Cashback. You can use it toward your payments, or withdraw it to your bank account.'],
+    },
+    ar: {
+      ack: 'خبر سار! تمت إضافة المبلغ المسترد إلى محفظتك في تابي.',
+      body: ['يمكنك العثور عليه في التطبيق من الملف الشخصي ← الأموال / الكاش باك، ويمكنك استخدامه في سداد دفعاتك أو سحبه إلى حسابك البنكي.'],
+    },
+    subject: { en: 'Your refund is in your Tabby wallet', ar: 'المبلغ المسترد في محفظتك في تابي' },
+    related: ['ord-wallet-withdraw'],
+  },
+  {
+    id: 'ord-full-refund-fees',
+    topic: 'ord-refund',
+    title: 'Fully refunded order – charges removed',
+    when: 'A fully refunded order had late/collection charges.',
+    keys: 'full refund late fee removed collection charges رسوم الطلب المسترد',
+    en: {
+      ack: 'I’ve checked your order, and it has been fully refunded.',
+      body: ['Any late or collection charges related to this fully refunded order will be removed according to the refund process, so there’s nothing further for you to pay on it.'],
+    },
+    ar: {
+      ack: 'راجعت طلبك، وتم استرداده بالكامل.',
+      body: ['وأي رسوم تأخير أو تحصيل مرتبطة بهذا الطلب المسترد بالكامل ستتم إزالتها وفقًا لإجراءات الاسترداد، فلا يوجد عليك أي مبلغ آخر لهذا الطلب.'],
+    },
+    subject: { en: 'About your refunded order', ar: 'بخصوص طلبك المسترد' },
+  },
+
+  // ---------------- Partial refunds ----------------
+  {
+    id: 'ord-partial',
+    topic: 'ord-partial',
+    title: 'Partial refund – instalments adjusted',
+    when: 'The customer returned part of the order and sees smaller instalments, not money on the card.',
+    keys: 'partial refund returned some items instalments reduced استرداد جزئي',
+    en: {
+      ack: 'I understand the confusion, and I’m happy to explain how a partial refund works.',
+      body: [
+        'When part of an order is returned, the refunded amount isn’t sent separately to your bank card. Instead, it’s deducted from the order total.',
+        'The remaining balance, after the payments you’ve already made, is then divided across your remaining instalments, so your upcoming instalments are now lower and you only pay for the items you kept.',
+      ],
+      next: 'You can see the updated amounts under the order in the app.',
+    },
+    ar: {
+      ack: 'أتفهم سبب الالتباس، ويسعدني توضيح طريقة عمل الاسترداد الجزئي.',
+      body: [
+        'عند إرجاع جزء من الطلب، لا يُرسل المبلغ المسترد بشكل منفصل إلى بطاقتك البنكية، بل يتم خصمه من إجمالي قيمة الطلب.',
+        'ثم يُقسم المبلغ المتبقي، بعد الدفعات التي سددتها، على الأقساط المتبقية، فتصبح دفعاتك القادمة أقل، وتدفع فقط قيمة المنتجات التي احتفظت بها.',
+      ],
+      next: 'ويمكنك رؤية المبالغ المحدثة ضمن تفاصيل الطلب في التطبيق.',
+    },
+    subject: { en: 'How your partial refund was applied', ar: 'طريقة تطبيق الاسترداد الجزئي' },
+  },
+  {
+    id: 'ord-partial-calc',
+    topic: 'ord-partial',
+    title: 'Partial refund – step-by-step calculation (email)',
+    when: 'The customer wants the full calculation of the new instalments.',
+    keys: 'calculation breakdown new instalments how calculated حساب الأقساط الجديدة',
+    tip: 'Fill the actual figures from the order if the customer asks for them; keep the structure.',
+    channels: ['email', 'chat'],
+    en: {
+      ack: 'I understand the confusion, and I’m happy to walk you through how your new instalments were calculated.',
+      body: [
+        '1. New order total = original order total − refunded amount (the value of the items you kept).',
+        '2. Remaining balance = new order total − the payments you’ve already made.',
+        '3. New instalment = remaining balance ÷ the number of remaining instalments.',
+        'This means your upcoming instalments were reduced, and in total you’ll pay exactly the value of the items you kept.',
+      ],
+      next: 'You can see the updated schedule under the order in the Tabby app.',
+    },
+    ar: {
+      ack: 'أتفهم سبب الالتباس، ويسعدني أن أوضح لك خطوة بخطوة طريقة حساب أقساطك الجديدة.',
+      body: [
+        '1. إجمالي الطلب الجديد = إجمالي الطلب الأصلي − المبلغ المسترد (أي قيمة المنتجات التي احتفظت بها).',
+        '2. المبلغ المتبقي = إجمالي الطلب الجديد − الدفعات التي سددتها بالفعل.',
+        '3. القسط الجديد = المبلغ المتبقي ÷ عدد الأقساط المتبقية.',
+        'وبذلك انخفضت قيمة أقساطك القادمة، وستدفع في المجمل قيمة المنتجات التي احتفظت بها فقط.',
+      ],
+      next: 'ويمكنك رؤية جدول السداد المحدث ضمن تفاصيل الطلب في تطبيق تابي.',
+    },
+    subject: { en: 'Your updated payment schedule', ar: 'جدول السداد المحدث' },
+  },
+
+  // ---------------- Order disputes (report an issue) ----------------
+  {
+    id: 'ord-dispute-how',
+    topic: 'ord-dispute',
+    title: 'How to report an issue with the store (dispute)',
+    when: 'Step 1: the store is not responding or there is a problem with the order.',
+    keys: 'dispute report issue problem store not responding complaint merchant نزاع الإبلاغ عن مشكلة',
+    tip: 'Raising a dispute notifies the merchant and pauses the related payments while it is reviewed (usually up to 14 days).',
+    en: {
+      ack: 'I’m sorry you’re having trouble with this order, and I’ll guide you through the fastest way to resolve it.',
+      body: [
+        'You can report the issue directly from the app: Money (UAE) or Payments (Kuwait) → choose the order → Details → Report issue, then select the issue that matches your case and submit it.',
+        'Once reported, the store is notified automatically and our team follows up with them. Resolution usually takes up to 14 days, and the related payments are paused while it’s being reviewed.',
+      ],
+      next: 'If the store doesn’t respond by the end of that period, just contact us and we’ll escalate it to the relevant team.',
+    },
+    ar: {
+      ack: 'أعتذر عن الصعوبة التي تواجهها مع هذا الطلب، وسأرشدك إلى أسرع طريقة لحلها.',
+      body: [
+        'يمكنك الإبلاغ عن المشكلة مباشرة من التطبيق: الأموال (في الإمارات) أو المدفوعات (في الكويت) ← اختيار الطلب ← التفاصيل ← الإبلاغ عن مشكلة، ثم اختيار المشكلة المناسبة لحالتك وإرسالها.',
+        'وبعد الإبلاغ، يتم إشعار المتجر تلقائيًا ويتابع فريقنا معه، وعادةً ما يستغرق الحل مدة تصل إلى 14 يومًا، مع إيقاف الدفعات المرتبطة مؤقتًا أثناء المراجعة.',
+      ],
+      next: 'وإذا لم يتجاوب المتجر حتى نهاية هذه المدة، فقط تواصل معنا وسنقوم بتصعيد الأمر إلى الفريق المختص.',
+    },
+    subject: { en: 'How to report an issue with your order', ar: 'طريقة الإبلاغ عن مشكلة في طلبك' },
+  },
+  {
+    id: 'ord-dispute-active',
+    topic: 'ord-dispute',
+    title: 'Dispute already under review',
+    when: 'Step 2: the customer follows up while the dispute is open.',
+    keys: 'dispute open under review payments on hold متابعة النزاع',
+    en: {
+      ack: 'Thank you for following up, and I understand you’d like this resolved soon.',
+      body: ['I’ve checked your case, and the dispute is already under review. The related payments remain on hold while it’s being reviewed, so there’s nothing you need to pay on this order for now.'],
+      next: 'We’ll update you as soon as there’s an outcome.',
+    },
+    ar: {
+      ack: 'شكرًا لمتابعتك، وأتفهم رغبتك في حل الأمر قريبًا.',
+      body: ['راجعت حالتك، والنزاع قيد المراجعة بالفعل، والدفعات المرتبطة به متوقفة مؤقتًا أثناء المراجعة، فلا يلزمك سداد أي شيء على هذا الطلب حاليًا.'],
+      next: 'وسنوافيك بالنتيجة فور صدورها.',
+    },
+    subject: { en: 'Update on your order issue', ar: 'تحديث بخصوص مشكلة طلبك' },
+  },
+  {
+    id: 'ord-dispute-proof',
+    topic: 'ord-dispute',
+    title: 'Store not responding – ask for proof',
+    when: 'Step 2: the customer contacted the store without result, or cannot raise the dispute in the app.',
+    keys: 'merchant not responding proof screenshots conversation المتجر لا يرد إثبات المحادثة',
+    en: {
+      ack: 'I understand you’ve already tried to reach the store, and I’m sorry this has taken your time.',
+      body: ['To proceed with the available dispute process, please send us screenshots of your conversation with the store showing the order number, or the latest order status from the store.'],
+      next: 'Once we receive them, we’ll proceed with the case, and you’ll receive an update within 48 hours.',
+    },
+    ar: {
+      ack: 'أتفهم أنك حاولت التواصل مع المتجر بالفعل، وأعتذر عن الوقت الذي استغرقه ذلك.',
+      body: ['ولاستكمال إجراءات النزاع المتاحة، يُرجى إرسال لقطات شاشة لمحادثتك مع المتجر يظهر فيها رقم الطلب، أو آخر حالة للطلب لدى المتجر.'],
+      next: 'وفور استلامها، سنكمل إجراءات الحالة، وستصلك التحديثات خلال 48 ساعة.',
+    },
+    subject: { en: 'Information needed for your order issue', ar: 'معلومات مطلوبة بخصوص مشكلة طلبك' },
+  },
+  {
+    id: 'ord-dispute-declined',
+    topic: 'ord-dispute',
+    title: 'Dispute declined – no new information',
+    when: 'Step 3: the dispute was declined and the customer has nothing new.',
+    keys: 'dispute declined rejected outcome رفض النزاع',
+    en: {
+      ack: 'I understand this isn’t the outcome you were hoping for.',
+      body: ['I’ve reviewed the dispute, and it was declined because {{reason}}. As there’s no new information to review, the previous decision remains in place.'],
+      next: 'If you receive any new information or documents from the store, please share them and we’ll review them.',
+    },
+    ar: {
+      ack: 'أتفهم أن هذه ليست النتيجة التي كنت تتمناها.',
+      body: ['راجعت النزاع، وتم رفضه بسبب {{reason}}. وبما أنه لا توجد معلومات جديدة للمراجعة، يبقى القرار السابق كما هو.'],
+      next: 'وإذا حصلت على أي معلومات أو مستندات جديدة من المتجر، يُرجى مشاركتها وسنقوم بمراجعتها.',
+    },
+    subject: { en: 'Outcome of your order issue', ar: 'نتيجة مشكلة طلبك' },
+  },
+  {
+    id: 'ord-dispute-newproof',
+    topic: 'ord-dispute',
+    title: 'Dispute declined – new proof received',
+    when: 'Step 3: the customer sends new information after a declined dispute.',
+    keys: 'new proof new information reopen dispute إثبات جديد',
+    en: {
+      ack: 'Thank you for sharing the new information.',
+      body: ['I’ve reviewed it and raised your case with the relevant team for further review.'],
+      next: 'You’ll receive an update within 24–48 hours.',
+    },
+    ar: {
+      ack: 'شكرًا لمشاركة المعلومات الجديدة.',
+      body: ['راجعتها، وقمت برفع حالتك إلى الفريق المختص لمراجعتها مرة أخرى.'],
+      next: 'وستصلك التحديثات خلال 24 إلى 48 ساعة.',
+    },
+    subject: { en: 'Your new information is under review', ar: 'معلوماتك الجديدة قيد المراجعة' },
+  },
+  {
+    id: 'ord-dispute-cancel',
+    topic: 'ord-dispute',
+    title: 'Cancel a reported issue',
+    when: 'The issue is solved with the store and the customer wants to close the dispute.',
+    keys: 'cancel dispute resolve issue close report إلغاء البلاغ',
+    en: {
+      ack: 'I’m glad the issue has been sorted out with the store!',
+      body: ['You can close the reported issue from the app: Profile → Reported issues → choose the order → Resolve issue. Please note that the order’s payments will continue as scheduled after that.'],
+    },
+    ar: {
+      ack: 'سعيد بأن المشكلة تم حلها مع المتجر!',
+      body: ['يمكنك إغلاق البلاغ من التطبيق: الملف الشخصي ← المشكلات المُبلّغ عنها ← اختيار الطلب ← حل المشكلة، مع العلم بأن دفعات الطلب ستستمر حسب الجدول بعد ذلك.'],
+    },
+    subject: { en: 'Closing your reported issue', ar: 'إغلاق البلاغ' },
+  },
+  {
+    id: 'ord-not-delivered',
+    topic: 'ord-dispute',
+    title: 'Order not delivered',
+    when: 'The customer has not received the order.',
+    keys: 'not delivered did not arrive shipping delivery late لم يصل الطلب التوصيل',
+    en: {
+      ack: 'I’m sorry your order hasn’t arrived yet, and I understand how frustrating the wait is.',
+      body: ['Delivery is handled directly by the store, so the quickest way to get an update is to contact them. Please keep any tracking details or messages with the store.'],
+      next: 'If they don’t resolve it, you can report it from the app: choose the order → Details → Report issue → Order not delivered.',
+    },
+    ar: {
+      ack: 'أعتذر لعدم وصول طلبك حتى الآن، وأتفهم مدى الإزعاج في الانتظار.',
+      body: ['يتولى المتجر عملية التوصيل مباشرة، لذلك أسرع طريقة لمعرفة آخر التحديثات هي التواصل معه، مع الاحتفاظ بأي تفاصيل تتبع أو محادثات مع المتجر.'],
+      next: 'وإذا لم يتم حل الأمر، يمكنك الإبلاغ من التطبيق: اختيار الطلب ← التفاصيل ← الإبلاغ عن مشكلة ← لم يتم توصيل الطلب.',
+    },
+    subject: { en: 'About your undelivered order', ar: 'بخصوص طلبك الذي لم يصل' },
+  },
+  {
+    id: 'ord-damaged',
+    topic: 'ord-dispute',
+    title: 'Item damaged or incomplete',
+    when: 'The order arrived damaged or with missing parts.',
+    keys: 'damaged broken missing parts wrong item incomplete تالف ناقص',
+    en: {
+      ack: 'I’m really sorry your order didn’t arrive as expected.',
+      body: ['Please report the damaged or missing item to the store first, and keep clear photos or a video of the item along with your messages with the store.'],
+      next: 'You can also report it from the app: choose the order → Details → Report issue → Product issue, so we can follow up with the store.',
+    },
+    ar: {
+      ack: 'أعتذر جدًا لأن طلبك لم يصل بالشكل المتوقع.',
+      body: ['يُرجى إبلاغ المتجر بالمنتج التالف أو الجزء الناقص أولًا، مع الاحتفاظ بصور أو فيديو واضح للمنتج، وبمحادثاتك مع المتجر.'],
+      next: 'ويمكنك أيضًا الإبلاغ من التطبيق: اختيار الطلب ← التفاصيل ← الإبلاغ عن مشكلة ← مشكلة في المنتج، حتى نتابع الأمر مع المتجر.',
+    },
+    subject: { en: 'About the issue with your item', ar: 'بخصوص مشكلة المنتج' },
+  },
+
+  // ---------------- Wallet & cashback ----------------
+  {
+    id: 'ord-wallet-withdraw',
+    topic: 'ord-wallet',
+    title: 'Withdraw money from the Tabby wallet',
+    when: 'The customer wants to move wallet / cashback money to their bank account.',
+    keys: 'withdraw wallet cashback to bank account سحب من المحفظة',
+    en: {
+      ack: 'Sure, you can withdraw your wallet balance to your bank account easily.',
+      body: ['In the app, open Profile → Funds / Cashback → Withdraw, enter the amount, then add your bank account details and confirm. Withdrawals usually take 5–10 working days to reach your bank account.'],
+    },
+    ar: {
+      ack: 'بالتأكيد، يمكنك سحب رصيد محفظتك إلى حسابك البنكي بسهولة.',
+      body: ['من التطبيق، افتح الملف الشخصي ← الأموال / الكاش باك ← سحب، وأدخل المبلغ، ثم أضف بيانات حسابك البنكي وأكّد العملية. وعادةً ما يستغرق وصول المبلغ من 5 إلى 10 أيام عمل.'],
+    },
+    subject: { en: 'Withdrawing your wallet balance', ar: 'سحب رصيد المحفظة' },
+  },
+  {
+    id: 'ord-cashback-pending',
+    topic: 'ord-wallet',
+    title: 'Cashback still pending',
+    when: 'The customer’s cashback shows as pending.',
+    keys: 'cashback pending not added كاش باك معلق',
+    en: {
+      ack: 'I understand you’re waiting for your cashback.',
+      body: ['I’ve checked, and it’s still pending. Cashback can stay pending until the applicable claim period is completed, after which it’s added to your wallet.'],
+    },
+    ar: {
+      ack: 'أتفهم أنك بانتظار الكاش باك.',
+      body: ['راجعت الأمر، ولا يزال قيد الانتظار، وقد يبقى كذلك حتى انتهاء مدة المطالبة المحددة، ثم تتم إضافته إلى محفظتك.'],
+    },
+    subject: { en: 'About your cashback', ar: 'بخصوص الكاش باك' },
+  },
+  {
+    id: 'ord-cashback-missing',
+    topic: 'ord-wallet',
+    title: 'Cashback missing – ask for the invoice',
+    when: 'The claim period passed and the cashback is not shown.',
+    keys: 'cashback missing not received invoice الكاش باك لم يصل',
+    en: {
+      ack: 'I understand your concern about the missing cashback, and I’d like to check it for you.',
+      body: ['Could you please share the order invoice, so we can review the purchase with the relevant team?'],
+      next: 'Once we receive it, we’ll raise it and you’ll receive an update within 24–48 hours.',
+    },
+    ar: {
+      ack: 'أتفهم قلقك بخصوص الكاش باك غير الظاهر، وأود التحقق منه لك.',
+      body: ['يُرجى مشاركة فاتورة الطلب حتى نتمكن من مراجعة عملية الشراء مع الفريق المختص.'],
+      next: 'وفور استلامها، سنرفع الحالة وستصلك التحديثات خلال 24 إلى 48 ساعة.',
+    },
+    subject: { en: 'About your cashback', ar: 'بخصوص الكاش باك' },
+  },
+];

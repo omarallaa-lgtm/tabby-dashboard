@@ -8,20 +8,20 @@ import {
   AlertCircle, LayoutDashboard, Users2, Database, ShieldCheck,
   MessageSquarePlus, Megaphone, LogOut, Clock, KeyRound, Check,
   Eye, EyeOff, ArrowRight, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, MessageSquare, Mail, Menu, Search, UserCheck
+  Snowflake, Calculator, LifeBuoy, Menu, Search, UserCheck
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
 import { MyPerformanceTab } from '@/components/tabs/my-performance-tab';
 import { KnetCalculatorTab } from '@/components/tabs/knet-calculator-tab';
-import { ChatMacrosTab } from '@/components/tabs/chat-macros-tab';
-import { EmailTemplatesTab } from '@/components/tabs/email-templates-tab';
+import { TicketAssistanceTab } from '@/components/tabs/ticket-assistance-tab';
 import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
 import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
 import { DayNightToggle } from '@/components/day-night-toggle';
 import { DisplayModeSwitch } from '@/components/display-mode-switch';
+import { NotificationCenter } from '@/components/notification-center';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
 const IDLE_MS = 100000; // inactivity time before the dashboard "freezes"
@@ -371,7 +371,7 @@ export default function Home() {
   useEffect(() => {
     try {
       const savedTab = sessionStorage.getItem(TAB_KEY);
-      if (savedTab) setActiveTab(savedTab);
+      if (savedTab) setActiveTab(savedTab === 'chat-macros' || savedTab === 'email-templates' ? 'ticket-assist' : savedTab);
     } catch {}
   }, []);
 
@@ -404,7 +404,7 @@ export default function Home() {
         team_name: 'Support Tier 1',
         floor_name: 'Floor 1',
         account_status: 'Active' as const,
-        allowed_tabs: ['overview', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'],
+        allowed_tabs: ['overview', 'team', 'my-performance', 'knet-calc', 'ticket-assist', 'requests', 'announcements', 'agent-data', 'admin'],
       };
     } else {
       try {
@@ -737,16 +737,19 @@ export default function Home() {
   // ============================================================
   // DASHBOARD
   // ============================================================
-  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'team', 'my-performance', 'knet-calc', 'chat-macros', 'email-templates', 'requests', 'announcements', 'agent-data', 'admin'];
-  const isTabAllowed = (tabKey: string) => allowedTabs.includes(tabKey) || currentUser.role === 'Admin';
+  const allowedTabs: string[] = currentUser.allowed_tabs || ['overview', 'team', 'my-performance', 'knet-calc', 'ticket-assist', 'requests', 'announcements', 'agent-data', 'admin'];
+  // Ticket Assistance replaces the old Chat Macros + Email Escalations tabs, so either old permission opens it
+  const isTabAllowed = (tabKey: string) =>
+    currentUser.role === 'Admin' ||
+    allowedTabs.includes(tabKey) ||
+    (tabKey === 'ticket-assist' && (allowedTabs.includes('chat-macros') || allowedTabs.includes('email-templates')));
 
   const navItems = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
     { key: 'team', label: 'Team & Floor Insights', icon: Users2 },
     { key: 'my-performance', label: 'My Performance', icon: UserCheck },
     { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
-    { key: 'chat-macros', label: 'Chat Macros', icon: MessageSquare },
-    { key: 'email-templates', label: 'Email Escalations', icon: Mail },
+    { key: 'ticket-assist', label: 'Ticket Assistance', icon: LifeBuoy },
     { key: 'requests', label: 'Requests', icon: MessageSquarePlus, badge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined },
     { key: 'announcements', label: 'Announcements', icon: Megaphone },
     { key: 'agent-data', label: 'Data & Backups', icon: Database },
@@ -981,16 +984,26 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <DisplayModeSwitch citrixMode={citrixMode} onChange={changeDisplayMode} />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <NotificationCenter
+                currentUser={currentUser}
+                onNavigate={handleTabChange}
+                onMetricsUpdated={() => {
+                  if (typeof refreshMetrics === 'function') refreshMetrics(currentUser);
+                }}
+                citrixMode={citrixMode}
+              />
+
+              <DisplayModeSwitch citrixMode={citrixMode} onChange={changeDisplayMode} className="hidden sm:grid" />
 
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowProfile(!showProfile)}
-                className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-bold rounded-lg"
+                title="Change Password"
+                className="hidden sm:inline-flex h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-bold rounded-lg"
               >
-                <KeyRound className="h-3.5 w-3.5" /> Change Password
+                <KeyRound className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Change Password</span>
               </Button>
 
               {/* Animated Day-Night Toggle Switch */}
@@ -1031,8 +1044,7 @@ export default function Home() {
             {shownTab === 'team' && isTabAllowed('team') && <TeamTab />}
             {shownTab === 'my-performance' && isTabAllowed('my-performance') && <MyPerformanceTab />}
             {shownTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
-            {shownTab === 'chat-macros' && isTabAllowed('chat-macros') && <ChatMacrosTab />}
-            {shownTab === 'email-templates' && isTabAllowed('email-templates') && <EmailTemplatesTab />}
+            {shownTab === 'ticket-assist' && isTabAllowed('ticket-assist') && <TicketAssistanceTab />}
             {shownTab === 'requests' && isTabAllowed('requests') && <RequestsTab currentUser={currentUser} />}
             {shownTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
             {shownTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}

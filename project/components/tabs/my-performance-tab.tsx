@@ -10,7 +10,7 @@ import {
   UserCheck, Inbox, TrendingUp, TrendingDown, Target as TargetIcon, AlertTriangle, MessageSquare, Phone,
   Lightbulb, Trophy, Calculator, Search, ArrowUpRight, ArrowDownRight, Minus,
 } from 'lucide-react';
-import { TrendChart, CsatChannelChart, COLORS, CSAT_COLORS, surveyPct, resolveTarget, isPlausibleTarget, fmt, fmtTick } from '@/components/tabs/team-tab';
+import { TrendChart, CsatChannelChart, COLORS, CSAT_COLORS, surveyPct, floorChannelValue, resolveTarget, isPlausibleTarget, fmt, fmtTick } from '@/components/tabs/team-tab';
 import type { ChartPoint } from '@/components/tabs/team-tab';
 
 // Set to true if people with the role "Agent" must only ever see their own data (the name picker is then hidden)
@@ -37,8 +37,8 @@ interface AgentMetric {
 
 const METRICS: AgentMetric[] = [
   // CSAT %, Chat CSAT % and Phone CSAT % = CSAT / (CSAT + DSAT), exactly like the Overview tables.
-  // The floor files have no survey counts, so these three have no floor comparison.
-  { label: 'CSAT %', short: 'CSAT', field: 'csat_percent', floorKeys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, rawPct: true, countBased: true,
+  // Floor average: the Metrics CSV floor rows (Chat / Phone floor are found by name when the file has them).
+  { label: 'CSAT %', short: 'CSAT', field: 'csat_percent', floorKeys: ['CSAT adjusted with calls, %', 'CSAT %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, rawPct: true, countBased: true,
     tip: 'Read your DSAT conversations, find the repeated reason, and finish every chat with a clear summary and next step.' },
   { label: 'Chat CSAT %', short: 'Chat CSAT', field: 'chat_csat', floorKeys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, channel: 'chat',
     tip: 'Review your chat DSATs: confirm the solution and end with a clear summary and next step.' },
@@ -93,6 +93,7 @@ const agentValue = (row: any, m: AgentMetric): number | null => {
 
 const floorValue = (src: Record<string, any> | undefined, m: AgentMetric): number | null => {
   if (!src) return null;
+  if (m.channel) return floorChannelValue(src, m.channel);
   for (const k of m.floorKeys) {
     const raw = src[k];
     if (raw === undefined || raw === null || raw === '') continue;
@@ -186,6 +187,14 @@ export function AgentView({
   const sel = scorecard.find((s) => s.m.label === chartMetric.label)!;
   const csatSel = scorecard.find((s) => s.m.label === 'CSAT %')!;
   const csatSeries = (label: string) => rows.map((r) => agentValue(r, metricOf(label)));
+  const floorSeries = (label: string) =>
+    rows.map((r, i) => {
+      const m = metricOf(label);
+      const period = rows === history ? periodOf(r) : 'Latest';
+      let f = floorValue(floorByPeriod.get(period), m);
+      if (f == null && i === rows.length - 1) f = floorValue(floorAverages, m);
+      return f;
+    });
   const chatNow = scorecard.find((s) => s.m.label === 'Chat CSAT %')!;
   const phoneNow = scorecard.find((s) => s.m.label === 'Phone CSAT %')!;
 
@@ -235,8 +244,16 @@ export function AgentView({
               <div className="text-[10px] font-bold uppercase text-slate-500">My {s.m.short}</div>
               <div className="text-3xl font-black" style={{ color: COLORS.team }}>{fmt(s.you, s.m.isPct)}</div>
               <Delta now={s.you} before={s.before} isPct={s.m.isPct} lowerIsBetter={s.m.lowerIsBetter} />
-              {s.m.label === 'CSAT %' ? (
-                <div className="text-[11px] text-slate-400 pt-1 flex items-center gap-3">
+              <div className="text-[11px] text-slate-400 pt-1">
+                Floor {fmt(s.floor, s.m.isPct)}
+                {s.gap != null && (
+                  <span className={`ml-1.5 font-semibold ${s.aheadOfFloor ? 'text-emerald-500' : 'text-red-500'}`}>
+                    ({signed(s.gap, s.m.isPct)})
+                  </span>
+                )}
+              </div>
+              {s.m.label === 'CSAT %' && (
+                <div className="text-[11px] text-slate-400 flex items-center gap-3">
                   <span className="flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm" style={{ background: CSAT_COLORS.chat }} /> Chat{' '}
                     <span className="font-semibold text-slate-600 dark:text-slate-300">{fmt(chatNow.you, true)}</span>
@@ -245,15 +262,6 @@ export function AgentView({
                     <span className="h-2 w-2 rounded-sm" style={{ background: CSAT_COLORS.phone }} /> Phone{' '}
                     <span className="font-semibold text-slate-600 dark:text-slate-300">{fmt(phoneNow.you, true)}</span>
                   </span>
-                </div>
-              ) : (
-                <div className="text-[11px] text-slate-400 pt-1">
-                  Floor {fmt(s.floor, s.m.isPct)}
-                  {s.gap != null && (
-                    <span className={`ml-1.5 font-semibold ${s.aheadOfFloor ? 'text-emerald-500' : 'text-red-500'}`}>
-                      ({signed(s.gap, s.m.isPct)})
-                    </span>
-                  )}
                 </div>
               )}
             </CardContent>
@@ -269,7 +277,7 @@ export function AgentView({
           </CardTitle>
           <CardDescription className="text-xs">
             {isCsatView
-              ? 'My CSAT ÷ (CSAT + DSAT) for each upload, calculated like the Overview tables'
+              ? 'My CSAT ÷ (CSAT + DSAT) for each upload, calculated like the Overview tables · dashed lines = floor average'
               : `My result for each upload compared with the floor average${chartMetric.lowerIsBetter ? ' · lower is better for this metric' : ''}`}
           </CardDescription>
         </CardHeader>
@@ -306,6 +314,9 @@ export function AgentView({
               overall={csatSeries('CSAT %')}
               chat={csatSeries('Chat CSAT %')}
               phone={csatSeries('Phone CSAT %')}
+              floor={floorSeries('CSAT %')}
+              chatFloor={floorSeries('Chat CSAT %')}
+              phoneFloor={floorSeries('Phone CSAT %')}
               target={csatSel.targetOk ? csatSel.target : null}
               overallLabel="My Overall CSAT"
             />

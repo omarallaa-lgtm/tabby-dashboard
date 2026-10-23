@@ -34,7 +34,7 @@ interface MetricDef {
 // ---------------------------------------------------------------------------
 export type SurveyKind = 'csat' | 'chat' | 'phone' | 'kscat';
 
-export const CSAT_COLORS = { overall: '#10b981', chat: '#38bdf8', phone: '#a78bfa' };
+export const CSAT_COLORS = { overall: '#10b981', chat: '#f472b6', phone: '#a78bfa' };
 
 export const surveyPct = (rows: any[], kind: SurveyKind): number | null => {
   let c = 0;
@@ -63,9 +63,10 @@ export const rosterEmails = (agentMetrics: any[], kpiTargets: Record<string, any
 };
 
 const METRICS: MetricDef[] = [
-  // CSAT % and KSCAT % are calculated from the survey counts of every upload (selected roster),
+  // Team CSAT % and KSCAT % are calculated from the survey counts of every upload (selected roster),
   // exactly like the Overview tables, so old and new points always use the same formula.
-  { name: 'CSAT %', short: 'CSAT', keys: [], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, survey: 'csat' },
+  // The floor average comes from the Metrics CSV floor rows (keys below).
+  { name: 'CSAT %', short: 'CSAT', keys: ['CSAT adjusted with calls, %', 'CSAT %'], targetKey: 'csatPercent', defaultTarget: 85, isPct: true, survey: 'csat' },
   { name: 'KSCAT %', short: 'KSCAT', keys: ['KSCAT %', 'kscatPercent'], targetKey: 'kscatPercent', defaultTarget: 35, isPct: true, survey: 'kscat' },
   { name: 'Adherence %', short: 'Adherence', keys: ['Adherence, %', 'adherencePercent'], targetKey: 'adherencePercent', defaultTarget: 90, isPct: true },
   { name: 'AHT (Average Handling Time)', short: 'AHT', keys: ['Average handling time', 'aht'], targetKey: 'aht', defaultTarget: 5, isPct: false, lowerIsBetter: true },
@@ -98,6 +99,17 @@ const getNum = (src: Record<string, any> | undefined, keys: string[], isPct: boo
     return num;
   }
   return null;
+};
+
+// Floor value for Chat / Phone CSAT: found by name in the Metrics CSV floor rows
+// (any row whose name contains "CSAT" and "chat" / "phone" or "call", but not the overall "adjusted" one)
+const channelFloorKey = (src: Record<string, any> | undefined, kind: 'chat' | 'phone') =>
+  Object.keys(src || {}).find(
+    (k) => /csat/i.test(k) && (kind === 'chat' ? /chat/i.test(k) : /(phone|call)/i.test(k) && !/adjust/i.test(k))
+  );
+export const floorChannelValue = (src: Record<string, any> | undefined, kind: 'chat' | 'phone'): number | null => {
+  const key = channelFloorKey(src, kind);
+  return key ? getNum(src, [key], true) : null;
 };
 
 // Targets may arrive as numbers, "85", or arrays like [85, 90]
@@ -180,6 +192,7 @@ export interface ChartSeries {
   values: (number | null)[]; // one value per period (null = no data that day)
   area?: boolean; // soft gradient under the line
   width?: number; // line width
+  dashed?: boolean; // dashed line (floor averages)
 }
 
 // ---------------------------------------------------------------------------
@@ -398,7 +411,16 @@ export function MultiTrendChart({
           {drawOrder.map(({ s, area }) => (visible(s.key) && area ? <path key={`a${s.key}`} d={area} fill={`url(#tt-area-${s.key})`} /> : null))}
           {drawOrder.map(({ s, path }) =>
             visible(s.key) && path ? (
-              <path key={`l${s.key}`} d={path} fill="none" stroke={s.color} strokeWidth={s.width ?? 2.5} strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                key={`l${s.key}`}
+                d={path}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={s.width ?? 2.5}
+                strokeDasharray={s.dashed ? '6 4' : undefined}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             ) : null
           )}
           {drawOrder.map(({ s }) =>
@@ -511,11 +533,15 @@ export function TrendChart({
 }
 
 // Overall / Chat / Phone CSAT % lines (same formula as the Overview tables: CSAT ÷ (CSAT + DSAT))
+// plus the floor averages as dashed lines (a floor line is only shown when the files contain it)
 export function CsatChannelChart({
   periods,
   overall,
   chat,
   phone,
+  floor,
+  chatFloor,
+  phoneFloor,
   target,
   overallLabel = 'Overall CSAT',
 }: {
@@ -523,20 +549,30 @@ export function CsatChannelChart({
   overall: (number | null)[];
   chat: (number | null)[];
   phone: (number | null)[];
+  floor?: (number | null)[];
+  chatFloor?: (number | null)[];
+  phoneFloor?: (number | null)[];
   target: number | null;
   overallLabel?: string;
 }) {
+  const has = (v?: (number | null)[]) => !!v && v.some((x) => x != null);
+  const series: ChartSeries[] = [
+    { key: 'overall', label: overallLabel, short: 'Overall', color: CSAT_COLORS.overall, values: overall, area: true, width: 3 },
+    { key: 'chat', label: 'Chat CSAT', short: 'Chat', color: CSAT_COLORS.chat, values: chat, width: 2.5 },
+    { key: 'phone', label: 'Phone CSAT', short: 'Phone', color: CSAT_COLORS.phone, values: phone, width: 2.5 },
+  ];
+  if (has(floor)) series.push({ key: 'floor', label: 'Floor Average', short: 'Floor', color: COLORS.floor, values: floor!, width: 2.5, dashed: true });
+  if (has(chatFloor)) series.push({ key: 'chatFloor', label: 'Chat Floor', short: 'Chat floor', color: CSAT_COLORS.chat, values: chatFloor!, width: 1.5, dashed: true });
+  if (has(phoneFloor)) series.push({ key: 'phoneFloor', label: 'Phone Floor', short: 'Phone floor', color: CSAT_COLORS.phone, values: phoneFloor!, width: 1.5, dashed: true });
+
   return (
     <MultiTrendChart
       periods={periods}
-      series={[
-        { key: 'overall', label: overallLabel, short: 'Overall', color: CSAT_COLORS.overall, values: overall, area: true, width: 3 },
-        { key: 'chat', label: 'Chat CSAT', short: 'Chat', color: CSAT_COLORS.chat, values: chat, width: 2.5 },
-        { key: 'phone', label: 'Phone CSAT', short: 'Phone', color: CSAT_COLORS.phone, values: phone, width: 2.5 },
-      ]}
+      series={series}
       target={target}
       isPct
       lowerIsBetter={false}
+      gapPair={has(floor) ? ['overall', 'floor'] : undefined}
       emptyText="No survey data in the daily backups yet"
     />
   );
@@ -646,6 +682,9 @@ export function TeamTab() {
   };
 
   const teamCurrent = (m: MetricDef): number | null => (m.survey ? surveyNow(m.survey) : getNum(teamMetrics, m.keys, m.isPct));
+  // floor value of a metric in one set of floor figures (Chat / Phone CSAT are found by name)
+  const floorFor = (m: MetricDef, src: Record<string, any> | undefined): number | null =>
+    m.survey === 'chat' || m.survey === 'phone' ? floorChannelValue(src, m.survey) : getNum(src, m.keys, m.isPct);
 
   // ----- chart series for the selected metric (oldest -> newest) -----
   const floorByPeriod = new Map<string, Record<string, any>>();
@@ -664,7 +703,7 @@ export function TeamTab() {
         ? surveyPct(rowsByPeriod.get(period) || [], metric.survey)
         : null
       : getNum(teamByPeriod.get(period), metric.keys, metric.isPct),
-    floor: getNum(floorByPeriod.get(period), metric.keys, metric.isPct),
+    floor: floorFor(metric, floorByPeriod.get(period)),
   }));
 
   const lastIdx = (key: 'team' | 'floor') => {
@@ -682,7 +721,7 @@ export function TeamTab() {
   };
 
   const currentTeam = teamCurrent(metric);
-  const currentFloor = getNum(floorAverages, metric.keys, metric.isPct);
+  const currentFloor = floorFor(metric, floorAverages);
   const teamNow = latestOf('team') ?? currentTeam;
   const floorNow = latestOf('floor') ?? currentFloor;
 
@@ -696,18 +735,25 @@ export function TeamTab() {
 
   const anyBadTarget = METRICS.some((m) => {
     const t = resolveTarget(kpiTargets[m.targetKey], m.defaultTarget);
-    const ref = teamCurrent(m) ?? getNum(floorAverages, m.keys, m.isPct);
+    const ref = teamCurrent(m) ?? floorFor(m, floorAverages);
     return !isPlausibleTarget(t, ref);
   });
 
-  // ----- CSAT channel view -----
-  const csatChannels = [
-    { kind: 'csat' as SurveyKind, label: 'Overall CSAT', color: CSAT_COLORS.overall, values: surveySeries('csat') },
-    { kind: 'chat' as SurveyKind, label: 'Chat CSAT', color: CSAT_COLORS.chat, values: surveySeries('chat') },
-    { kind: 'phone' as SurveyKind, label: 'Phone CSAT', color: CSAT_COLORS.phone, values: surveySeries('phone') },
-  ].map((c) => {
-    const { now, before } = latestAndPrevious(c.values);
-    return { ...c, now: now ?? surveyPct(latestRosterRows, c.kind), before };
+  // ----- CSAT channel view: every upload date that has survey counts or floor figures -----
+  const csatPeriods = Array.from(new Set([...surveyPeriods, ...Array.from(floorByPeriod.keys())])).sort((a, b) => a.localeCompare(b));
+  const csatDefs: { kind: SurveyKind; label: string; color: string; def: MetricDef }[] = [
+    { kind: 'csat', label: 'Overall CSAT', color: CSAT_COLORS.overall, def: METRICS[0] },
+    { kind: 'chat', label: 'Chat CSAT', color: CSAT_COLORS.chat, def: CHANNEL_ROWS[0] },
+    { kind: 'phone', label: 'Phone CSAT', color: CSAT_COLORS.phone, def: CHANNEL_ROWS[1] },
+  ];
+  const csatChannels = csatDefs.map((c) => {
+    const values = csatPeriods.map((p) => (rowsByPeriod.has(p) ? surveyPct(rowsByPeriod.get(p) || [], c.kind) : null));
+    const floors = csatPeriods.map((p) => floorFor(c.def, floorByPeriod.get(p)));
+    const { now, before } = latestAndPrevious(values);
+    const floorLatest = latestAndPrevious(floors).now ?? floorFor(c.def, floorAverages);
+    const valueNow = now ?? surveyPct(latestRosterRows, c.kind);
+    const gap = valueNow != null && floorLatest != null ? valueNow - floorLatest : null;
+    return { ...c, values, floors, now: valueNow, before, floorNow: floorLatest, gap };
   });
   const overallNow = csatChannels[0].now;
   const csatTargetOk = isPlausibleTarget(targetValue, overallNow);
@@ -777,6 +823,15 @@ export function TeamTab() {
                     </div>
                     <div className="text-2xl font-black" style={{ color: c.color }}>{fmt(c.now, true)}</div>
                     <Delta now={c.now} before={c.before} isPct lowerIsBetter={false} />
+                    <div className="text-[11px] text-slate-400 pt-1">
+                      Floor {fmt(c.floorNow, true)}
+                      {c.gap != null && (
+                        <span className={`ml-1.5 font-semibold ${c.gap >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          ({c.gap > 0 ? '+' : ''}
+                          {Number(c.gap.toFixed(2))} pts)
+                        </span>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -872,7 +927,7 @@ export function TeamTab() {
               </CardTitle>
               <CardDescription className="text-xs">
                 {isCsatView
-                  ? 'Team CSAT ÷ (CSAT + DSAT) for each daily upload, calculated like the Overview tables (selected roster)'
+                  ? 'Team CSAT ÷ (CSAT + DSAT) for each daily upload, calculated like the Overview tables (selected roster) · dashed lines = floor average'
                   : `Team vs floor average for each daily backup${metric.lowerIsBetter ? ' · lower is better for this metric' : ''}${
                       metric.survey ? ' · Team value calculated from the survey counts (selected roster), like the Overview tab' : ''
                     }`}
@@ -881,10 +936,13 @@ export function TeamTab() {
             <CardContent className="pt-2">
               {isCsatView ? (
                 <CsatChannelChart
-                  periods={surveyPeriods}
+                  periods={csatPeriods}
                   overall={csatChannels[0].values}
                   chat={csatChannels[1].values}
                   phone={csatChannels[2].values}
+                  floor={csatChannels[0].floors}
+                  chatFloor={csatChannels[1].floors}
+                  phoneFloor={csatChannels[2].floors}
                   target={csatTargetOk ? targetValue : null}
                 />
               ) : (
@@ -905,7 +963,7 @@ export function TeamTab() {
                 <BarChart3 className="h-5 w-5 text-emerald-500" /> Benchmark Scorecard
               </CardTitle>
               <CardDescription className="text-xs">
-                Click a row to show it in the chart above · CSAT, Chat and Phone CSAT come from the survey counts, so the floor has no matching figure
+                Click a row to show it in the chart above · Team CSAT, Chat and Phone CSAT are calculated from the survey counts, like the Overview tables
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -925,7 +983,7 @@ export function TeamTab() {
                   <TableBody>
                     {scorecardRows.map((item) => {
                       const t = teamCurrent(item);
-                      const f = getNum(floorAverages, item.keys, item.isPct);
+                      const f = floorFor(item, floorAverages);
                       const target = resolveTarget(kpiTargets[item.targetKey], item.defaultTarget);
                       const okTarget = isPlausibleTarget(target, t ?? f);
                       const gap = t != null && f != null ? t - f : null;
