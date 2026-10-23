@@ -22,6 +22,7 @@ import { AnnouncementsTab } from '@/components/tabs/announcements-tab';
 import { DayNightToggle } from '@/components/day-night-toggle';
 import { DisplayModeSwitch } from '@/components/display-mode-switch';
 import { NotificationCenter } from '@/components/notification-center';
+import { DesignerSignature } from '@/components/designer-signature';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
 const IDLE_MS = 100000; // inactivity time before the dashboard "freezes"
@@ -661,6 +662,11 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Designer signature */}
+        <div className="absolute bottom-4 left-4 z-10 hidden sm:block text-slate-300">
+          <DesignerSignature variant="compact" />
+        </div>
+
         {/* Display mode switch: Citrix (soft) / Normal (full effects) */}
         <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
           <span className="hidden sm:inline text-[11px] text-slate-400">Display</span>
@@ -1053,6 +1059,11 @@ export default function Home() {
             {shownTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
             {shownTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}
             {shownTab === 'admin' && isTabAllowed('admin') && <AdminSettingsTab />}
+
+            {/* Designer signature – owner & designer of the dashboard */}
+            <footer className="mt-14 mb-2 pt-6 border-t border-slate-200 dark:border-slate-800">
+              <DesignerSignature />
+            </footer>
           </main>
         </div>
       </div>
