@@ -249,6 +249,29 @@ export const GENERAL: Scenario[] = [
 
   // ---------------- Escalation & follow-ups ----------------
   {
+    id: 'gen-esc-received',
+    topic: 'gen-follow',
+    title: 'Escalation team – inquiry received',
+    when: 'First reply when the Escalation Team picks up an escalated chat or email.',
+    keys: 'escalation received inquiry received under review complaint team receiving ticket استلام فريق الشكاوى قيد المعالجة',
+    tip: 'Set your team name to “Tabby Escalation Team” in the name settings so the email signature matches.',
+    en: {
+      ack: 'Hello Valued Customer, thank you for reaching out to us.',
+      body: ['Your inquiry has been received by the Tabby Escalation Team and is currently under review.'],
+      next: 'We’ll get back to you with an update as soon as possible.',
+    },
+    ar: {
+      ack: 'مرحبًا عزيزي العميل، نشكر تواصلك معنا.',
+      body: ['نود إعلامك بأن فريق شكاوى تابي قد استلم استفسارك، وهو حاليًا قيد المعالجة.'],
+      next: 'وسنوافيك بالمستجدات في أقرب وقت ممكن.',
+    },
+    subject: { en: 'Your inquiry has been received', ar: 'تم استلام استفسارك' },
+    emailEn:
+      'Hello Valued Customer,\n\nThank you for reaching out to us. Your inquiry has been received by the Tabby Escalation Team and is currently under review.\n\nWe will get back to you with an update as soon as possible.\n\nBest regards,\n{{agent_name}}\n{{team_name}}',
+    emailAr:
+      'مرحبًا عزيزي العميل،\n\nنشكر تواصلك معنا. نود إعلامك بأن فريق شكاوى تابي قد استلم استفسارك، وهو حاليًا قيد المعالجة.\n\nوسنوافيك بالمستجدات في أقرب وقت ممكن.\n\nمع أطيب التحيات،\n{{agent_name}}\n{{team_name}}',
+  },
+  {
     id: 'gen-escalated',
     topic: 'gen-follow',
     title: 'Raised to the relevant team (24–48 hours)',
@@ -396,23 +419,17 @@ export const GENERAL: Scenario[] = [
   {
     id: 'gen-close-final',
     topic: 'gen-close',
-    title: 'Final closing + survey + notifications',
+    title: 'Final closing',
     when: 'The customer has nothing else; close warmly.',
-    keys: 'goodbye bye survey rating notifications thanks closing إغلاق تقييم استبيان',
+    keys: 'goodbye bye final closing end chat thanks إغلاق المحادثة مع السلامة',
     channels: ['chat'],
     en: {
-      ack: 'It was truly a pleasure assisting you today. Thank you for choosing Tabby!',
-      body: [
-        'Your opinion matters to us. After this chat, you’ll receive a short survey, and we’d really appreciate a moment of your time to share your experience.',
-        'To make sure you never miss an important update from Tabby, please keep notifications enabled in your device settings. Have a wonderful day!',
-      ],
+      ack: 'It was truly a pleasure assisting you today, and thank you for choosing Tabby.',
+      body: ['Whenever you need us, we’re just a message away. Have a wonderful day!'],
     },
     ar: {
-      ack: 'سعدت جدًا بخدمتك اليوم، وشكرًا لاختيارك تابي!',
-      body: [
-        'رأيك يهمنا، وبعد إغلاق هذه المحادثة سيصلك استبيان قصير، ونقدّر كثيرًا مشاركتنا تجربتك.',
-        'وحتى لا تفوتك أي تحديثات مهمة من تابي، يُرجى إبقاء الإشعارات مفعلة في إعدادات جهازك. نتمنى لك يومًا سعيدًا!',
-      ],
+      ack: 'سعدت جدًا بخدمتك اليوم، وشكرًا لاختيارك تابي.',
+      body: ['ونحن دائمًا هنا متى احتجت إلينا. نتمنى لك يومًا سعيدًا!'],
     },
   },
   {

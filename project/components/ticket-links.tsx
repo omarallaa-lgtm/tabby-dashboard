@@ -5,6 +5,7 @@ import {
   Copy, Check, Search, Plus, Pencil, Trash2, ExternalLink, Mail, Link2, Phone, StickyNote, X, Database, AlertTriangle,
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
+import { SETUP_SQL } from '@/lib/ticket-store';
 
 // ---------------------------------------------------------------------------
 // Important links & emails (Supabase table: important_links)
@@ -23,21 +24,8 @@ export interface LinkItem {
   sort_order?: number | null;
 }
 
-export const LINKS_TABLE_SQL = `create table if not exists important_links (
-  id uuid primary key default gen_random_uuid(),
-  category text not null default 'Other',
-  title text not null,
-  kind text not null default 'link',
-  value text not null,
-  cc text,
-  notes text,
-  sort_order int default 0,
-  created_by text,
-  created_at timestamptz default now()
-);
-alter table important_links enable row level security;
-drop policy if exists "dashboard access" on important_links;
-create policy "dashboard access" on important_links for all using (true) with check (true);`;
+// one setup SQL creates both the templates table and this links table
+export const LINKS_TABLE_SQL = SETUP_SQL;
 
 // Starter list, taken from the team sheets. Saved to the database with one click.
 export const STARTER_LINKS: LinkItem[] = [
@@ -276,7 +264,7 @@ export function TicketLinks({ onCopied }: { onCopied?: (text: string, warn?: boo
           <p className="text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
             <Database className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              Showing the starter list. To let Admins and Team Leaders add and edit links here, run this once in
+              Showing the starter list. To let Admins and Team Leaders add and edit links (and templates), run this once in
               <b> Supabase → SQL Editor</b>, then refresh the page.
             </span>
           </p>

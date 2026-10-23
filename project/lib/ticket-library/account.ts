@@ -286,18 +286,18 @@ export const ACCOUNT: Scenario[] = [
     topic: 'acc-linked',
     title: 'Resolved – email removed from another account',
     when: 'Step 2: the customer’s email was removed from someone else’s account.',
-    keys: 'email removed used email survey email تمت إزالة البريد',
+    keys: 'email removed used email automated email تمت إزالة البريد',
     en: {
       ack: 'Good news! Your email address has been removed from the other Tabby account, and you can now use it with your own account.',
       body: [
-        'You may still receive one final automated email under the other person’s name. It’s sent only for survey purposes and doesn’t mean your email is still linked.',
+        'You may still receive one final automated email under the other person’s name. It’s sent automatically and doesn’t mean your email is still linked.',
         'To add the email to your account, open Profile → Personal Information → Email and update it.',
       ],
     },
     ar: {
       ack: 'خبر سار! تمت إزالة بريدك الإلكتروني من حساب تابي الآخر، ويمكنك الآن استخدامه في حسابك الخاص.',
       body: [
-        'وقد تصلك رسالة تلقائية أخيرة باسم الشخص الآخر، وهي مرسلة لغرض الاستبيان فقط ولا تعني أن بريدك لا يزال مرتبطًا.',
+        'وقد تصلك رسالة تلقائية أخيرة باسم الشخص الآخر، وهي مرسلة تلقائيًا ولا تعني أن بريدك لا يزال مرتبطًا.',
         'ولإضافة البريد إلى حسابك، افتح الملف الشخصي ← المعلومات الشخصية ← البريد الإلكتروني وقم بتحديثه.',
       ],
     },
@@ -425,11 +425,11 @@ export const ACCOUNT: Scenario[] = [
     keys: 'security tips protect account otp safety نصائح الأمان',
     en: {
       ack: 'Your security matters to us, so here are a few quick tips to keep your account safe:',
-      body: ['• Never share your OTP or PIN with anyone, including people who say they’re from Tabby.\n• Avoid unknown links, even if they show Tabby’s name or logo.\n• Keep notifications enabled, so you see every activity on your account straight away.'],
+      body: ['• Never share your OTP or PIN with anyone, including people who say they’re from Tabby.\n• Avoid unknown links, even if they show Tabby’s name or logo.\n• Log in only through the official Tabby app or website.'],
     },
     ar: {
       ack: 'أمانك يهمنا، وهذه بعض النصائح السريعة للحفاظ على حسابك:',
-      body: ['• عدم مشاركة رمز التحقق أو الرمز السري مع أي شخص، حتى لو ادعى أنه من تابي.\n• تجنب الروابط غير المعروفة حتى لو ظهر عليها اسم تابي أو شعارها.\n• إبقاء الإشعارات مفعلة حتى ترى أي نشاط على حسابك فورًا.'],
+      body: ['• عدم مشاركة رمز التحقق أو الرمز السري مع أي شخص، حتى لو ادعى أنه من تابي.\n• تجنب الروابط غير المعروفة حتى لو ظهر عليها اسم تابي أو شعارها.\n• تسجيل الدخول فقط من خلال تطبيق تابي الرسمي أو موقعه الإلكتروني.'],
     },
     subject: { en: 'Keeping your account safe', ar: 'الحفاظ على أمان حسابك' },
   },

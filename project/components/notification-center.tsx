@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Bell, BellRing, CheckCircle2, XCircle, MessageSquarePlus, BarChart3, Megaphone, X, Volume2, VolumeX, CheckCheck, RefreshCw,
+  Bell, BellRing, CheckCircle2, XCircle, MessageSquarePlus, BarChart3, Megaphone, X, Volume2, VolumeX, CheckCheck, RefreshCw, Send,
 } from 'lucide-react';
 import { supabase } from '@/lib/metrics-context';
 
@@ -131,6 +131,7 @@ export function NotificationCenter({
   const [permission, setPermission] = useState<string>('unsupported');
   const [sound, setSound] = useState(true);
   const [askBanner, setAskBanner] = useState(false);
+  const [testState, setTestState] = useState<'idle' | 'waiting' | 'sent'>('idle');
   const [, setTick] = useState(0); // re-render "x min ago"
 
   const storedRef = useRef<Stored>({ v: 1, known: null, items: [] });
@@ -142,11 +143,40 @@ export function NotificationCenter({
   const soundRef = useRef(sound);
   const bellRef = useRef<HTMLButtonElement>(null);
   const baseTitleRef = useRef('');
+  const swRef = useRef<ServiceWorkerRegistration | null>(null);
+  const flashRef = useRef<{ timer: any; text: string }>({ timer: null, text: '' });
+  const unreadRef = useRef(0);
   navRef.current = onNavigate;
   metricsRef.current = onMetricsUpdated;
   soundRef.current = sound;
 
   const unread = items.filter((i) => !i.read).length;
+  unreadRef.current = unread;
+
+  const baseTitle = () => baseTitleRef.current || document.title.replace(/^(\(\d+\+?\)|🔔)\s*/, '');
+  const unreadTitle = () => {
+    const u = unreadRef.current;
+    return u > 0 ? `(${u > 9 ? '9+' : u}) ${baseTitle()}` : baseTitle();
+  };
+
+  // Flash the tab title while the dashboard is in the background.
+  // This works even when Windows / Citrix hides browser pop-ups.
+  const stopFlash = () => {
+    if (flashRef.current.timer) clearInterval(flashRef.current.timer);
+    flashRef.current.timer = null;
+    if (typeof document !== 'undefined') document.title = unreadTitle();
+  };
+  const startFlash = (text: string) => {
+    if (!document.hidden && document.hasFocus()) return;
+    flashRef.current.text = text;
+    if (flashRef.current.timer) return;
+    let on = false;
+    flashRef.current.timer = setInterval(() => {
+      if (!document.hidden && document.hasFocus()) return stopFlash();
+      on = !on;
+      document.title = on ? `🔔 ${clip(flashRef.current.text, 40)}` : unreadTitle();
+    }, 1200);
+  };
 
   // ---------- setup ----------
   useEffect(() => {
@@ -169,17 +199,49 @@ export function NotificationCenter({
       } catch {}
     };
     window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+
+    // Desktop pop-ups go through a small service worker when possible (more reliable on Windows / Citrix)
+    const onSwMessage = (e: MessageEvent) => {
+      const d = e.data || {};
+      if (d.type !== 'tabby-notification-click') return;
+      const item = storedRef.current.items.find((i) => i.id === d.id);
+      if (item) openItem(item);
+      else if (d.tab) navRef.current(d.tab);
+    };
+    try {
+      if ('serviceWorker' in navigator && window.isSecureContext) {
+        navigator.serviceWorker
+          .register('/notify-sw.js')
+          .then((reg) => (swRef.current = reg))
+          .catch(() => {});
+        navigator.serviceWorker.addEventListener('message', onSwMessage);
+      }
+    } catch {}
+
+    const onBack = () => {
+      if (!document.hidden) stopFlash();
+    };
+    document.addEventListener('visibilitychange', onBack);
+    window.addEventListener('focus', onBack);
     return () => {
       clearInterval(id);
+      stopFlash();
       window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+      document.removeEventListener('visibilitychange', onBack);
+      window.removeEventListener('focus', onBack);
+      try {
+        navigator.serviceWorker?.removeEventListener('message', onSwMessage);
+      } catch {}
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------- unread count in the tab title + red dot on the tab icon ----------
   useEffect(() => {
     if (!mounted) return;
-    const base = baseTitleRef.current || document.title.replace(/^\(\d+\+?\)\s*/, '');
-    document.title = unread > 0 ? `(${unread > 9 ? '9+' : unread}) ${base}` : base;
+    if (!flashRef.current.timer) document.title = unreadTitle();
     document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]').forEach((l) => {
       if (!l.dataset.orig) {
         l.dataset.orig = l.href;
@@ -258,27 +320,60 @@ export function NotificationCenter({
 
   const systemPopup = (n: NotifItem, count: number) => {
     if (!notifySupported() || Notification.permission !== 'granted') return;
-    try {
-      const sn = new Notification(count > 1 ? `${count} new updates · Tabby Dashboard` : n.title, {
-        body: count > 1 ? `${n.title}\n${n.body}` : n.body,
-        icon: '/notification-icon.png',
-        badge: '/notification-icon.png',
-        tag: count > 1 ? 'tabby-summary' : n.id, // same tag = no duplicates when several dashboard tabs are open
-      } as NotificationOptions);
-      sn.onclick = () => {
-        window.focus();
-        openItem(n);
-        sn.close();
-      };
-    } catch {}
+    const title = count > 1 ? `${count} new updates · Tabby Dashboard` : n.title;
+    const options = {
+      body: count > 1 ? `${n.title}\n${n.body}` : n.body,
+      icon: '/notification-icon.png',
+      badge: '/notification-icon.png',
+      // a new tag every time, so a new pop-up always shows instead of silently replacing the last one
+      tag: `${n.id}-${count}`,
+      requireInteraction: true, // stays on screen until you click or close it
+      data: { id: n.id, tab: n.tab },
+    } as NotificationOptions;
+    const fallback = () => {
+      try {
+        const sn = new Notification(title, options);
+        sn.onclick = () => {
+          window.focus();
+          openItem(n);
+          sn.close();
+        };
+      } catch {}
+    };
+    const reg = swRef.current;
+    if (reg && reg.active) reg.showNotification(title, options).catch(fallback);
+    else fallback();
   };
 
   const deliver = (fresh: NotifItem[]) => {
     if (!fresh.length) return;
     persist([...fresh, ...storedRef.current.items]);
     setToasts((ts) => [...fresh.slice(0, 3).map((n) => ({ ...n, left: TOAST_MS })), ...ts].slice(0, 4));
-    if (document.hidden || !document.hasFocus()) systemPopup(fresh[0], fresh.length);
+    if (document.hidden || !document.hasFocus()) {
+      systemPopup(fresh[0], fresh.length);
+      startFlash(fresh.length > 1 ? `${fresh.length} new updates` : fresh[0].title);
+    }
     chime();
+  };
+
+  // Test: fires in 5 seconds so you can switch to another tab and check what you see
+  const sendTest = () => {
+    setTestState('waiting');
+    setTimeout(() => {
+      const n: NotifItem = {
+        id: `test-${Date.now()}`,
+        kind: 'announcement',
+        title: 'Test notification',
+        body: 'If you can see this pop-up, desktop notifications are working.',
+        at: Date.now(),
+        read: true,
+      };
+      setToasts((ts) => [{ ...n, left: TOAST_MS }, ...ts].slice(0, 4));
+      systemPopup(n, 1);
+      startFlash('Test notification');
+      chime();
+      setTestState('sent');
+    }, 5000);
   };
 
   // ---------- names of people ----------
@@ -609,6 +704,34 @@ export function NotificationCenter({
                       )}
                     </div>
                   )}
+
+                  <div className="px-4 py-2.5 border-b text-[11.5px] space-y-1.5" style={{ borderColor: surface.borderColor }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-slate-400">
+                        Desktop pop-ups:{' '}
+                        <b className={permission === 'granted' ? 'text-emerald-300' : 'text-amber-300'}>
+                          {permission === 'granted' ? 'allowed' : permission === 'denied' ? 'blocked' : permission === 'unsupported' ? 'not supported' : 'not turned on'}
+                        </b>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={sendTest}
+                        disabled={testState === 'waiting'}
+                        className="shrink-0 rounded-lg border border-emerald-500/40 px-2.5 py-1 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <Send className="h-3 w-3" /> {testState === 'waiting' ? 'Switch tab now…' : 'Send test'}
+                      </button>
+                    </div>
+                    {testState === 'waiting' && <div className="text-slate-400">A test arrives in 5 seconds – switch to another tab to check.</div>}
+                    {testState === 'sent' && (
+                      <div className="text-slate-400 leading-snug">
+                        No Windows pop-up? On Citrix, Windows often hides browser pop-ups. You still get the flashing{' '}
+                        <b className="text-slate-200">🔔 tab title</b>, the red dot on the tab icon and a sound. To get the pop-up, open{' '}
+                        <b className="text-slate-200">chrome://flags/#enable-system-notifications</b> (Edge: <b className="text-slate-200">edge://flags</b>), set it to{' '}
+                        <b className="text-slate-200">Disabled</b> and restart the browser, or ask IT to turn on notifications for the browser and turn off Focus assist.
+                      </div>
+                    )}
+                  </div>
 
                   <div className="max-h-[min(440px,65vh)] overflow-y-auto">
                     {items.length === 0 ? (

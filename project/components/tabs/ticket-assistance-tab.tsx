@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Copy, Check, Search, Star, Clock, ChevronRight, ChevronDown, MessageSquare, Mail, Lightbulb, Info, GitBranch,
-  ArrowLeft, ArrowRight, X, Keyboard, BookOpen, Pencil, Zap, Settings2, ListTree, LifeBuoy, AlertTriangle, Link2,
+  ArrowLeft, ArrowRight, X, Keyboard, BookOpen, Pencil, Zap, Settings2, ListTree, LifeBuoy, AlertTriangle, Link2, Plus, EyeOff, Database,
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
-import { ChatMacrosTab } from '@/components/tabs/chat-macros-tab';
-import { EmailTemplatesTab } from '@/components/tabs/email-templates-tab';
 import { TicketLinks } from '@/components/ticket-links';
+import { TicketTemplateEditor } from '@/components/ticket-template-editor';
+import type { Origin } from '@/components/ticket-template-editor';
+import { SETUP_SQL, loadTemplateRows, saveTemplateRow, deleteTemplateRow } from '@/lib/ticket-store';
+import type { TemplateRow, SavedTemplate } from '@/lib/ticket-store';
 import {
   PRODUCTS, ALL_SCENARIOS, FLOWS, chatMessages, emailBody, emailSubject, hasChannel, hasLang, placeholdersOf,
   PLACEHOLDER_LABELS,
@@ -230,6 +232,7 @@ const Seg = <T extends string>({
 
 const QUICK: { id: string; label: string }[] = [
   { id: 'gen-greet', label: 'Greeting' },
+  { id: 'gen-esc-received', label: 'Escalation received' },
   { id: 'gen-hold', label: 'Hold' },
   { id: 'gen-back', label: 'Back from hold' },
   { id: 'gen-still-there', label: 'Still there?' },
@@ -245,8 +248,15 @@ export function TicketAssistanceTab() {
   const email: string = String(currentUser?.user_email || 'guest').toLowerCase();
   const P = `tabby-ta:${email}:`;
 
-  const [view, setView] = useState<'assist' | 'links' | 'manage'>('assist');
-  const [manageKind, setManageKind] = useState<'chat' | 'email'>('chat');
+  const [view, setView] = useState<'assist' | 'links'>('assist');
+  const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
+
+  // templates added / edited in the dashboard (Supabase ticket_templates)
+  const [rows, setRows] = useState<TemplateRow[]>([]);
+  const [storeStatus, setStoreStatus] = useState<'loading' | 'ready' | 'no-table' | 'error'>('loading');
+  const [storeMsg, setStoreMsg] = useState('');
+  const [editing, setEditing] = useState<{ base: Scenario; isNew: boolean } | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   // team library
   const [team, setTeam] = useState<{ scenarios: Scenario[]; extra: Record<string, TeamExtra>; product: Product | null }>({
@@ -320,10 +330,59 @@ export function TicketAssistanceTab() {
     };
   }, [view]);
 
-  // ---- data ----
-  const products: Product[] = useMemo(() => (team.product ? [...PRODUCTS, team.product] : PRODUCTS), [team.product]);
-  const scenarios: Scenario[] = useMemo(() => [...ALL_SCENARIOS, ...team.scenarios], [team.scenarios]);
+  // ---- load saved templates (and refresh live when a colleague saves one) ----
+  const reloadRows = useCallback(async () => {
+    const res = await loadTemplateRows();
+    setRows(res.rows);
+    setStoreStatus(res.status);
+    setStoreMsg(res.message || '');
+  }, []);
+  useEffect(() => {
+    reloadRows();
+    const channel = supabase
+      .channel('ticket-templates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_templates' }, () => reloadRows())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [reloadRows]);
+
+  // ---- data: built-in + team library, then saved edits on top ----
+  const baseScenarios: Scenario[] = useMemo(() => [...ALL_SCENARIOS, ...team.scenarios], [team.scenarios]);
+  const baseById = useMemo(() => Object.fromEntries(baseScenarios.map((s) => [s.id, s])) as Record<string, Scenario>, [baseScenarios]);
+  const rowById = useMemo(() => Object.fromEntries(rows.map((r) => [r.id, r])) as Record<string, TemplateRow>, [rows]);
+  const scenarios: Scenario[] = useMemo(() => {
+    const out: Scenario[] = [];
+    baseScenarios.forEach((s) => {
+      const r = rowById[s.id];
+      if (r?.hidden) return;
+      out.push(r ? ({ ...r.data, id: s.id } as Scenario) : s);
+    });
+    rows.forEach((r) => {
+      if (!baseById[r.id] && !r.hidden && r.data) out.push({ ...r.data, id: r.id } as Scenario);
+    });
+    return out;
+  }, [baseScenarios, baseById, rows, rowById]);
+  const products: Product[] = useMemo(() => {
+    const list = (team.product ? [...PRODUCTS, team.product] : PRODUCTS).map((p) => ({ ...p, topics: [...p.topics] }));
+    const known = new Set(list.flatMap((p) => p.topics.map((t) => t.id)));
+    scenarios.forEach((s) => {
+      if (known.has(s.topic)) return;
+      const d = s as SavedTemplate;
+      const p = list.find((x) => x.id === d.productId) || list[0];
+      p.topics.push({ id: s.topic, name: d.topicName || 'Other' });
+      known.add(s.topic);
+    });
+    return list;
+  }, [team.product, scenarios]);
+  const originOf = (id: string): Origin => (baseById[id] ? (rowById[id] ? 'edited' : 'builtin') : 'custom');
+  const hiddenRows = rows.filter((r) => r.hidden && baseById[r.id]);
   const byId = useMemo(() => Object.fromEntries(scenarios.map((s) => [s.id, s])) as Record<string, Scenario>, [scenarios]);
+  const flows: Flow[] = useMemo(
+    () => FLOWS.map((f) => ({ ...f, steps: f.steps.filter((st) => byId[st.id]) })).filter((f) => f.steps.length > 0),
+    [byId]
+  );
   const topicToProduct = useMemo(
     () => Object.fromEntries(products.flatMap((p) => p.topics.map((t) => [t.id, p]))) as Record<string, Product>,
     [products]
@@ -424,7 +483,7 @@ export function TicketAssistanceTab() {
   const emailText = fill(rawEmail);
 
   // flows for the selected scenario
-  const selFlows: Flow[] = useMemo(() => (sel ? FLOWS.filter((f) => f.steps.some((st) => st.id === sel.id)) : []), [sel]);
+  const selFlows: Flow[] = useMemo(() => (sel ? flows.filter((f) => f.steps.some((st) => st.id === sel.id)) : []), [sel, flows]);
   const flow: Flow | undefined = selFlows.find((f) => f.id === activeFlowId) || selFlows[0];
 
   // ---- actions ----
@@ -492,10 +551,112 @@ export function TicketAssistanceTab() {
     doCopy(chatMessages(s, l).map(fill).join('\n\n'), s.title.split(' – ')[0]);
   };
 
+  // ---- add / edit templates ----
+  const needSetup = () => {
+    if (storeStatus === 'ready') return null;
+    return storeStatus === 'no-table'
+      ? 'Saving needs a one-time setup: copy the SQL in the yellow box above and run it in Supabase → SQL Editor, then refresh.'
+      : `Could not reach the saved templates (${storeMsg || 'unknown error'}).`;
+  };
+
+  const startNew = () => {
+    setView('assist');
+    setEditing({
+      base: {
+        id: `custom-${Date.now().toString(36)}`,
+        topic: sel?.topic || 'gen-follow',
+        title: '',
+        when: '',
+        en: { ack: '', body: [] },
+      },
+      isNew: true,
+    });
+    setTimeout(() => viewerRef.current?.scrollIntoView({ block: 'start' }), 30);
+  };
+
+  const saveEdit = async (data: SavedTemplate) => {
+    const blocked = needSetup();
+    if (blocked) return blocked;
+    const err = await saveTemplateRow({ id: data.id, data, hidden: false }, email);
+    if (err) return `Could not save: ${err}`;
+    await reloadRows();
+    setEditing(null);
+    setSelectedId(data.id);
+    setCopied(new Set());
+    flash('Template saved – everyone sees it now');
+    return null;
+  };
+
+  const resetEdit = async (id: string) => {
+    if (!window.confirm('Go back to the original version of this template? Your team’s changes will be removed.')) return;
+    const err = await deleteTemplateRow(id);
+    if (err) return flash(`Could not reset: ${err}`, true);
+    await reloadRows();
+    setEditing(null);
+    flash('Back to the original version');
+  };
+
+  const deleteCustom = async (id: string) => {
+    if (!window.confirm('Delete this template for everyone? This can’t be undone.')) return;
+    const err = await deleteTemplateRow(id);
+    if (err) return flash(`Could not delete: ${err}`, true);
+    await reloadRows();
+    setEditing(null);
+    setSelectedId('');
+    flash('Template deleted');
+  };
+
+  const hideTemplate = async (s: Scenario) => {
+    const blocked = needSetup();
+    if (blocked) return flash(blocked, true);
+    if (!window.confirm('Hide this template for everyone? You can show it again from “Hidden templates” at the bottom of the topic list.')) return;
+    const existing = rowById[s.id];
+    const err = await saveTemplateRow({ id: s.id, data: (existing?.data || baseById[s.id] || s) as SavedTemplate, hidden: true }, email);
+    if (err) return flash(`Could not hide: ${err}`, true);
+    await reloadRows();
+    setEditing(null);
+    setSelectedId('');
+    flash('Template hidden');
+  };
+
+  const restoreTemplate = async (r: TemplateRow) => {
+    const original = baseById[r.id];
+    const unchanged = original && JSON.stringify(r.data) === JSON.stringify(original);
+    const err = unchanged ? await deleteTemplateRow(r.id) : await saveTemplateRow({ ...r, hidden: false }, email);
+    if (err) return flash(`Could not restore: ${err}`, true);
+    await reloadRows();
+    flash('Template is visible again');
+  };
+
+  const SetupBox = () => (
+    <div className="rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 space-y-2">
+      <p className="text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+        <Database className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>
+          {storeStatus === 'error'
+            ? `Could not reach the saved templates: ${storeMsg}`
+            : 'One-time setup so templates and links you add are saved for the whole team: copy this, run it in Supabase → SQL Editor, then refresh the page.'}
+        </span>
+      </p>
+      {storeStatus !== 'error' && (
+        <div className="relative">
+          <pre className="text-[11px] leading-relaxed p-3 rounded-lg bg-slate-900 text-emerald-200 overflow-auto max-h-48 whitespace-pre">{SETUP_SQL}</pre>
+          <button
+            type="button"
+            onClick={() => doCopy(SETUP_SQL, 'SQL')}
+            className="absolute top-2 right-2 h-7 px-2 rounded-md text-[11px] font-bold bg-white/10 text-white hover:bg-white/20 flex items-center gap-1"
+          >
+            <Copy className="h-3.5 w-3.5" /> Copy SQL
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   // ---- keyboard ----
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
-    if (view !== 'assist' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (view !== 'assist' || editing || e.ctrlKey || e.metaKey || e.altKey) return;
     const el = e.target as HTMLElement | null;
     const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
     if (typing) return;
@@ -615,31 +776,22 @@ export function TicketAssistanceTab() {
             options={[
               { value: 'assist', label: <><Zap className="h-3.5 w-3.5" /> Assistant</> },
               { value: 'links', label: <><Link2 className="h-3.5 w-3.5" /> Links & emails</> },
-              { value: 'manage', label: <><Pencil className="h-3.5 w-3.5" /> Team templates</> },
             ]}
           />
+          {canEdit && view === 'assist' && (
+            <button
+              type="button"
+              onClick={startNew}
+              className="h-8 px-3 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" /> New template
+            </button>
+          )}
         </div>
       </div>
 
       {view === 'links' ? (
         <TicketLinks onCopied={flash} />
-      ) : view === 'manage' ? (
-        <div className="space-y-4">
-          <div className={`${panel} p-3 flex flex-wrap items-center justify-between gap-2`}>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Templates your team adds here also appear in the Assistant under <b>Team library</b> and in search.
-            </p>
-            <Seg
-              value={manageKind}
-              onChange={setManageKind}
-              options={[
-                { value: 'chat', label: <><MessageSquare className="h-3.5 w-3.5" /> Chat macros</> },
-                { value: 'email', label: <><Mail className="h-3.5 w-3.5" /> Email templates</> },
-              ]}
-            />
-          </div>
-          {manageKind === 'chat' ? <ChatMacrosTab /> : <EmailTemplatesTab />}
-        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
           {/* ================= LEFT: finder ================= */}
@@ -740,7 +892,7 @@ export function TicketAssistanceTab() {
                     <GitBranch className="h-3 w-3" /> Step-by-step cases
                   </p>
                   <div className="grid grid-cols-1 gap-0.5">
-                    {FLOWS.filter((f) => productFilter === 'all' || f.product === productFilter).map((f) => (
+                    {flows.filter((f) => productFilter === 'all' || f.product === productFilter).map((f) => (
                       <button
                         key={f.id}
                         type="button"
@@ -805,6 +957,30 @@ export function TicketAssistanceTab() {
                       </div>
                     ))}
                 </div>
+
+                {canEdit && hiddenRows.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowHidden((v) => !v)}
+                      className="w-full flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <EyeOff className="h-3 w-3" /> Hidden templates ({hiddenRows.length})
+                    </button>
+                    {showHidden && (
+                      <div className="mt-1 space-y-0.5">
+                        {hiddenRows.map((r) => (
+                          <div key={r.id} className="flex items-center gap-2 px-2 py-1 text-xs text-slate-500">
+                            <span className="flex-1 truncate">{baseById[r.id]?.title || r.data?.title}</span>
+                            <button type="button" onClick={() => restoreTemplate(r)} className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline">
+                              Show again
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </aside>
@@ -887,7 +1063,23 @@ export function TicketAssistanceTab() {
               </div>
             )}
 
-            {!sel ? (
+            {editing && canEdit && storeStatus !== 'ready' && <SetupBox />}
+
+            {editing ? (
+              <TicketTemplateEditor
+                key={editing.base.id}
+                initial={editing.base}
+                isNew={editing.isNew}
+                origin={editing.isNew ? 'custom' : originOf(editing.base.id)}
+                products={products}
+                topicName={topicName}
+                onCancel={() => setEditing(null)}
+                onSave={saveEdit}
+                onReset={!editing.isNew && originOf(editing.base.id) === 'edited' ? () => resetEdit(editing.base.id) : undefined}
+                onDelete={!editing.isNew && originOf(editing.base.id) === 'custom' ? () => deleteCustom(editing.base.id) : undefined}
+                onHide={!editing.isNew && originOf(editing.base.id) !== 'custom' ? () => hideTemplate(editing.base) : undefined}
+              />
+            ) : !sel ? (
               <div className={`${panel} p-6 space-y-4`}>
                 <div className="flex items-start gap-3">
                   <BookOpen className="h-8 w-8 text-emerald-500 shrink-0" />
@@ -900,7 +1092,7 @@ export function TicketAssistanceTab() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-                  {FLOWS.map((f) => (
+                  {flows.map((f) => (
                     <button
                       key={f.id}
                       type="button"
@@ -989,6 +1181,20 @@ export function TicketAssistanceTab() {
                         <button type="button" onClick={() => toggleFav(sel.id)} title="Favourite (F)" className="shrink-0">
                           <Star className={`h-4 w-4 ${favs.includes(sel.id) ? 'fill-amber-400 text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'}`} />
                         </button>
+                        {originOf(sel.id) !== 'builtin' && (
+                          <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                            {originOf(sel.id) === 'edited' ? 'Edited by team' : 'Added by team'}
+                          </span>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => setEditing({ base: sel, isNew: false })}
+                            className="shrink-0 h-7 px-2 rounded-lg text-[11px] font-bold border border-slate-200 dark:border-slate-700 text-slate-500 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1"
+                          >
+                            <Pencil className="h-3 w-3" /> Edit
+                          </button>
+                        )}
                       </h3>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

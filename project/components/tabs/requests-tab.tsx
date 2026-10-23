@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { 
   MessageSquarePlus, Clock, CheckCircle2, XCircle, AlertCircle, Send, Filter, 
-  MessageSquare, Check, X, Copy, ExternalLink, Eye, ShieldAlert 
+  MessageSquare, Check, X, Copy, ExternalLink, Eye, ShieldAlert, Trash2 
 } from 'lucide-react';
 import { supabase } from '@/lib/metrics-context';
 
@@ -43,6 +43,16 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
   }, []);
 
   const isAdminOrTL = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
+  const myEmail = String(currentUser?.user_email || '').trim().toLowerCase();
+
+  // Admin / Team Leader can delete any request. Agents can delete their own while it is still Pending.
+  const canDelete = (req: any) => {
+    if (!req) return false;
+    if (isAdminOrTL) return true;
+    const owner = String(req.agent_email || req.user_email || '').trim().toLowerCase();
+    return owner === myEmail && String(req.status || 'Pending') === 'Pending';
+  };
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const fetchRequests = async () => {
     if (!currentUser?.user_email) return;
@@ -200,6 +210,63 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
     }
   };
 
+  const handleDeleteRequest = async (req: any, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!canDelete(req)) return;
+    const label = `${req.request_type || req.type || 'request'}${req.ticket_id && req.ticket_id !== 'N/A' ? ` (${req.ticket_id})` : ''}`;
+    if (!window.confirm(`Delete this ${label}? This can’t be undone.`)) return;
+
+    const useId = req.id !== undefined && req.id !== null;
+    const key = String(useId ? req.id : req.request_id);
+    setDeletingKey(key);
+
+    const same = (item: any) => (useId ? item.id === req.id : item.request_id === req.request_id);
+    const prevMine = myRequests;
+    const prevAll = allRequests;
+    setMyRequests((list) => list.filter((x) => !same(x)));
+    setAllRequests((list) => list.filter((x) => !same(x)));
+    if (selectedRequest && same(selectedRequest)) setSelectedRequest(null);
+
+    const { data, error } = await supabase
+      .from('requests')
+      .delete()
+      .eq(useId ? 'id' : 'request_id', useId ? req.id : req.request_id)
+      .select();
+    setDeletingKey(null);
+
+    if (error || !data || data.length === 0) {
+      // put it back and explain
+      setMyRequests(prevMine);
+      setAllRequests(prevAll);
+      setIsError(true);
+      setStatusMsg(
+        error
+          ? `Could not delete the request: ${error.message}`
+          : 'Could not delete the request – the database is not allowing deletes yet. Ask the admin to run this once in Supabase → SQL Editor: create policy "dashboard delete" on requests for delete using (true);'
+      );
+      return;
+    }
+    setIsError(false);
+    setStatusMsg('✓ Request deleted');
+    setTimeout(() => setStatusMsg(''), 3000);
+  };
+
+  const DeleteBtn = ({ req, label }: { req: any; label?: boolean }) =>
+    canDelete(req) ? (
+      <button
+        type="button"
+        onClick={(e) => handleDeleteRequest(req, e)}
+        disabled={deletingKey === String(req.id ?? req.request_id)}
+        title="Delete request"
+        className={`inline-flex items-center gap-1 rounded-lg text-red-500 hover:bg-red-500/10 disabled:opacity-40 ${
+          label ? 'h-8 px-3 text-xs font-bold border border-red-500/40' : 'p-1.5'
+        }`}
+      >
+        <Trash2 className={label ? 'h-3.5 w-3.5' : 'h-3.5 w-3.5'} />
+        {label && 'Delete'}
+      </button>
+    ) : null;
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       <div>
@@ -295,6 +362,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                     <TableHead>Details</TableHead>
                     <TableHead>Leadership Comment</TableHead>
                     <TableHead className="text-right">Status</TableHead>
+                    <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -347,12 +415,15 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                               {req.status}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <DeleteBtn req={req} />
+                          </TableCell>
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         You have not submitted any requests yet.
                       </TableCell>
                     </TableRow>
@@ -467,6 +538,7 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
                               >
                                 <Eye className="h-3 w-3" /> View Request
                               </Button>
+                              <DeleteBtn req={req} />
                             </div>
                           </TableCell>
                         </TableRow>
@@ -592,9 +664,12 @@ export function RequestsTab({ currentUser }: { currentUser: any }) {
 
               {/* Modal Actions */}
               <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
-                <Button variant="outline" size="sm" onClick={() => setSelectedRequest(null)} className="h-8 text-xs">
-                  Close
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setSelectedRequest(null)} className="h-8 text-xs">
+                    Close
+                  </Button>
+                  <DeleteBtn req={selectedRequest} label />
+                </div>
 
                 {isAdminOrTL && (
                   <div className="flex items-center gap-2">
