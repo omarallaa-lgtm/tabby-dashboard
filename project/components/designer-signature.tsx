@@ -78,9 +78,6 @@ export function DesignerSignature({ variant = 'footer', className = '' }: { vari
       <div className="flex flex-col gap-0.5 min-w-0">
         <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Designed &amp; developed by</span>
         <SignatureMark height={40} className="text-slate-800 dark:text-slate-100 -ml-1" />
-        <span className="text-[10.5px] tracking-wide text-slate-500 dark:text-slate-400">
-          Owner &amp; Designer · Tabby Performance Dashboard · © {new Date().getFullYear()}
-        </span>
       </div>
     </div>
   );

@@ -1059,11 +1059,6 @@ export default function Home() {
             {shownTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
             {shownTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}
             {shownTab === 'admin' && isTabAllowed('admin') && <AdminSettingsTab />}
-
-            {/* Designer signature – owner & designer of the dashboard */}
-            <footer className="mt-14 mb-2 pt-6 border-t border-slate-200 dark:border-slate-800">
-              <DesignerSignature />
-            </footer>
           </main>
         </div>
       </div>
