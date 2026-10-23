@@ -1,0 +1,321 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ykmolxjrvhdrnocktxcw.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+export type UserRole = 'Admin' | 'Team Leader' | 'Agent';
+
+export interface UserProfile {
+  id?: string;
+  user_email: string;
+  username: string;
+  role: UserRole;
+  team_name: string;
+  floor_name: string;
+  account_status: 'Active' | 'Disabled';
+  allowed_tabs: string[];
+}
+
+const MetricsContext = createContext<any>(null);
+
+// ---------------------------------------------------------------------------
+// Session persistence
+// - "Remember Session" ticked   -> localStorage   (survives closing the browser, for REMEMBER_DAYS)
+// - "Remember Session" unticked -> sessionStorage (survives refresh, cleared when the tab/browser closes)
+// Passwords are never written to storage.
+// ---------------------------------------------------------------------------
+const SESSION_KEY = 'tabby-session';
+const REMEMBER_DAYS = 14;
+
+interface StoredSession {
+  user: any;
+  remember: boolean;
+  expiresAt: number | null;
+}
+
+const stripSecrets = (user: any) => {
+  if (!user) return user;
+  const { password, password_hash, ...safe } = user;
+  return safe;
+};
+
+const readStoredSession = (): StoredSession | null => {
+  for (const store of [() => localStorage, () => sessionStorage]) {
+    try {
+      const raw = store().getItem(SESSION_KEY);
+      if (!raw) continue;
+      const parsed: StoredSession = JSON.parse(raw);
+      if (!parsed?.user?.user_email) continue;
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+        store().removeItem(SESSION_KEY);
+        continue;
+      }
+      return parsed;
+    } catch {
+      /* storage blocked or corrupted entry: ignore */
+    }
+  }
+  return null;
+};
+
+const writeStoredSession = (user: any, remember: boolean) => {
+  const payload: StoredSession = {
+    user: stripSecrets(user),
+    remember,
+    expiresAt: remember ? Date.now() + REMEMBER_DAYS * 24 * 60 * 60 * 1000 : null,
+  };
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(payload));
+  } catch {
+    /* storage blocked: the session simply won't survive a refresh */
+  }
+};
+
+const clearStoredSession = () => {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+};
+
+export const MetricsProvider = ({ children }: { children: React.ReactNode }) => {
+  const [currentUser, setCurrentUserState] = useState<any>(null);
+  // false until the saved session has been checked, so the login page doesn't flash on refresh
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  // Log in (remember = keep after the browser closes) or log out (user = null)
+  const setCurrentUser = (user: any, remember?: boolean) => {
+    if (!user) {
+      clearStoredSession();
+      setCurrentUserState(null);
+      return;
+    }
+    const keep = remember ?? readStoredSession()?.remember ?? false;
+    writeStoredSession(user, keep);
+    setCurrentUserState(stripSecrets(user));
+  };
+
+  // Restore the saved session on page load, then re-check the account in Supabase
+  // so role / tab permission changes apply and disabled accounts are signed out.
+  useEffect(() => {
+    const saved = readStoredSession();
+    if (!saved) {
+      setSessionChecked(true);
+      return;
+    }
+    setCurrentUserState(saved.user);
+    setSessionChecked(true);
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_email', saved.user.user_email)
+          .maybeSingle();
+        if (error) return; // network / permission problem: keep the cached session
+        if (!data) {
+          // built-in admin account is not stored in user_profiles
+          if (saved.user.user_email === 'omar.allaa@tabby.ai') return;
+          clearStoredSession();
+          setCurrentUserState(null);
+          return;
+        }
+        if (data.account_status === 'Disabled') {
+          clearStoredSession();
+          setCurrentUserState(null);
+          return;
+        }
+        writeStoredSession(data, saved.remember);
+        setCurrentUserState(stripSecrets(data));
+      } catch {
+        /* offline: keep the cached session */
+      }
+    })();
+  }, []);
+  const [agentMetrics, setAgentMetrics] = useState<any[]>([]);
+  const [teamMetrics, setTeamMetrics] = useState<Record<string, any>>({});
+  const [floorAverages, setFloorAverages] = useState<Record<string, any>>({});
+  const [kpiTargets, setKpiTargets] = useState<Record<string, any>>({
+    csatPercent: 85,
+    kscatPercent: 35,
+    adherencePercent: 90,
+    aht: 5,
+    abt: 14,
+    fcrPercent: 70,
+  });
+  const [dailyProgressData, setDailyProgressData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Helper function to cleanly parse JSON arrays/strings or numbers
+  const parseTargetVal = (val: any) => {
+    if (typeof val === 'string') {
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        return isNaN(Number(val)) ? val : Number(val);
+      }
+    }
+    return val;
+  };
+
+  const fetchMetrics = async (user?: any) => {
+    setLoading(true);
+
+    try {
+      // 1. Always fetch all agent metrics across team so totals match for all roles
+      const { data: agentData } = await supabase
+        .from('agent_metrics')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (agentData) {
+        const uniqueMap = new Map();
+        agentData.forEach((row) => {
+          if (!uniqueMap.has(row.agent_email)) {
+            uniqueMap.set(row.agent_email, row);
+          }
+        });
+        setAgentMetrics(Array.from(uniqueMap.values()));
+      }
+
+      // 2. Fetch Level Aggregates (Team & Floor)
+      const { data: aggData } = await supabase
+        .from('level_aggregates')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (aggData) {
+        const teamMap: Record<string, any> = {};
+        const floorMap: Record<string, any> = {};
+        const periodGrouped: Record<string, { period: string; teamMetrics: Record<string, number>; floorMetrics: Record<string, number> }> = {};
+
+        aggData.forEach((item) => {
+          const p = item.period_id;
+          if (!periodGrouped[p]) {
+            periodGrouped[p] = { period: p, teamMetrics: {}, floorMetrics: {} };
+          }
+
+          if (item.level_type === 'Team Overall') {
+            teamMap[item.metric_key] = item.metric_value;
+            periodGrouped[p].teamMetrics[item.metric_key] = Number(item.metric_value);
+          } else if (item.level_type === 'Floor Average') {
+            floorMap[item.metric_key] = item.metric_value;
+            periodGrouped[p].floorMetrics[item.metric_key] = Number(item.metric_value);
+          }
+        });
+
+        setTeamMetrics(teamMap);
+        setFloorAverages(floorMap);
+        setDailyProgressData(Object.values(periodGrouped));
+      }
+
+      // 3. Fetch KPI Targets (Supports numbers and array strings safely)
+      const { data: targetData } = await supabase.from('kpi_targets').select('*');
+      if (targetData && targetData.length > 0) {
+        const tMap: Record<string, any> = {};
+        targetData.forEach((t) => {
+          tMap[t.metric_key] = parseTargetVal(t.target_value);
+        });
+        setKpiTargets((prev) => ({ ...prev, ...tMap }));
+      }
+    } catch (e) {
+      console.error('Error fetching metrics context:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Live Supabase Broadcast Listener to update all users in real-time
+  useEffect(() => {
+    fetchMetrics();
+
+    const channel = supabase
+      .channel('public:kpi_targets')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'kpi_targets' },
+        (payload: any) => {
+          if (payload.new && payload.new.metric_key) {
+            const parsedVal = parseTargetVal(payload.new.target_value);
+            setKpiTargets((prev) => ({
+              ...prev,
+              [payload.new.metric_key]: parsedVal,
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const updateTarget = async (key: string, value: any) => {
+    // Update local React state immediately
+    setKpiTargets((prev) => ({ ...prev, [key]: value }));
+
+    // Safely format value for text/JSON storage
+    const valueToStore = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+    try {
+      const { error } = await supabase.from('kpi_targets').upsert(
+        [
+          {
+            metric_key: key,
+            target_value: valueToStore,
+            updated_by: currentUser?.user_email || 'admin',
+          },
+        ],
+        { onConflict: 'metric_key' } // Fix: Explicitly resolve conflict on metric_key primary key
+      );
+
+      if (error) {
+        console.error('Error saving target to Supabase:', error);
+      }
+    } catch (err) {
+      console.error('Failed to sync target with Supabase:', err);
+    }
+  };
+
+  const logAuditAction = async (action: string, target: string, prevVal?: any, newVal?: any) => {
+    if (!currentUser) return;
+    await supabase.from('audit_logs').insert([
+      {
+        actor_email: currentUser.user_email,
+        action,
+        target_entity: target,
+        previous_value: prevVal || null,
+        new_value: newVal || null,
+      },
+    ]);
+  };
+
+  return (
+    <MetricsContext.Provider
+      value={{
+        currentUser,
+        setCurrentUser,
+        sessionChecked,
+        agentMetrics,
+        teamMetrics,
+        floorAverages,
+        kpiTargets,
+        updateTarget,
+        dailyProgressData,
+        refreshMetrics: fetchMetrics,
+        logAuditAction,
+        loading,
+      }}
+    >
+      {children}
+    </MetricsContext.Provider>
+  );
+};
+
+export const useMetrics = () => useContext(MetricsContext);
