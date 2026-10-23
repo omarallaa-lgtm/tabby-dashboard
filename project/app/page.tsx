@@ -8,7 +8,7 @@ import {
   AlertCircle, LayoutDashboard, Users2, Database, ShieldCheck,
   MessageSquarePlus, Megaphone, LogOut, Clock, KeyRound, Check,
   Eye, EyeOff, ArrowRight, HelpCircle, X, Send, CheckCircle2,
-  Snowflake, Calculator, LifeBuoy, Menu, Search, UserCheck
+  Snowflake, Zap, LifeBuoy, Menu, Search, UserCheck
 } from 'lucide-react';
 import { OverviewTab } from '@/components/tabs/overview-tab';
 import { TeamTab } from '@/components/tabs/team-tab';
@@ -748,7 +748,7 @@ export default function Home() {
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
     { key: 'team', label: 'Team & Floor Insights', icon: Users2 },
     { key: 'my-performance', label: 'My Performance', icon: UserCheck },
-    { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
+    { key: 'knet-calc', label: 'Shortcuts', icon: Zap },
     { key: 'ticket-assist', label: 'Ticket Assistance', icon: LifeBuoy },
     { key: 'requests', label: 'Requests', icon: MessageSquarePlus, badge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined },
     { key: 'announcements', label: 'Announcements', icon: Megaphone },

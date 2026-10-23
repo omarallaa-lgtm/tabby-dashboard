@@ -8,8 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import {
   Calculator, Copy, Plus, Trash2, Check, RefreshCw, Sparkles, DollarSign, Wallet, FileText,
-  Link2, ExternalLink, Minimize2, Maximize2, ClipboardPaste, Eraser,
+  Link2, ExternalLink, Minimize2, Maximize2, ClipboardPaste, Eraser, Zap, ChevronsDownUp, ChevronsUpDown, FileDown,
 } from 'lucide-react';
+import { DisputeFormGenerator } from '@/components/dispute-form-generator';
 
 interface CalcRow {
   id: string;
@@ -30,7 +31,9 @@ interface BoRow {
 // ---------- Back Office link helpers ----------
 const BO_BASE = 'https://backoffice.tabby.ai/customers/';
 const BO_STORAGE_KEY = 'tabby-bo-rows'; // sessionStorage: cleared when the browser tab is closed
-const CALC_MIN_KEY = 'tabby-calc-minimized'; // localStorage: remembers the minimized state
+const CALC_MIN_KEY = 'tabby-calc-minimized'; // localStorage: remembers the minimized state (older key)
+const MIN_KEY = 'tabby-shortcuts-minimized'; // localStorage: which Shortcuts sections are minimized
+type SectionKey = 'calc' | 'bo' | 'dispute';
 
 let boCounter = 0;
 const newBoRow = (customerId = '', purchaseId = ''): BoRow => {
@@ -101,7 +104,8 @@ export function KnetCalculatorTab() {
   ]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [calcMinimized, setCalcMinimized] = useState(false);
+  const [minimized, setMinimized] = useState<Record<SectionKey, boolean>>({ calc: false, bo: false, dispute: false });
+  const calcMinimized = minimized.calc;
 
   // ---------- Back Office generator state ----------
   const [boRows, setBoRows] = useState<BoRow[]>([newBoRow(), newBoRow(), newBoRow()]);
@@ -123,7 +127,9 @@ export function KnetCalculatorTab() {
           );
         }
       }
-      if (localStorage.getItem(CALC_MIN_KEY) === '1') setCalcMinimized(true);
+      const savedMin = JSON.parse(localStorage.getItem(MIN_KEY) || 'null');
+      if (savedMin && typeof savedMin === 'object') setMinimized((m) => ({ ...m, ...savedMin }));
+      else if (localStorage.getItem(CALC_MIN_KEY) === '1') setMinimized((m) => ({ ...m, calc: true }));
     } catch {
       // storage not available – start fresh
     }
@@ -142,16 +148,22 @@ export function KnetCalculatorTab() {
     }
   }, [boRows, hydrated]);
 
-  const toggleCalcMinimized = () => {
-    setCalcMinimized((v) => {
-      const next = !v;
-      try {
-        localStorage.setItem(CALC_MIN_KEY, next ? '1' : '0');
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+  const saveMinimized = (next: Record<SectionKey, boolean>) => {
+    try {
+      localStorage.setItem(MIN_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+    return next;
+  };
+  const toggleSection = (key: SectionKey) => setMinimized((m) => saveMinimized({ ...m, [key]: !m[key] }));
+  const setAllSections = (value: boolean) => setMinimized(saveMinimized({ calc: value, bo: value, dispute: value }));
+  const toggleCalcMinimized = () => toggleSection('calc');
+  const allMinimized = minimized.calc && minimized.bo && minimized.dispute;
+
+  const jumpTo = (key: SectionKey) => {
+    if (minimized[key]) toggleSection(key);
+    setTimeout(() => document.getElementById(`shortcut-${key}`)?.scrollIntoView({ block: 'start' }), 30);
   };
 
   // ---------- Calculator logic (unchanged) ----------
@@ -301,10 +313,47 @@ export function KnetCalculatorTab() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+      {/* Page header: jump to a tool, or minimize / expand all of them */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2 text-slate-900 dark:text-slate-100">
+            <Zap className="h-6 w-6 text-emerald-500" /> Shortcuts
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">Quick tools for daily tickets. Minimize what you don’t need – your choice is remembered.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              ['calc', 'KNET calculator', Calculator],
+              ['bo', 'Back Office links', Link2],
+              ['dispute', 'Dispute form', FileDown],
+            ] as const
+          ).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => jumpTo(key)}
+              className="h-8 px-3 rounded-full text-[11px] font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1.5"
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+            </button>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAllSections(!allMinimized)}
+            className="h-8 text-xs gap-1.5 font-bold border-slate-300 dark:border-slate-700"
+          >
+            {allMinimized ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}
+            {allMinimized ? 'Expand all' : 'Minimize all'}
+          </Button>
+        </div>
+      </div>
+
       {/* ===================================================== */}
       {/* SECTION 1: KNET CALCULATOR (can be minimized)           */}
       {/* ===================================================== */}
-      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+      <Card id="shortcut-calc" className="scroll-mt-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
         <CardHeader className={calcMinimized ? 'py-3' : 'pb-3 border-b border-slate-100 dark:border-slate-800'}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="min-w-0">
@@ -356,7 +405,7 @@ export function KnetCalculatorTab() {
                 variant="outline"
                 size="sm"
                 onClick={toggleCalcMinimized}
-                title={calcMinimized ? 'Show the calculator' : 'Minimize the calculator to get more room for the Back Office links'}
+                title={calcMinimized ? 'Show the calculator' : 'Minimize the calculator'}
                 className="h-9 text-xs gap-1.5 font-bold border-slate-300 dark:border-slate-700"
               >
                 {calcMinimized ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
@@ -566,20 +615,28 @@ export function KnetCalculatorTab() {
       {/* ===================================================== */}
       {/* SECTION 2: BACK OFFICE LINK GENERATOR                   */}
       {/* ===================================================== */}
-      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+      <Card id="shortcut-bo" className="scroll-mt-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <CardHeader className={minimized.bo ? 'py-3' : 'pb-3 border-b border-slate-100 dark:border-slate-800'}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-slate-900 dark:text-slate-100">
                 <Link2 className="h-5 w-5 text-sky-500" /> Back Office Link Generator
               </CardTitle>
-              <CardDescription className="text-xs mt-1">
-                Enter the Customer ID and Purchase ID and the Back Office link is created automatically. Paste two columns
-                from Google Sheets to fill many orders at once.
-              </CardDescription>
+              {!minimized.bo && (
+                <CardDescription className="text-xs mt-1">
+                  Enter the Customer ID and Purchase ID and the Back Office link is created automatically. Paste two columns
+                  from Google Sheets to fill many orders at once.
+                </CardDescription>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {minimized.bo ? (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-500/10 border border-sky-500/30 text-sky-600 dark:text-sky-400">
+                  {validLinks.length} link{validLinks.length === 1 ? '' : 's'} ready
+                </span>
+              ) : (
+              <>
               <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-500/10 border border-sky-500/30 text-sky-600 dark:text-sky-400">
                 {validLinks.length} link{validLinks.length === 1 ? '' : 's'} ready
               </span>
@@ -610,10 +667,23 @@ export function KnetCalculatorTab() {
               <Button size="sm" onClick={addBoRow} className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                 <Plus className="h-4 w-4" /> Add Row
               </Button>
+              </>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toggleSection('bo')}
+                className="h-9 text-xs gap-1.5 font-bold border-slate-300 dark:border-slate-700"
+              >
+                {minimized.bo ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+                {minimized.bo ? 'Expand' : 'Minimize'}
+              </Button>
             </div>
           </div>
         </CardHeader>
 
+        {!minimized.bo && (
         <CardContent className="pt-4 space-y-4">
           {showBulk && (
             <div className="space-y-2 p-3 rounded-xl border border-sky-500/30 bg-sky-500/5">
@@ -745,7 +815,15 @@ export function KnetCalculatorTab() {
             even if you switch to another dashboard tab.
           </p>
         </CardContent>
+        )}
       </Card>
+
+      {/* ===================================================== */}
+      {/* SECTION 3: CARDHOLDER DISPUTE FORM (editable PDF)       */}
+      {/* ===================================================== */}
+      <div id="shortcut-dispute" className="scroll-mt-4">
+        <DisputeFormGenerator minimized={minimized.dispute} onToggle={() => toggleSection('dispute')} />
+      </div>
     </div>
   );
 }

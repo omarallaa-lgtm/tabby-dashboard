@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { 
   ShieldCheck, Users, Key, Trash2, Check, RefreshCw, AlertCircle, 
-  CheckCircle2, LayoutDashboard, Calculator, LifeBuoy, 
+  CheckCircle2, LayoutDashboard, Zap, LifeBuoy, 
   MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, UserCheck
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
@@ -21,7 +21,7 @@ const ALL_SYSTEM_TABS = [
   { key: 'overview', label: 'Executive Overview', icon: LayoutDashboard },
   { key: 'team', label: 'Team & Floor Insights', icon: Users },
   { key: 'my-performance', label: 'My Performance', icon: UserCheck },
-  { key: 'knet-calc', label: 'KNET Calculator', icon: Calculator },
+  { key: 'knet-calc', label: 'Shortcuts', icon: Zap },
   { key: 'ticket-assist', label: 'Ticket Assistance', icon: LifeBuoy },
   { key: 'requests', label: 'Requests', icon: MessageSquarePlus },
   { key: 'announcements', label: 'Announcements', icon: Megaphone },
