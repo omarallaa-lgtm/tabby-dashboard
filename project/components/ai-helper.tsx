@@ -351,7 +351,7 @@ async function keepQuestions(p: Shared, asked: string[], extra: { context?: stri
 }
 
 /** answer box for one question (used in the reply view and the Questions tab) */
-function AnswerBox({ p, q, compact }: { p: Shared; q: AiQuestion; compact?: boolean }) {
+function AnswerBox({ p, q, compact, onSaved }: { p: Shared; q: AiQuestion; compact?: boolean; onSaved?: () => void }) {
   const [text, setText] = useState(q.answer || '');
   const [busy, setBusy] = useState(false);
   const save = async () => {
@@ -360,7 +360,8 @@ function AnswerBox({ p, q, compact }: { p: Shared; q: AiQuestion; compact?: bool
     setBusy(false);
     if (err) return p.flash(`Could not save: ${err}`, true);
     p.flash(text.trim() ? 'Answer saved – the AI uses it from now on' : 'Answer cleared');
-    p.reload();
+    await p.reload();
+    if (text.trim()) onSaved?.();
   };
   return (
     <div className="flex items-start gap-2">
@@ -382,6 +383,8 @@ function AnswerBox({ p, q, compact }: { p: Shared; q: AiQuestion; compact?: bool
 function ReplyHelper(p: Shared) {
   const [chat, setChat] = useState('');
   const [context, setContext] = useState('');
+  const [suggestion, setSuggestion] = useState('');
+  const [stage, setStage] = useState<'new' | 'followup'>('new');
   const [channel, setChannel] = useState<'chat' | 'email'>('chat');
   const [lang, setLang] = useState<'auto' | 'en' | 'ar'>('auto');
   const [busy, setBusy] = useState(false);
@@ -394,15 +397,19 @@ function ReplyHelper(p: Shared) {
   const [saved, setSaved] = useState(false);
   const [tplState, setTplState] = useState<'' | 'saving' | 'saved'>('');
 
-  const matched = useMemo(() => (chat.trim() ? p.rank(`${chat} ${context}`, 6) : []), [chat, context, p.rank]);
-  const examples = useMemo(() => pickExamples(chat, p.store.examples, 3), [chat, p.store.examples]);
+  const caseText = `${chat} ${context} ${suggestion}`;
+  const hasInput = !!(chat.trim() || suggestion.trim());
+  const matched = useMemo(() => (caseText.trim() ? p.rank(caseText, 6) : []), [caseText, p.rank]);
+  const examples = useMemo(() => pickExamples(caseText, p.store.examples, 3), [caseText, p.store.examples]);
   const tree = useMemo(() => treeOf(p), [p.topicIds, p.topicLabel]);
-  const answers = useMemo(() => pickAnswers(`${chat} ${context}`, p.store.questions), [chat, context, p.store.questions]);
+  const answers = useMemo(() => pickAnswers(caseText, p.store.questions), [caseText, p.store.questions]);
   const prompt = useMemo(
     () =>
       buildReplyPrompt({
         chat,
         context,
+        suggestion,
+        stage,
         channel,
         lang,
         templates: matched.map((s) => ({ s, topic: p.topicLabel(s.topic) })),
@@ -412,7 +419,7 @@ function ReplyHelper(p: Shared) {
         tree,
         placeholders: PLACEHOLDERS,
       }),
-    [chat, context, channel, lang, matched, p.store.updates, examples, answers, p.topicLabel, tree]
+    [chat, context, suggestion, stage, channel, lang, matched, p.store.updates, examples, answers, p.topicLabel, tree]
   );
 
   const replyIsAr = lang === 'ar' || (lang === 'auto' && /[؀-ۿ]/.test(chat));
@@ -434,7 +441,7 @@ function ReplyHelper(p: Shared) {
   };
 
   const run = async () => {
-    if (!chat.trim()) return;
+    if (!hasInput) return;
     setBusy(true);
     setError('');
     const r = await askAI('reply', prompt, p.email);
@@ -443,21 +450,37 @@ function ReplyHelper(p: Shared) {
     show(r.text || '');
   };
 
+  // after a question is answered: write the reply again with the new knowledge
+  const [rerun, setRerun] = useState(false);
+  useEffect(() => {
+    if (!rerun) return;
+    setRerun(false);
+    if (p.ai?.configured) run();
+    else p.flash('Answer saved – copy the prompt again so ChatGPT uses it');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rerun, prompt]);
+
   const copyPrompt = () => {
-    if (!chat.trim()) return;
+    if (!hasInput) return;
     p.copy(chatGptPrompt('reply', prompt), 'Prompt for ChatGPT');
     setPasteOpen(true);
   };
 
+  /** start a new case: forget the old conversation, suggestion and answer */
   const reset = () => {
     setChat('');
     setContext('');
+    setSuggestion('');
+    setStage('new');
     setAnswer(null);
     setMsgs([]);
     setEmailText('');
     setPasted('');
     setPasteOpen(false);
+    setSaved(false);
+    setTplState('');
     setError('');
+    setTimeout(() => document.getElementById('ai-chat-input')?.focus(), 30);
   };
 
   const saveGood = async () => {
@@ -469,7 +492,7 @@ function ReplyHelper(p: Shared) {
         issue: answer.issue || null,
         product: answer.product || null,
         // learned replies are shared with the whole team: keep the style, drop personal details
-        chat: maskPII(chat).text.slice(0, 4000),
+        chat: maskPII(`${stage === 'followup' ? '[Reopened after hold] ' : ''}${chat}${suggestion.trim() ? `\n\nAgent's direction: ${suggestion.trim()}` : ''}`).text.slice(0, 4000),
         reply: maskPII(reply).text.slice(0, 4000),
         template_ids: answer.templateIds.filter((id) => p.byId[id]),
       },
@@ -493,7 +516,7 @@ function ReplyHelper(p: Shared) {
       const ar = tpl.ar ? applyPatch(undefined, tpl.ar) : tplImproves.ar;
       return { ...(tplImproves as SavedTemplate), en, ar, subject: tpl.subject || tplImproves.subject };
     }
-    return newTemplateFrom(p, tpl, tplTopic);
+    return newTemplateFrom(p, { ...tpl, keys: [tpl.keys, answer?.issue].filter(Boolean).join(' ') }, tplTopic);
   };
 
   const addTemplate = async (asNew: boolean) => {
@@ -506,7 +529,11 @@ function ReplyHelper(p: Shared) {
       return p.flash(err, true);
     }
     setTplState('saved');
-    p.flash(asNew || !tplImproves ? `Template added under ${p.topicLabel(t.topic)}` : `“${t.title}” updated for everyone`);
+    p.flash(
+      asNew || !tplImproves
+        ? `Template added to Ticket Assistance under ${p.topicLabel(t.topic)} – it will be found for similar cases`
+        : `“${t.title}” updated in Ticket Assistance for everyone`
+    );
   };
 
   return (
@@ -515,6 +542,11 @@ function ReplyHelper(p: Shared) {
       <div className={`${panel} p-4 space-y-3`}>
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-bold text-slate-800 dark:text-slate-100">1 · Paste the conversation</p>
+          {(chat || context || suggestion || answer) && (
+            <button type="button" onClick={reset} className={`${btnGhost} h-7`} title="Remove the old chat and start a new case">
+              <Plus className="h-3.5 w-3.5" /> New case
+            </button>
+          )}
           <span className="flex-1" />
           <Seg
             value={channel}
@@ -535,6 +567,7 @@ function ReplyHelper(p: Shared) {
           />
         </div>
         <textarea
+          id="ai-chat-input"
           value={chat}
           onChange={(e) => setChat(e.target.value)}
           rows={9}
@@ -548,6 +581,34 @@ function ReplyHelper(p: Shared) {
           placeholder="Optional – what you found on the account (e.g. order refunded by the store, 2 failed payment attempts)…"
           className={`${input} p-3 resize-y`}
         />
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-2.5 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">Your suggestion</span>
+            <span className="text-[10px] text-slate-500">optional – the AI rephrases it into the reply</span>
+            <span className="flex-1" />
+            <Seg
+              value={stage}
+              onChange={setStage}
+              options={[
+                { value: 'new', label: 'New chat' },
+                { value: 'followup', label: 'Reopened after hold' },
+              ]}
+            />
+          </div>
+          <textarea
+            value={suggestion}
+            onChange={(e) => setSuggestion(e.target.value)}
+            rows={3}
+            dir={/[\u0600-\u06FF]/.test(suggestion) ? 'rtl' : 'ltr'}
+            placeholder={
+              stage === 'followup'
+                ? 'What happened while it was on hold and what’s next, e.g. “Team checked with the store, refund done today, 5–7 working days to the card, RRN 7788…”'
+                : 'Your answer or next step in your own words, e.g. “He needs to report it from the app, then we check with the store within 48h”'
+            }
+            className={`${input} p-2.5 text-xs resize-y bg-white/70 dark:bg-slate-950`}
+          />
+        </div>
         {matched.length > 0 && (
           <div className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Policy the AI will check (it writes its own wording)</p>
@@ -563,21 +624,15 @@ function ReplyHelper(p: Shared) {
         )}
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button type="button" onClick={run} disabled={!chat.trim() || busy || !p.ai?.configured} className={btnPrimary} title={p.ai?.configured ? '' : 'Built-in AI is not set up yet – use Copy prompt'}>
+          <button type="button" onClick={run} disabled={!hasInput || busy || !p.ai?.configured} className={btnPrimary} title={p.ai?.configured ? '' : 'Built-in AI is not set up yet – use Copy prompt'}>
             {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {busy ? 'Thinking…' : 'Suggest reply'}
           </button>
-          <button type="button" onClick={copyPrompt} disabled={!chat.trim()} className={btnGhost}>
+          <button type="button" onClick={copyPrompt} disabled={!hasInput} className={btnGhost}>
             <Copy className="h-3.5 w-3.5" /> Copy prompt for ChatGPT
           </button>
           <button type="button" onClick={() => setPasteOpen((v) => !v)} className={btnGhost}>
             <ClipboardPaste className="h-3.5 w-3.5" /> Paste ChatGPT answer
           </button>
-          <span className="flex-1" />
-          {(chat || answer) && (
-            <button type="button" onClick={reset} className="text-[11px] font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
-              Clear
-            </button>
-          )}
         </div>
 
         {pasteOpen && (
@@ -600,7 +655,15 @@ function ReplyHelper(p: Shared) {
 
       {/* ---------- answer ---------- */}
       <div className={`${panel} p-4 space-y-3`}>
-        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">2 · Suggested reply</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">2 · Suggested reply</p>
+          <span className="flex-1" />
+          {answer && (
+            <button type="button" onClick={reset} className={`${btnGhost} h-7`} title="Done with this case – clear everything and start a new one">
+              <Plus className="h-3.5 w-3.5" /> New case
+            </button>
+          )}
+        </div>
         {!answer ? (
           <div className="text-[11px] text-slate-500 space-y-2">
             <p>The AI reads the conversation, finds the matching templates and the latest team updates, and writes the reply in our structure: update first → short messages → next step → clarity check.</p>
@@ -714,7 +777,7 @@ function ReplyHelper(p: Shared) {
                         <p className="text-[11px] text-emerald-700 dark:text-emerald-300 pl-3">Answered: {q.answer}</p>
                       ) : q && p.canEdit ? (
                         <div className="pl-3">
-                          <AnswerBox p={p} q={q} compact />
+                          <AnswerBox p={p} q={q} compact onSaved={() => setRerun(true)} />
                         </div>
                       ) : null}
                     </div>
@@ -723,7 +786,7 @@ function ReplyHelper(p: Shared) {
                 <p className="text-[10px] text-slate-500">
                   {p.store.questionsReady
                     ? p.canEdit
-                      ? 'Answer here or in the Questions tab. Then press “Try again” so the AI uses your answer.'
+                      ? 'Answer here and the AI rewrites the reply with your answer straight away. Every answer is kept, so it understands this process next time.'
                       : 'Saved to the Questions tab for your Admin / TL to answer.'
                     : 'Run the SQL in Setup once to save questions and answers.'}
                 </p>

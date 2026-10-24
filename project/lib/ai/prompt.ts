@@ -19,11 +19,16 @@ export const REPLY_RULES = `You are the writing assistant of Tabby's customer su
 Your job: read the customer conversation, understand the real issue, and write the reply the agent will send for THIS case.
 
 Facts and policy
-- Your knowledge: TEMPLATES (our saved replies), TEAM UPDATES, TEAM ANSWERS (questions the team already answered for you) and CASES THE TEAM TAUGHT YOU. TEAM UPDATES and TEAM ANSWERS are newest: if they conflict with a template, follow them.
+- Your knowledge: TEMPLATES (our saved replies), TEAM UPDATES, TEAM ANSWERS (the team's own explanations of our processes, in answer to your earlier questions) and CASES THE TEAM TAUGHT YOU.
+- Read TEAM ANSWERS first: they are how our team actually works, and they have the highest priority. Then TEAM UPDATES, then cases, then templates. If they conflict with a template, follow them.
 - Do not copy the templates word for word. Rephrase for this customer and this situation: answer exactly what they asked, mention what was found on their account, and drop anything that does not apply.
 - If the answer is not covered, do not invent policy, fees, timeframes or steps. Write the best safe reply, and say what is missing under NOTES FOR AGENT.
 - Purchase approvals, Pay in Full, card limits and card status are automated: never promise approval, a manual review, a limit increase or a date.
 - Only give "24–48 hours" when the template or update for that process says so.
+
+Agent's suggestion and case stage
+- If AGENT'S SUGGESTION is given, it is the agent's decided answer or next step for this case. Build the reply around it: rephrase it into our structure and tone, keep its facts, and don't add steps it doesn't mention unless the policy requires them. If it conflicts with the policy, follow the policy and explain why under NOTES FOR AGENT.
+- If CASE STAGE is "Reopened after hold / follow-up": the customer was already told we are checking. Don't greet as a new chat and don't ask again for information already given. Open with thanks for their patience and the update (what was checked or done while the ticket was on hold), then the result and the next step.
 
 How we write (new approach)
 - Lead with a meaningful update: what was checked and what was found. Do not open with "please allow me some time".
@@ -55,11 +60,13 @@ QUESTIONS FOR TEAM:
 NEW TEMPLATE: <none, or one json code block>
 
 About QUESTIONS FOR TEAM
-- Ask when you are not sure which product or process the case belongs to (Pay Later / BNPL, Tabby Card, Tabby Cash, Tabby Plus, account), or when the policy, timeframe or steps are missing or unclear in your knowledge. The team answers them, and the answers come back to you as TEAM ANSWERS.
+- Asking is how you learn our process, so asking is better than guessing. Ask when you are not sure which product or process the case belongs to (Pay Later / BNPL, Tabby Card, Tabby Cash, Tabby Plus, account), which team handles it, or when a policy, timeframe, fee or step is missing or unclear in your knowledge. The team answers, and the answers come back to you as TEAM ANSWERS.
+- Make each question specific and reusable for future cases (e.g. "When a Tabby Cash transfer is under review for more than 24 hours, which team do we raise it to and what timeframe do we give?").
 - Do not ask what is already answered in your knowledge. Do not ask about this customer's personal details (that goes under ASK CUSTOMER).
 
 About NEW TEMPLATE
-- Add one when none of the TEMPLATES fits this case well, or when your reply is clearly a better reusable answer than the closest template. Otherwise write: NEW TEMPLATE: none
+- When none of the TEMPLATES fits this case well, you MUST add one, so the team finds the right template next time. Also add one when your reply is clearly a better reusable answer than the closest template. Only when a template already fits well, write: NEW TEMPLATE: none
+- "keys" must hold the words customers and agents would search for this case, in English and Arabic (including the customer's own words from this chat).
 - It must be reusable for any customer: NO names, amounts, dates, reference numbers or card digits. Use {{placeholders}} from the PLACEHOLDERS list instead.
 - Put it in the right place of the TOPIC TREE ("topicId" must be one of the ids listed). Set "improves" to the id of the template it should replace, or "" if it is new.
 - Shape:
@@ -239,7 +246,7 @@ export function examplesBlock(examples: AiExample[]) {
 export function answersBlock(qa: AiQuestion[]) {
   const list = qa.filter((q) => q.status === 'answered' && q.answer?.trim());
   if (!list.length) return '';
-  return 'TEAM ANSWERS (questions you asked before, answered by the team):\n' + list.map((q) => `Q: ${cut(q.question, 300)}\nA: ${cut(String(q.answer), 700)}`).join('\n');
+  return 'TEAM ANSWERS (how our team works – your questions, answered by the team; highest priority):\n' + list.map((q) => `Q: ${cut(q.question, 300)}\nA: ${cut(String(q.answer), 500)}`).join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +255,9 @@ export function answersBlock(qa: AiQuestion[]) {
 export interface ReplyInput {
   chat: string;
   context?: string; // what the agent found in the back office
+  /** the agent's own answer / next step, to be rephrased */
+  suggestion?: string;
+  stage?: 'new' | 'followup';
   channel: 'chat' | 'email';
   lang: 'auto' | Lang;
   templates: { s: Scenario; topic: string }[];
@@ -265,12 +275,14 @@ export function buildReplyPrompt(p: ReplyInput) {
   return [
     `CHANNEL: ${p.channel === 'email' ? 'Email' : 'Chat'}`,
     `REPLY LANGUAGE: ${replyLang}`,
+    `CASE STAGE: ${p.stage === 'followup' ? 'Reopened after hold / follow-up' : 'New conversation'}`,
     '',
     'CUSTOMER CONVERSATION:',
     '"""',
     p.chat.trim(),
     '"""',
     p.context?.trim() ? `\nWHAT THE AGENT FOUND ON THE ACCOUNT:\n${p.context.trim()}` : '',
+    p.suggestion?.trim() ? `\nAGENT'S SUGGESTION (the answer / next step to rephrase):\n${p.suggestion.trim()}` : '',
     '',
     updatesBlock(p.updates),
     '',
@@ -520,7 +532,8 @@ export function pickExamples(chat: string, examples: AiExample[], n = 3) {
 }
 
 /** answered questions closest to the text, plus the newest ones */
-export function pickAnswers(text: string, qa: AiQuestion[], n = 6) {
+/** the team's answers: the ones closest to the case first, then the rest (newest first), up to n */
+export function pickAnswers(text: string, qa: AiQuestion[], n = 15) {
   const answered = qa.filter((q) => q.status === 'answered' && q.answer?.trim());
   const w = wordsOf(text);
   const scored = answered
@@ -532,10 +545,9 @@ export function pickAnswers(text: string, qa: AiQuestion[], n = 6) {
     })
     .filter((r) => r.c >= 2)
     .sort((a, b) => b.c - a.c)
-    .slice(0, n)
     .map((r) => r.q);
-  const newest = answered.slice(0, 3).filter((q) => !scored.includes(q));
-  return [...scored, ...newest].slice(0, n + 2);
+  const rest = answered.filter((q) => !scored.includes(q));
+  return [...scored, ...rest].slice(0, n);
 }
 
 /** questions the AI asked that are not already saved (same text) */
