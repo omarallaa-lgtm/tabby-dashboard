@@ -18,11 +18,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const GROQ = process.env.GROQ_API_KEY || '';
+// keys pasted with spaces / quotes / line breaks fail, so clean them
+const clean = (v?: string) => String(v || '').trim().replace(/^["']|["']$/g, '').trim();
+const OPENAI_KEY = clean(process.env.OPENAI_API_KEY);
+// a Groq key (gsk_…) saved under OPENAI_API_KEY by mistake still goes to Groq
+const GROQ = clean(process.env.GROQ_API_KEY) || (OPENAI_KEY.startsWith('gsk_') ? OPENAI_KEY : '');
 const PROVIDER = GROQ ? 'Groq' : 'OpenAI';
-const KEY = GROQ || process.env.OPENAI_API_KEY || '';
+const KEY = GROQ || OPENAI_KEY;
 const BASE = GROQ ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
-const MODEL = process.env.AI_MODEL || process.env.OPENAI_MODEL || (GROQ ? 'openai/gpt-oss-120b' : 'gpt-5-mini');
+const MODEL = clean(process.env.AI_MODEL) || (GROQ ? 'openai/gpt-oss-120b' : clean(process.env.OPENAI_MODEL) || 'gpt-5-mini');
 const PER_MIN = Number(process.env.AI_RATE_LIMIT || 20) || 20;
 const MAX_INPUT = 60_000; // characters
 
