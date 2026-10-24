@@ -138,6 +138,23 @@ export const ORDERS: Scenario[] = [
     subject: { en: 'Information needed for your refund', ar: 'معلومات مطلوبة بخصوص الاسترداد' },
   },
   {
+    id: 'ord-refund-full',
+    topic: 'ord-refund',
+    title: 'Full refund processed – back to the original payment method',
+    when: 'The order was fully refunded and the customer asks where the money went.',
+    keys: 'full refund processed original payment method where is my refund استرداد كامل',
+    en: {
+      ack: 'I’ve checked your order, and I can confirm that the full refund has been processed.',
+      body: ['The refunded amount was returned to the original payment method used for the purchase. If it went back to your bank card, it usually takes 5–7 working days to appear in your account, depending on your bank.'],
+    },
+    ar: {
+      ack: 'راجعت طلبك، ويمكنني تأكيد معالجة الاسترداد الكامل.',
+      body: ['وقد تم رد المبلغ إلى وسيلة الدفع الأصلية المستخدمة في الشراء، وإذا عاد إلى بطاقتك البنكية فعادةً ما يستغرق ظهوره من 5 إلى 7 أيام عمل حسب البنك.'],
+    },
+    subject: { en: 'Your refund has been processed', ar: 'تمت معالجة الاسترداد' },
+    related: ['ord-refund-bank', 'ord-refund-split'],
+  },
+  {
     id: 'ord-refund-bank',
     topic: 'ord-refund',
     title: 'Refund sent to the bank card (5–7 working days)',
@@ -159,6 +176,24 @@ export const ORDERS: Scenario[] = [
       ],
     },
     subject: { en: 'Your refund has been processed', ar: 'تمت معالجة الاسترداد' },
+  },
+  {
+    id: 'ord-refund-not-visible',
+    topic: 'ord-refund',
+    title: 'Store says it refunded, but nothing shows in Tabby',
+    when: 'The customer says the store refunded, but the order shows no refund.',
+    keys: 'store refunded not showing in tabby merchant confirmation receipt refund not visible المتجر استرد ولا يظهر',
+    en: {
+      ack: 'I’ve checked the order, and the refund isn’t showing on your Tabby account yet.',
+      body: ['To verify it, please share the refund confirmation or receipt from the store, showing the refund date, the amount and the store name.'],
+      next: 'Once we receive it, we’ll check the refund status for you right away.',
+    },
+    ar: {
+      ack: 'راجعت الطلب، ولم يظهر الاسترداد على حسابك في تابي حتى الآن.',
+      body: ['وللتحقق منه، يُرجى مشاركة تأكيد أو إيصال الاسترداد من المتجر، يظهر فيه تاريخ الاسترداد والمبلغ واسم المتجر.'],
+      next: 'وفور استلامه، سنراجع حالة الاسترداد لك مباشرة.',
+    },
+    subject: { en: 'About your refund', ar: 'بخصوص استرداد المبلغ' },
   },
   {
     id: 'ord-refund-after-sla',
@@ -418,6 +453,22 @@ export const ORDERS: Scenario[] = [
     subject: { en: 'Your new information is under review', ar: 'معلوماتك الجديدة قيد المراجعة' },
   },
   {
+    id: 'ord-report-refund',
+    topic: 'ord-dispute',
+    title: 'Report “Refund not received” from the app',
+    when: 'The store already processed the refund and the customer wants to report it themselves.',
+    keys: 'report refund not received app report issue refund missing الإبلاغ عن عدم استلام الاسترداد',
+    en: {
+      ack: 'Sure, you can report it directly from the Tabby app.',
+      body: ['Open Money (UAE) or Payments (Kuwait) → choose the order → Details → Report issue → Refund not received, then submit the report. Other options there include Order not delivered, Product issue and Not my order.'],
+    },
+    ar: {
+      ack: 'بالتأكيد، يمكنك الإبلاغ عنه مباشرة من تطبيق تابي.',
+      body: ['افتح الأموال (الإمارات) أو المدفوعات (الكويت) ← اختر الطلب ← التفاصيل ← الإبلاغ عن مشكلة ← لم يتم استلام الاسترداد، ثم أرسل البلاغ. ومن الخيارات المتاحة أيضًا: لم يتم توصيل الطلب، ومشكلة في المنتج، وهذا ليس طلبي.'],
+    },
+    subject: { en: 'Reporting a missing refund', ar: 'الإبلاغ عن استرداد لم يصل' },
+  },
+  {
     id: 'ord-dispute-cancel',
     topic: 'ord-dispute',
     title: 'Cancel a reported issue',
@@ -520,5 +571,21 @@ export const ORDERS: Scenario[] = [
       next: 'وفور استلامها، سنرفع الحالة وستصلك التحديثات خلال 24 إلى 48 ساعة.',
     },
     subject: { en: 'About your cashback', ar: 'بخصوص الكاش باك' },
+  },
+  {
+    id: 'ord-cashback-rejected',
+    topic: 'ord-wallet',
+    title: 'Cashback claim not approved',
+    when: 'The cashback claim was rejected and you can see the reason.',
+    keys: 'cashback rejected not approved claim declined الكاش باك مرفوض',
+    en: {
+      ack: 'I’ve checked your cashback claim, and I’m sorry it wasn’t approved this time.',
+      body: ['It wasn’t approved because {{reason}}. Cashback eligibility depends on completing the required shopping journey and the store’s cashback terms.'],
+    },
+    ar: {
+      ack: 'راجعت طلب الكاش باك، وأعتذر لعدم الموافقة عليه هذه المرة.',
+      body: ['ولم تتم الموافقة عليه لأن {{reason}}. وتعتمد أهلية الكاش باك على إتمام خطوات التسوق المطلوبة وشروط الكاش باك الخاصة بالمتجر.'],
+    },
+    subject: { en: 'About your cashback claim', ar: 'بخصوص طلب الكاش باك' },
   },
 ];

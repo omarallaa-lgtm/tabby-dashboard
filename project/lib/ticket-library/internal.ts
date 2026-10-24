@@ -184,8 +184,10 @@ export const INTERNAL: Scenario[] = [
     title: 'Internal note – Context / Investigation / Actions (#CIA)',
     when: 'Add to every ticket before you solve, hold or escalate it.',
     keys: 'cia internal note context investigation actions ملاحظة داخلية',
+    tip: 'C = the customer’s view, why they contacted, in their own words. I = what you checked, what you found and what you think the issue is. A = what’s next: resolution, escalation, or what the customer must do.',
     summary: 'Ticket note.',
-    emailEn: '• Context: {{issue}}\n• Investigation: {{details}}\n• Actions: {{actions_taken}}\n\n#CIA',
+    emailEn:
+      'C: {{issue}}\nI: {{details}}\nA: {{actions_taken}}\n\n#CIA',
   }),
   internal({
     id: 'int-note-call',

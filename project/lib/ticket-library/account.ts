@@ -97,6 +97,29 @@ export const ACCOUNT: Scenario[] = [
 
   // ---------------- Login & access ----------------
   {
+    id: 'acc-email-not-linked',
+    topic: 'acc-details',
+    title: 'Contacted from an email that isn’t on the account',
+    when: 'The email (or chat) comes from an address not linked to any Tabby account, so you can’t verify the customer.',
+    keys: 'email not linked not registered different email cannot find account verify البريد غير مرتبط بالحساب',
+    tip: 'Never share or change account details for an unverified sender.',
+    en: {
+      ack: 'We understand your concern, and we’re here to help.',
+      body: [
+        'The first step is to reach your Tabby account, but the email address you’re using isn’t currently linked to an account in our system.',
+        'To help you securely, please contact us in one of these ways:\n• Reply from the email address registered on your Tabby account\n• Use Contact Us inside the Tabby app\n• Call us on 800 82229 (UAE)',
+      ],
+    },
+    ar: {
+      ack: 'نتفهم استفسارك، ونحن هنا لمساعدتك.',
+      body: [
+        'الخطوة الأولى هي الوصول إلى حسابك في تابي، لكن البريد الإلكتروني الذي تستخدمه غير مرتبط حاليًا بأي حساب في نظامنا.',
+        'ولمساعدتك بشكل آمن، يُرجى التواصل معنا بإحدى الطرق التالية:\n• الرد من البريد الإلكتروني المسجل في حسابك في تابي\n• استخدام خيار "تواصل معنا" داخل تطبيق تابي\n• الاتصال بنا على الرقم 800 82229 (الإمارات)',
+      ],
+    },
+    subject: { en: 'Helping you securely with your request', ar: 'مساعدتك بشكل آمن في طلبك' },
+  },
+  {
     id: 'acc-otp-email',
     topic: 'acc-access',
     title: 'Wants the login code by email',
@@ -187,18 +210,18 @@ export const ACCOUNT: Scenario[] = [
     title: 'Close / delete the Tabby account',
     when: 'The customer wants to close their account.',
     keys: 'delete account close account remove account حذف الحساب إغلاق الحساب امسح حسابي',
-    tip: 'Outstanding orders must be settled first.',
+    tip: 'Outstanding orders must be settled first. The in-app Delete account option is on iPhone (iOS) only; for Android, help the customer submit the request.',
     en: {
       ack: 'I’m sorry to see you go, and I’ll guide you through it.',
       body: [
-        'You can close your account from the app: Profile → Personal Information → Delete account → Continue → choose a reason → Delete account.',
+        'On iPhone, you can close your account from the app: Profile → Personal Information → Delete account → Continue → choose a reason → Delete account. If you’re using Android, just let us know and we’ll help you submit the request.',
         'Please make sure all outstanding payments are settled first. You can restore the account within 180 days of closing it; after that, the account data may be permanently deleted.',
       ],
     },
     ar: {
       ack: 'يؤسفنا رحيلك، وسأرشدك إلى الخطوات.',
       body: [
-        'يمكنك إغلاق حسابك من التطبيق: الملف الشخصي ← المعلومات الشخصية ← حذف الحساب ← متابعة ← اختيار السبب ← حذف الحساب.',
+        'على الآيفون، يمكنك إغلاق حسابك من التطبيق: الملف الشخصي ← المعلومات الشخصية ← حذف الحساب ← متابعة ← اختيار السبب ← حذف الحساب. وإذا كنت تستخدم أندرويد، أخبرنا وسنساعدك في تقديم الطلب.',
         'ويُرجى التأكد من سداد جميع المبالغ المستحقة أولًا، ويمكنك استعادة الحساب خلال 180 يومًا من إغلاقه، وبعد ذلك قد يتم حذف بيانات الحساب نهائيًا.',
       ],
     },

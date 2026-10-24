@@ -81,17 +81,20 @@ export interface Flow {
 // Builders
 // ---------------------------------------------------------------------------
 
+// Email structure (Gs_Chat "new approach"):
+// greeting → thanks → we understand your concern → findings → resolution / next step
+// → closing line → signature
 const EMAIL = {
   en: {
     hello: 'Dear Customer,',
-    thanks: 'Thank you for contacting Tabby.',
-    close: 'If you have any other questions, please reply to this email. We are always happy to help.',
-    bye: 'Best regards,',
+    thanks: 'Thank you for contacting Tabby. We hope you are doing great!',
+    close: 'Please let us know if you have any further questions or concerns.',
+    bye: 'Kind regards,',
   },
   ar: {
     hello: 'مرحبًا،',
-    thanks: 'شكرًا لتواصلك مع تابي.',
-    close: 'إذا كانت لديك أي استفسارات أخرى، يُرجى الرد على هذا البريد، ويسعدنا دائمًا مساعدتك.',
+    thanks: 'شكرًا لتواصلك مع تابي، ونتمنى أن تكون أمورك على ما يرام.',
+    close: 'يُرجى إبلاغنا إذا كانت لديك أي استفسارات أو ملاحظات أخرى.',
     bye: 'مع أطيب التحيات،',
   },
 };
@@ -163,4 +166,11 @@ export const PLACEHOLDER_LABELS: Record<string, string> = {
   order_ref: 'Order / payment ID',
   category: 'Category',
   callback_time: 'Call-back time',
+  update: 'Meaningful update (what you found)',
+  info: 'Information needed',
+  finding: 'What you found',
+  result: 'What happens after',
+  path: 'App path',
+  option: 'Option to select',
+  store: 'Store name',
 };

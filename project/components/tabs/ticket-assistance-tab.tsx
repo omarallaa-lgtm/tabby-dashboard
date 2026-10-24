@@ -236,9 +236,104 @@ const QUICK: { id: string; label: string }[] = [
   { id: 'gen-hold', label: 'Hold' },
   { id: 'gen-back', label: 'Back from hold' },
   { id: 'gen-still-there', label: 'Still there?' },
-  { id: 'gen-close-anything', label: 'Anything else?' },
+  { id: 'gen-close-anything', label: 'Clarity check' },
   { id: 'gen-close-final', label: 'Final closing' },
 ];
+
+// ---------------------------------------------------------------------------
+// Chat playbook (from the team's Gs_Chat sheet): how we reply now
+// ---------------------------------------------------------------------------
+const PLAY_STEPS: { label: string; id: string }[] = [
+  { label: 'Greet + meaningful update', id: 'gen-greet-update' },
+  { label: 'Ask only critical info', id: 'gen-critical-info' },
+  { label: 'Resolution in short messages', id: 'gen-info-received' },
+  { label: 'Clarity check', id: 'gen-close-anything' },
+  { label: 'Close', id: 'gen-close-final' },
+];
+
+const PLAY_TIPS: string[] = [
+  'Investigate first, then open with what you found. “Please allow me some time” is no longer a standard opener.',
+  'Greet warmly, not robotically, and ask how they are. Reassure them you’re doing your best to help.',
+  'Keep them with you while you check: say what you’re looking at (purchase history, overdue history, disputes, previous tickets).',
+  'Explain why decisions are automated: no one approves manually, and the details stay private for their security.',
+  'If you transfer or escalate, explain why it helps them, and give the real timeframe (24–48 h only where the process has it).',
+  'One idea per message. No customer names, amounts, card digits or dates in saved templates.',
+];
+
+const CIA: [string, string][] = [
+  ['C', 'Customer’s view: why they contacted, in their own words'],
+  ['I', 'What you checked, what you found, what you think the issue is'],
+  ['A', 'What’s next: resolution, escalation, or what the customer must do'],
+];
+
+const ChatPlaybook = ({
+  open,
+  onToggle,
+  onPick,
+  has,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  onPick: (id: string, flowId?: string) => void;
+  has: (id: string) => boolean;
+}) => (
+  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-400/[0.04]">
+    <button type="button" onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+      <Lightbulb className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Chat playbook – how we reply now</span>
+      <span className="text-[10px] text-slate-500 hidden sm:inline">update first · short messages · clarity check</span>
+      <span className="flex-1" />
+      <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
+    {open && (
+      <div className="px-3 pb-3 space-y-3">
+        <div className="flex flex-wrap items-center gap-1">
+          {PLAY_STEPS.map((st, i) => (
+            <span key={st.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={!has(st.id)}
+                onClick={() => onPick(st.id, 'flow-chat')}
+                className="h-7 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:border-emerald-500 disabled:opacity-40 flex items-center gap-1.5"
+              >
+                <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">{i + 1}</span>
+                {st.label}
+              </button>
+              {i < PLAY_STEPS.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />}
+            </span>
+          ))}
+        </div>
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
+          {PLAY_TIPS.map((t) => (
+            <li key={t} className="flex gap-1.5 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+              <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-px" />
+              <span>{t}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40 p-2.5">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Ticket note · #CIA</span>
+            <span className="flex-1" />
+            {has('int-note-cia') && (
+              <button type="button" onClick={() => onPick('int-note-cia')} className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline">
+                Open note template
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+            {CIA.map(([k, v]) => (
+              <div key={k} className="flex gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="h-5 w-5 rounded-md bg-emerald-600 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0">{k}</span>
+                <span className="leading-snug">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
 
 // ---------------------------------------------------------------------------
 // Main tab
@@ -284,6 +379,7 @@ export function TicketAssistanceTab() {
   const [copied, setCopied] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ text: string; warn?: boolean } | null>(null);
   const [ready, setReady] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -300,6 +396,7 @@ export function TicketAssistanceTab() {
     if (prefs.lang) setLangPref(prefs.lang);
     if (prefs.female) setFemale(true);
     if (prefs.last) setSelectedId(prefs.last);
+    setShowGuide(readLS<boolean>(P + 'guide', true));
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
@@ -1114,6 +1211,16 @@ export function TicketAssistanceTab() {
                     </p>
                   </div>
                 </div>
+                <ChatPlaybook
+                  open={showGuide}
+                  onToggle={() => {
+                    const next = !showGuide;
+                    setShowGuide(next);
+                    writeLS(P + 'guide', next);
+                  }}
+                  onPick={(id, flowId) => select(id, flowId ? { flowId } : undefined)}
+                  has={(id) => !!byId[id]}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                   {flows.map((f) => (
                     <button

@@ -9,7 +9,7 @@ export const CASH: Scenario[] = [
     title: 'What is Tabby Cash?',
     when: 'The customer asks what Tabby Cash is or what it includes.',
     keys: 'tabby cash what is iban debit account cash card تابي كاش ما هو',
-    tip: 'Figures from the team sheets (cashback up to 3% on 3 categories, up to 200 AED / month). Check the current offer if unsure.',
+    tip: 'Gs_Chat: cashback up to 3% on 3 categories, up to 200 AED / month. The public Key Facts Statement (UAE) says “up to 5%” with the same 200 AED cap, so confirm the current offer with your TL. Tabby Cash phone line (Gs_Chat): +971 4559 5300 → 1 Arabic / 2 English → 3 Others → 1 Tabby Cash.',
     en: {
       ack: 'I’d be happy to tell you about Tabby Cash.',
       body: [
@@ -48,6 +48,7 @@ export const CASH: Scenario[] = [
     title: 'Tabby Cash balance and spending limits',
     when: 'The customer asks about the maximum balance or spending limits.',
     keys: 'limit balance daily monthly spending maximum حدود الإنفاق الرصيد الأقصى',
+    tip: 'Figures from Gs_Chat (pilot): balance 25,000 / daily 10,000 / monthly 25,000 AED. The public Key Facts Statement lists higher limits (top-up up to 100,000, daily 50,000, monthly 100,000 AED). If they differ from what the customer sees, go with the limits shown in the customer’s app and check with your TL.',
     en: {
       ack: 'Sure, here are your Tabby Cash limits.',
       body: ['The maximum account balance is 25,000 AED, the daily spending limit is up to 10,000 AED, and the monthly spending limit is up to 25,000 AED. Transfers count toward the daily and monthly limits, and you can check your remaining limits in the app.'],
@@ -57,6 +58,45 @@ export const CASH: Scenario[] = [
       body: ['الحد الأقصى لرصيد الحساب 25,000 درهم، وحد الإنفاق اليومي يصل إلى 10,000 درهم، وحد الإنفاق الشهري يصل إلى 25,000 درهم، وتُحتسب التحويلات ضمن الحدين اليومي والشهري، ويمكنك مراجعة الحدود المتبقية في التطبيق.'],
     },
     subject: { en: 'Your Tabby Cash limits', ar: 'حدود تابي كاش' },
+  },
+  {
+    id: 'cash-iban',
+    topic: 'cash-about',
+    title: 'Personal IBAN and Cash Card',
+    when: 'The customer asks for their IBAN, how to receive money, or what the Cash Card is.',
+    keys: 'iban account number receive transfer emirates nbd cash card prepaid debit رقم الآيبان بطاقة كاش',
+    en: {
+      ack: 'Sure, I’ll explain both.',
+      body: [
+        'With Tabby Cash, you receive a personal IBAN through our partner bank, Emirates NBD, so you can receive transfers and manage your money in your Tabby Cash account. You’ll find it in the Tabby Cash section of the app.',
+        'The Tabby Cash Card is a prepaid debit card that you can use for your everyday purchases, spending from your own Tabby Cash balance.',
+      ],
+    },
+    ar: {
+      ack: 'بالتأكيد، سأوضح لك الأمرين.',
+      body: [
+        'مع تابي كاش تحصل على رقم IBAN شخصي من خلال البنك الشريك Emirates NBD، لتستقبل التحويلات وتدير أموالك في حساب تابي كاش، وتجده في قسم تابي كاش داخل التطبيق.',
+        'أما بطاقة تابي كاش فهي بطاقة خصم مسبقة الدفع تستخدمها لمشترياتك اليومية من رصيدك في تابي كاش.',
+      ],
+    },
+    subject: { en: 'Your Tabby Cash IBAN and Cash Card', ar: 'رقم IBAN وبطاقة تابي كاش' },
+  },
+  {
+    id: 'cash-fees',
+    topic: 'cash-about',
+    title: 'Tabby Cash fees',
+    when: 'The customer asks whether Tabby Cash has a subscription fee or needs a credit card.',
+    keys: 'fees subscription free cost credit card needed رسوم اشتراك تابي كاش',
+    tip: 'Public Key Facts Statement: international (non-AED) card transactions 1.5%, plus the exchange rate. Share the fees shown in the app for anything specific.',
+    en: {
+      ack: 'Good question.',
+      body: ['Tabby Cash has no subscription fee, and you don’t need a credit card to use it. Any fee for a specific transaction, such as an international card payment, is shown in the app before you confirm.'],
+    },
+    ar: {
+      ack: 'سؤال في محله.',
+      body: ['لا توجد رسوم اشتراك في تابي كاش، ولا تحتاج إلى بطاقة ائتمانية لاستخدامه، وتظهر أي رسوم خاصة بمعاملة معينة، مثل الدفع الدولي بالبطاقة، في التطبيق قبل التأكيد.'],
+    },
+    subject: { en: 'About Tabby Cash fees', ar: 'بخصوص رسوم تابي كاش' },
   },
   {
     id: 'cash-used-for-payment',
