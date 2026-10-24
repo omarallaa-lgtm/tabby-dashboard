@@ -9,6 +9,7 @@ import {
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import { TicketLinks } from '@/components/ticket-links';
 import { TicketTemplateEditor } from '@/components/ticket-template-editor';
+import { norm, tokensOf } from '@/lib/text-match';
 import type { Origin } from '@/components/ticket-template-editor';
 import { SETUP_SQL, loadTemplateRows, saveTemplateRow, deleteTemplateRow } from '@/lib/ticket-store';
 import type { TemplateRow, SavedTemplate } from '@/lib/ticket-store';
@@ -62,39 +63,6 @@ const firstName = (raw: string) => {
   const p = String(raw || '').split('@')[0].split(/[._\-\s]+/).filter((x) => x && !/^\d+$/.test(x))[0] || '';
   return p ? p.charAt(0).toUpperCase() + p.slice(1) : '';
 };
-
-/** lower-case, strip Arabic diacritics, unify letter forms, drop punctuation */
-const norm = (s: string) =>
-  String(s || '')
-    .toLowerCase()
-    .replace(/[ً-ْـ]/g, '')
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/[’'`]/g, '')
-    .replace(/z/g, 's') // recognize = recognise, authorized = authorised
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const STOP = new Set(
-  'the a an i im my me to is are am was dont didnt cant wont isnt doesnt and or of for in on it its this that with you your can could would please hi hello dear team tabby we our be have has not no do did does why how what when there just so but any from at as by will want need still also يا انا انت في من على الى عن ما لا هل هذا هذه تم مع او و ان كان كيف ليش لماذا عندي ابي ابغى اريد تابي مرحبا'.split(' ')
-);
-
-/** light English stemming so "refunds", "refunded", "refunding" all match "refund" */
-const stem = (t: string) => {
-  if (/^[a-z]+$/.test(t)) return t.length > 5 ? t.replace(/(ing|ed|es|s)$/, '') : t;
-  // Arabic: drop the article and possessive endings (المسترد -> مسترد, بطاقتي -> بطاقه)
-  let a = t.length > 4 ? t.replace(/^(وال|بال|لل|ال)/, '') : t;
-  if (a.length > 3) a = a.replace(/(كم|ها|ي|ك)$/, '');
-  return a.length > 3 ? a.replace(/ت$/, 'ه') : a;
-};
-
-const tokensOf = (q: string) =>
-  norm(q)
-    .split(' ')
-    .filter((t) => t.length >= 2 && !STOP.has(t))
-    .map(stem);
 
 const PH_RE = /(\{\{[a-z0-9_]+\}\})/gi;
 
@@ -540,6 +508,7 @@ export function TicketAssistanceTab() {
   }, [query, index, productFilter, topicToProduct, favs]);
 
   useEffect(() => setHi(0), [query, productFilter]);
+
 
   const sel: Scenario | undefined = selectedId ? byId[selectedId] : undefined;
   const selProduct = sel ? topicToProduct[sel.topic] : undefined;

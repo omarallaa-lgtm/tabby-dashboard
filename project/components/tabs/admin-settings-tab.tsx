@@ -9,7 +9,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { 
   ShieldCheck, Users, Key, Trash2, Check, RefreshCw, AlertCircle, 
   CheckCircle2, LayoutDashboard, Zap, LifeBuoy, 
-  MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, UserCheck
+  MessageSquarePlus, Megaphone, Database, Sliders, ChevronDown, Eye, EyeOff, UserCheck, Sparkles
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 
@@ -23,6 +23,7 @@ const ALL_SYSTEM_TABS = [
   { key: 'my-performance', label: 'My Performance', icon: UserCheck },
   { key: 'knet-calc', label: 'Shortcuts', icon: Zap },
   { key: 'ticket-assist', label: 'Ticket Assistance', icon: LifeBuoy },
+  { key: 'ai-lab', label: 'AI Lab (Beta)', icon: Sparkles },
   { key: 'requests', label: 'Requests', icon: MessageSquarePlus },
   { key: 'announcements', label: 'Announcements', icon: Megaphone },
   { key: 'agent-data', label: 'Data & Backups', icon: Database },
