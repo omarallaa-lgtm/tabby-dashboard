@@ -27,7 +27,10 @@ Facts and policy
 - Only give "24–48 hours" when the template or update for that process says so.
 
 Agent's suggestion and case stage
-- If AGENT'S SUGGESTION is given, it is the agent's decided answer or next step for this case. Build the reply around it: rephrase it into our structure and tone, keep its facts, and don't add steps it doesn't mention unless the policy requires them. If it conflicts with the policy, follow the policy and explain why under NOTES FOR AGENT.
+- If AGENT'S SUGGESTION is given, it comes first. The agent has checked the account, so it is the real status of the case (e.g. a form already received, a case already raised) and the decided answer. Build the MESSAGES from it: answer the customer's actual question, cover every point of the suggestion in order, keep its facts, and only rephrase it into our tone and short-message structure.
+- With a suggestion, templates are background only. Never add a step or status from a template that the suggestion doesn't mention or that contradicts it (e.g. don't ask the customer to fill in a form the agent says was already submitted).
+- Only overrule the suggestion if it breaks a hard rule below (promising an approval or a manual review, inventing a fee or timeframe); then follow the rule and say why under NOTES FOR AGENT.
+- If YOUR PREVIOUS DRAFT and AGENT'S FEEDBACK are given, rewrite the draft and fix exactly what the agent pointed out.
 - If CASE STAGE is "Reopened after hold / follow-up": the customer was already told we are checking. Don't greet as a new chat and don't ask again for information already given. Open with thanks for their patience and the update (what was checked or done while the ticket was on hold), then the result and the next step.
 
 How we write (new approach)
@@ -257,6 +260,9 @@ export interface ReplyInput {
   context?: string; // what the agent found in the back office
   /** the agent's own answer / next step, to be rephrased */
   suggestion?: string;
+  /** a rewrite: the last draft and what the agent says is wrong with it */
+  previous?: string;
+  feedback?: string;
   stage?: 'new' | 'followup';
   channel: 'chat' | 'email';
   lang: 'auto' | Lang;
@@ -270,31 +276,45 @@ export interface ReplyInput {
 }
 
 export function buildReplyPrompt(p: ReplyInput) {
-  const replyLang = p.lang === 'auto' ? (hasArabic(p.chat) ? 'Arabic' : 'English') : p.lang === 'ar' ? 'Arabic' : 'English';
+  const replyLang = p.lang === 'auto' ? (hasArabic(`${p.chat} ${p.suggestion || ''}`) ? 'Arabic' : 'English') : p.lang === 'ar' ? 'Arabic' : 'English';
   const langs: Lang[] = replyLang === 'Arabic' ? ['en', 'ar'] : ['en'];
+  const sug = p.suggestion?.trim() || '';
+  const fix = p.feedback?.trim() || '';
   return [
     `CHANNEL: ${p.channel === 'email' ? 'Email' : 'Chat'}`,
     `REPLY LANGUAGE: ${replyLang}`,
     `CASE STAGE: ${p.stage === 'followup' ? 'Reopened after hold / follow-up' : 'New conversation'}`,
+    sug
+      ? `\nAGENT'S SUGGESTION – YOUR REPLY MUST DELIVER THIS (the agent has already checked the account; this is the real status of the case and what to tell the customer):\n"""\n${sug}\n"""`
+      : '',
+    fix && p.previous?.trim()
+      ? `\nYOUR PREVIOUS DRAFT (the agent says it was not right):\n"""\n${p.previous.trim()}\n"""\nAGENT'S FEEDBACK – fix exactly this in the new reply:\n${fix}`
+      : '',
     '',
     'CUSTOMER CONVERSATION:',
     '"""',
-    p.chat.trim(),
+    p.chat.trim() || '(not pasted – write the reply from the agent’s suggestion)',
     '"""',
     p.context?.trim() ? `\nWHAT THE AGENT FOUND ON THE ACCOUNT:\n${p.context.trim()}` : '',
-    p.suggestion?.trim() ? `\nAGENT'S SUGGESTION (the answer / next step to rephrase):\n${p.suggestion.trim()}` : '',
+    '',
+    answersBlock(p.answers || []),
     '',
     updatesBlock(p.updates),
     '',
-    'TEMPLATES (closest matches from our library):',
+    sug
+      ? 'TEMPLATES (background only – use them for tone and policy wording; do NOT add steps or statuses from them that the AGENT’S SUGGESTION does not mention, e.g. do not ask for a form the agent says was already received):'
+      : 'TEMPLATES (closest matches from our library):',
     p.templates.length ? p.templates.map((t) => templateBlock(t.s, t.topic, langs)).join('\n\n') : 'none found',
     '',
     examplesBlock(p.examples),
     '',
-    answersBlock(p.answers || []),
-    '',
     p.tree?.length ? `TOPIC TREE (id = Product › Topic):\n${p.tree.join('\n')}` : '',
     p.placeholders?.length ? `\nPLACEHOLDERS for a new template: ${p.placeholders.map((x) => `{{${x}}}`).join(' ')}` : '',
+    sug
+      ? `\nREMINDER: the MESSAGES must answer the customer's question with the AGENT'S SUGGESTION, covering each of its points, in our tone and structure. Do not replace it with template content.${fix ? ' Apply the AGENT’S FEEDBACK.' : ''}`
+      : fix
+        ? '\nREMINDER: apply the AGENT’S FEEDBACK to your previous draft.'
+        : '',
   ]
     .filter((x) => x !== '')
     .join('\n');

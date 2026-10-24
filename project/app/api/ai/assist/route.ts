@@ -58,7 +58,7 @@ function sameOrigin(req: Request) {
 
 const isReasoningModel = (m: string) => /^(gpt-5|o\d)|gpt-oss/i.test(m);
 
-async function callOpenAI(task: AiTask, user: string, withEffort: boolean) {
+async function callOpenAI(task: AiTask, user: string, withEffort: boolean, effort: 'low' | 'medium' = 'low') {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55_000);
   try {
@@ -73,8 +73,8 @@ async function callOpenAI(task: AiTask, user: string, withEffort: boolean) {
           { role: 'user', content: user },
         ],
         // Groq's free plan allows ~8,000 tokens a minute, so keep the answer budget small there
-        max_completion_tokens: GROQ ? (task === 'update' ? 3500 : 1800) : task === 'update' ? 6000 : 3000,
-        ...(withEffort && isReasoningModel(MODEL) ? { reasoning_effort: 'low' } : {}),
+        max_completion_tokens: GROQ ? (task === 'update' || effort === 'medium' ? 3500 : 2800) : task === 'update' ? 6000 : 3000,
+        ...(withEffort && isReasoningModel(MODEL) ? { reasoning_effort: effort } : {}),
       }),
     });
     const data: any = await res.json().catch(() => ({}));
@@ -99,6 +99,8 @@ export async function POST(req: Request) {
     return json({ error: 'Bad request' }, 400);
   }
   const task: AiTask = body?.task === 'update' ? 'update' : 'reply';
+  // replies built on the agent's suggestion / feedback follow instructions better with a little more thinking
+  const effort: 'low' | 'medium' = body?.effort === 'medium' ? 'medium' : 'low';
   const user = String(body?.prompt || '').trim();
   const who = String(body?.user || req.headers.get('x-forwarded-for') || 'anon').split(',')[0].trim().toLowerCase();
   if (!user) return json({ error: 'Nothing to send' }, 400);
@@ -106,7 +108,7 @@ export async function POST(req: Request) {
   if (limited(who)) return json({ error: 'Too many requests in a minute. Please wait a moment and try again.' }, 429);
 
   try {
-    let r = await callOpenAI(task, user, true);
+    let r = await callOpenAI(task, user, true, effort);
     // some models don't accept reasoning_effort: retry once without it
     if (!r.ok && /reasoning_effort/i.test(String(r.data?.error?.message || ''))) r = await callOpenAI(task, user, false);
     if (!r.ok) {

@@ -9,7 +9,7 @@
 //  • Questions: what the AI asked about products / processes; the team's answers become knowledge
 //  • What it learned: approved replies and taught cases
 // ---------------------------------------------------------------------------
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles, ClipboardPaste, Copy, Check, ThumbsUp, Trash2, RefreshCw, ShieldCheck, Megaphone, BookOpen, Database,
   AlertTriangle, Pencil, Plus, X, ChevronDown, Send, Lightbulb, MessageSquare, Mail, HelpCircle, User,
@@ -79,15 +79,21 @@ const Seg = <T extends string>({ value, onChange, options }: { value: T; onChang
   </div>
 );
 
+const Kbd = ({ children }: { children: React.ReactNode }) => (
+  <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded border border-current/30 bg-black/5 dark:bg-white/10 text-[10px] font-bold font-mono leading-none opacity-80">
+    {children}
+  </kbd>
+);
+
 const fillNames = (t: string, agent: string, team: string) =>
   t.replace(/\{\{agent_name\}\}/g, agent || '[your name]').replace(/\{\{team_name\}\}/g, team || 'Tabby Customer Support');
 
-async function askAI(task: AiTask, prompt: string, user: string): Promise<{ text?: string; error?: string }> {
+async function askAI(task: AiTask, prompt: string, user: string, effort: 'low' | 'medium' = 'low'): Promise<{ text?: string; error?: string }> {
   try {
     const res = await fetch('/api/ai/assist', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ task, prompt, user }),
+      body: JSON.stringify({ task, prompt, user, effort }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: data?.error || `The AI could not answer (${res.status}).` };
@@ -384,6 +390,8 @@ function ReplyHelper(p: Shared) {
   const [chat, setChat] = useState('');
   const [context, setContext] = useState('');
   const [suggestion, setSuggestion] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [rewrite, setRewrite] = useState<{ previous: string; feedback: string } | null>(null);
   const [stage, setStage] = useState<'new' | 'followup'>('new');
   const [channel, setChannel] = useState<'chat' | 'email'>('chat');
   const [lang, setLang] = useState<'auto' | 'en' | 'ar'>('auto');
@@ -399,7 +407,8 @@ function ReplyHelper(p: Shared) {
 
   const caseText = `${chat} ${context} ${suggestion}`;
   const hasInput = !!(chat.trim() || suggestion.trim());
-  const matched = useMemo(() => (caseText.trim() ? p.rank(caseText, 6) : []), [caseText, p.rank]);
+  // with a suggestion the templates are background only, so send fewer of them
+  const matched = useMemo(() => (caseText.trim() ? p.rank(caseText, suggestion.trim() ? 4 : 6) : []), [caseText, suggestion, p.rank]);
   const examples = useMemo(() => pickExamples(caseText, p.store.examples, 3), [caseText, p.store.examples]);
   const tree = useMemo(() => treeOf(p), [p.topicIds, p.topicLabel]);
   const answers = useMemo(() => pickAnswers(caseText, p.store.questions), [caseText, p.store.questions]);
@@ -410,6 +419,8 @@ function ReplyHelper(p: Shared) {
         context,
         suggestion,
         stage,
+        previous: rewrite?.previous,
+        feedback: rewrite?.feedback,
         channel,
         lang,
         templates: matched.map((s) => ({ s, topic: p.topicLabel(s.topic) })),
@@ -419,7 +430,7 @@ function ReplyHelper(p: Shared) {
         tree,
         placeholders: PLACEHOLDERS,
       }),
-    [chat, context, suggestion, stage, channel, lang, matched, p.store.updates, examples, answers, p.topicLabel, tree]
+    [chat, context, suggestion, stage, rewrite, channel, lang, matched, p.store.updates, examples, answers, p.topicLabel, tree]
   );
 
   const replyIsAr = lang === 'ar' || (lang === 'auto' && /[؀-ۿ]/.test(chat));
@@ -433,6 +444,7 @@ function ReplyHelper(p: Shared) {
     }
     setAnswer(a);
     setMsgs(a.messages.map((m) => fillNames(m, p.agentName, team)));
+    setCopiedMsgs(new Set());
     setEmailText(fillNames(a.email, p.agentName, team));
     setSaved(false);
     setTplState('');
@@ -444,11 +456,33 @@ function ReplyHelper(p: Shared) {
     if (!hasInput) return;
     setBusy(true);
     setError('');
-    const r = await askAI('reply', prompt, p.email);
+    const r = await askAI('reply', prompt, p.email, suggestion.trim() || rewrite ? 'medium' : 'low');
     setBusy(false);
+    setRewrite(null);
     if (r.error) return setError(r.error);
     show(r.text || '');
   };
+
+  // "Not right?" – send the current draft back with the agent's feedback
+  const [rewriteNow, setRewriteNow] = useState(false);
+  const askRewrite = () => {
+    if (!feedback.trim()) return;
+    const previous = channel === 'email' && emailText ? emailText : msgs.map((m, i) => `${i + 1}. ${m}`).join('\n');
+    setRewrite({ previous, feedback: feedback.trim() });
+    setFeedback('');
+    setRewriteNow(true);
+  };
+  useEffect(() => {
+    if (!rewriteNow || !rewrite) return;
+    setRewriteNow(false);
+    if (p.ai?.configured) run();
+    else {
+      p.copy(chatGptPrompt('reply', prompt), 'Prompt for ChatGPT (with your feedback)');
+      setPasteOpen(true);
+      setRewrite(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewriteNow, rewrite, prompt]);
 
   // after a question is answered: write the reply again with the new knowledge
   const [rerun, setRerun] = useState(false);
@@ -466,11 +500,58 @@ function ReplyHelper(p: Shared) {
     setPasteOpen(true);
   };
 
+  // ---- copying + keyboard shortcuts (same keys as Ticket Assistance) ----
+  const [copiedMsgs, setCopiedMsgs] = useState<Set<number>>(new Set());
+  const copyMsg = (i: number) => {
+    if (!msgs[i]) return;
+    p.copy(msgs[i], `Message ${i + 1}`);
+    setCopiedMsgs((c) => new Set(c).add(i));
+  };
+  const copyAllMsgs = () => {
+    if (channel === 'email' && emailText) return p.copy(emailText, 'Email body');
+    if (!msgs.length) return;
+    p.copy(msgs.join('\n\n'), 'All messages');
+    setCopiedMsgs(new Set(msgs.map((_, i) => i)));
+  };
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const el = e.target as HTMLElement | null;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+    const k = e.key.toLowerCase();
+    if (k === '/') {
+      e.preventDefault();
+      document.getElementById('ai-chat-input')?.focus();
+      return;
+    }
+    if (k === 'n') return reset();
+    if (!answer) return;
+    if (/^[1-9]$/.test(k)) {
+      e.preventDefault();
+      return copyMsg(Number(k) - 1);
+    }
+    if (k === ' ') {
+      e.preventDefault();
+      const i = msgs.findIndex((_, idx) => !copiedMsgs.has(idx));
+      if (i >= 0) copyMsg(i);
+      else p.flash('All messages already copied');
+      return;
+    }
+    if (k === 'a') return copyAllMsgs();
+  };
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => keyRef.current(e);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
+
   /** start a new case: forget the old conversation, suggestion and answer */
   const reset = () => {
     setChat('');
     setContext('');
     setSuggestion('');
+    setFeedback('');
+    setRewrite(null);
     setStage('new');
     setAnswer(null);
     setMsgs([]);
@@ -697,13 +778,23 @@ function ReplyHelper(p: Shared) {
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-slate-500">{msgs.length} messages · edit before copying if needed</span>
                   <span className="flex-1" />
-                  <button type="button" onClick={() => p.copy(msgs.join('\n\n'), 'All messages')} className={btnPrimary}>
-                    <Copy className="h-3.5 w-3.5" /> Copy all
+                  <button type="button" onClick={copyAllMsgs} className={btnPrimary} title="Copy all (A)">
+                    <Copy className="h-3.5 w-3.5" /> Copy all <Kbd>A</Kbd>
                   </button>
                 </div>
                 {msgs.map((m, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-xl border border-slate-200 dark:border-slate-700 p-2">
-                    <span className="h-5 w-5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-1.5">{i + 1}</span>
+                  <div
+                    key={i}
+                    className={`flex items-start gap-2 rounded-xl border p-2 ${copiedMsgs.has(i) ? 'border-emerald-500/50 bg-emerald-500/[0.04]' : 'border-slate-200 dark:border-slate-700'}`}
+                  >
+                    <span
+                      className={`h-5 w-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 mt-1.5 ${
+                        copiedMsgs.has(i) ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700'
+                      }`}
+                      title={`Press ${i + 1} to copy`}
+                    >
+                      {copiedMsgs.has(i) ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
                     <textarea
                       value={m}
                       dir={/[؀-ۿ]/.test(m) ? 'rtl' : 'ltr'}
@@ -711,11 +802,19 @@ function ReplyHelper(p: Shared) {
                       rows={Math.min(6, Math.max(2, Math.ceil(m.length / 70)))}
                       className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 dark:text-slate-100 resize-y focus:outline-none"
                     />
-                    <button type="button" onClick={() => p.copy(m, `Message ${i + 1}`)} className="h-7 w-7 rounded-lg text-slate-400 hover:text-emerald-600 flex items-center justify-center shrink-0">
+                    <button type="button" onClick={() => copyMsg(i)} title={`Copy (${i + 1})`} className="h-7 w-7 rounded-lg text-slate-400 hover:text-emerald-600 flex items-center justify-center shrink-0">
                       <Copy className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}
+                <p className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span><Kbd>1</Kbd>–<Kbd>9</Kbd> copy a message</span>
+                  <span><Kbd>Space</Kbd> copy the next one</span>
+                  <span><Kbd>A</Kbd> copy all</span>
+                  <span><Kbd>N</Kbd> new case</span>
+                  <span><Kbd>/</Kbd> paste a chat</span>
+                  <span className="text-slate-400">(click outside the text boxes first)</span>
+                </p>
               </div>
             )}
 
@@ -872,6 +971,24 @@ function ReplyHelper(p: Shared) {
                 )}
               </div>
             )}
+
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 space-y-2">
+              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">Not right? Tell the AI what to change</p>
+              <div className="flex items-start gap-2">
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  rows={2}
+                  dir={/[\u0600-\u06FF]/.test(feedback) ? 'rtl' : 'ltr'}
+                  placeholder="e.g. The form was already received and raised to Visa – don’t ask for it again. Say the autopayment can’t be paused."
+                  className={`${input} p-2 text-xs flex-1`}
+                />
+                <button type="button" onClick={askRewrite} disabled={!feedback.trim() || busy} className={btnPrimary}>
+                  {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />} Rewrite
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500">You can also edit the messages above directly. When it’s right, press “Good reply – learn from it” so the AI handles similar cases this way.</p>
+            </div>
 
             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
               <button type="button" onClick={saveGood} disabled={saved} className={`${btnGhost} mt-2`}>
