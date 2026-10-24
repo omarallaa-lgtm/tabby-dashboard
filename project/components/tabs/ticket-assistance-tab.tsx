@@ -80,7 +80,7 @@ interface TeamExtra {
   femaleEmail?: string;
 }
 
-function buildTeam(macros: any[], emails: any[]) {
+export function buildTeam(macros: any[], emails: any[]) {
   const scenarios: Scenario[] = [];
   const extra: Record<string, TeamExtra> = {};
   const topics = new Map<string, string>();

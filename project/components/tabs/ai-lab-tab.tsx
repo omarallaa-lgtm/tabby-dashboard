@@ -8,7 +8,8 @@
 // ---------------------------------------------------------------------------
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, FlaskConical, Copy, X, AlertTriangle } from 'lucide-react';
-import { useMetrics } from '@/lib/metrics-context';
+import { supabase, useMetrics } from '@/lib/metrics-context';
+import { buildTeam } from '@/components/tabs/ticket-assistance-tab';
 import { AiHelper } from '@/components/ai-helper';
 import { TicketTemplateEditor } from '@/components/ticket-template-editor';
 import { loadTemplateRows, saveTemplateRow } from '@/lib/ticket-store';
@@ -50,18 +51,45 @@ export function AiLabTab() {
   const email: string = String(currentUser?.user_email || 'guest').toLowerCase();
   const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
 
-  // same name settings as Ticket Assistance
+  // same name settings as Ticket Assistance (default: the logged-in user's name)
+  const sigKey = `tabby-ta:${email}:sig`;
   const [sig, setSig] = useState({ agent: '', teamEn: 'Tabby Customer Support', teamAr: 'فريق دعم عملاء تابي' });
   useEffect(() => {
+    const fallback = firstName(currentUser?.username || email);
     try {
-      const raw = localStorage.getItem(`tabby-ta:${email}:sig`);
-      if (raw) return setSig(JSON.parse(raw));
+      const raw = localStorage.getItem(sigKey);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        return setSig({ agent: saved.agent || fallback, teamEn: saved.teamEn || 'Tabby Customer Support', teamAr: saved.teamAr || 'فريق دعم عملاء تابي' });
+      }
     } catch {
       /* storage unavailable */
     }
-    setSig((s) => ({ ...s, agent: firstName(currentUser?.username || email) }));
+    setSig((s) => ({ ...s, agent: fallback }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
+  const changeSig = (next: typeof sig) => {
+    setSig(next);
+    try {
+      localStorage.setItem(sigKey, JSON.stringify(next));
+    } catch {
+      /* storage unavailable */
+    }
+  };
+
+  // ---- the team library (old chat macros + email templates), same as Ticket Assistance ----
+  const [team, setTeam] = useState<{ scenarios: Scenario[]; product: Product | null }>({ scenarios: [], product: null });
+  useEffect(() => {
+    (async () => {
+      try {
+        const [m, e] = await Promise.all([supabase.from('chat_macros').select('*'), supabase.from('email_templates').select('*')]);
+        const built = buildTeam(m.data || [], e.data || []);
+        setTeam({ scenarios: built.scenarios, product: built.scenarios.length ? built.product : null });
+      } catch {
+        /* the team library is optional */
+      }
+    })();
+  }, []);
 
   // ---- templates: built-in + the team's saved edits ----
   const [rows, setRows] = useState<TemplateRow[]>([]);
@@ -75,11 +103,12 @@ export function AiLabTab() {
     reloadRows();
   }, [reloadRows]);
 
-  const baseById = useMemo(() => Object.fromEntries(ALL_SCENARIOS.map((s) => [s.id, s])) as Record<string, Scenario>, []);
+  const baseScenarios = useMemo(() => [...ALL_SCENARIOS, ...team.scenarios], [team.scenarios]);
+  const baseById = useMemo(() => Object.fromEntries(baseScenarios.map((s) => [s.id, s])) as Record<string, Scenario>, [baseScenarios]);
   const scenarios: Scenario[] = useMemo(() => {
     const rowById = Object.fromEntries(rows.map((r) => [r.id, r])) as Record<string, TemplateRow>;
     const out: Scenario[] = [];
-    ALL_SCENARIOS.forEach((s) => {
+    baseScenarios.forEach((s) => {
       const r = rowById[s.id];
       if (r?.hidden) return;
       out.push(r ? ({ ...r.data, id: s.id } as Scenario) : s);
@@ -88,10 +117,10 @@ export function AiLabTab() {
       if (!baseById[r.id] && !r.hidden && r.data) out.push({ ...r.data, id: r.id } as Scenario);
     });
     return out;
-  }, [rows, baseById]);
+  }, [rows, baseById, baseScenarios]);
 
   const products: Product[] = useMemo(() => {
-    const list = PRODUCTS.map((p) => ({ ...p, topics: [...p.topics] }));
+    const list = (team.product ? [...PRODUCTS, team.product] : PRODUCTS).map((p) => ({ ...p, topics: [...p.topics] }));
     const known = new Set(list.flatMap((p) => p.topics.map((t) => t.id)));
     scenarios.forEach((s) => {
       if (known.has(s.topic)) return;
@@ -101,7 +130,7 @@ export function AiLabTab() {
       known.add(s.topic);
     });
     return list;
-  }, [scenarios]);
+  }, [scenarios, team.product]);
 
   const byId = useMemo(() => Object.fromEntries(scenarios.map((s) => [s.id, s])) as Record<string, Scenario>, [scenarios]);
   const topicToProduct = useMemo(
@@ -120,7 +149,7 @@ export function AiLabTab() {
         title: norm(s.title),
         keys: norm(`${s.keys || ''} ${topicName[s.topic] || ''} ${topicToProduct[s.topic]?.name || ''}`),
         when: norm(s.when),
-        text: norm([...chatMessages(s, 'en'), ...(s.ar ? chatMessages(s, 'ar') : []), s.emailEn || '', s.subject?.en || ''].join(' ')),
+        text: norm([...chatMessages(s, 'en'), ...(s.ar ? chatMessages(s, 'ar') : []), s.emailEn || '', s.emailAr || '', s.subject?.en || ''].join(' ')),
       })),
     [scenarios, topicName, topicToProduct]
   );
@@ -141,7 +170,8 @@ export function AiLabTab() {
           }
           return { s: ix.s, sc: hit >= 2 ? sc * Math.sqrt(hit) : 0 };
         })
-        .filter((r) => r.sc > 0 && !r.s.internal)
+        // internal / partner emails are not customer replies
+        .filter((r) => r.sc > 0 && !r.s.topic.startsWith('int-'))
         .sort((a, b) => b.sc - a.sc)
         .slice(0, n)
         .map((r) => r.s);
@@ -228,6 +258,7 @@ export function AiLabTab() {
           agentName={sig.agent}
           teamEn={sig.teamEn}
           teamAr={sig.teamAr}
+          onNameChange={changeSig}
           onOpen={(id) => {
             setPreview(id);
             setPreviewLang('en');
@@ -236,6 +267,14 @@ export function AiLabTab() {
             setEditing({ base: s, isNew });
             setTimeout(() => topRef.current?.scrollIntoView({ block: 'start' }), 30);
           }}
+          onSaveTemplate={async (t) => {
+            if (!storeReady) return 'Saving needs the one-time Ticket Assistance setup (Ticket Assistance → New template shows the SQL).';
+            const err = await saveTemplateRow({ id: t.id, data: t, hidden: false }, email);
+            if (err) return `Could not save: ${err}`;
+            await reloadRows();
+            return null;
+          }}
+          productOfTopic={(t) => topicToProduct[t]}
           copy={copy}
           flash={flash}
         />
