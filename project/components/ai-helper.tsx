@@ -110,6 +110,107 @@ async function askAI(task: AiTask, prompt: string, user: string, effort: 'low' |
 }
 
 // ---------------------------------------------------------------------------
+// Quick copy bar: the same personal buttons as Ticket Assistance, always at hand in AI Lab
+// ---------------------------------------------------------------------------
+function QuickBar(p: Props) {
+  const [prefs, setPrefs] = useState<QuickPrefs>({});
+  const [sync, setSync] = useState({ synced: false, missingTable: false });
+  const [edit, setEdit] = useState(false);
+  const [lang, setLang] = useState<'en' | 'ar'>('en');
+  const langKey = `tabby-ai-quick-lang:${p.email}`;
+  useEffect(() => {
+    loadQuickPrefs(p.email).then((r) => {
+      setPrefs(r.prefs);
+      setSync({ synced: r.synced, missingTable: r.missingTable });
+    });
+    try {
+      if (localStorage.getItem(langKey) === 'ar') setLang('ar');
+    } catch {
+      /* storage unavailable */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.email]);
+  const changeLang = (l: 'en' | 'ar') => {
+    setLang(l);
+    try {
+      localStorage.setItem(langKey, l);
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  const team = lang === 'ar' ? p.teamAr : p.teamEn;
+  const items = quickItemsFor(prefs, 'ta').filter((q) => isOwn(q) || p.byId[q.id]);
+  const textOf = (q: QuickItem) =>
+    isOwn(q)
+      ? lang === 'ar' && q.textAr?.trim()
+        ? q.textAr
+        : q.text || q.textAr || ''
+      : chatMessages(p.byId[q.id], lang === 'ar' && p.byId[q.id].ar ? 'ar' : 'en').join('\n\n');
+  return (
+    <>
+      <div className={`${panel} px-3 py-2 flex flex-wrap items-center gap-1.5`}>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+          <Sparkles className="h-3 w-3" /> Quick copy
+        </span>
+        {items.map((q) => {
+          const text = textOf(q);
+          return (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => p.copy(fillNames(text, p.agentName, team), q.label)}
+              title={text}
+              className="h-7 px-2.5 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300"
+            >
+              {q.label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setEdit((v) => !v)}
+          title="Choose your own quick copy buttons (same list as Ticket Assistance)"
+          className="h-7 w-7 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-slate-400 hover:text-emerald-600 hover:border-emerald-500 flex items-center justify-center"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <span className="flex-1" />
+        <Seg
+          value={lang}
+          onChange={changeLang}
+          options={[
+            { value: 'en', label: 'EN' },
+            { value: 'ar', label: 'عربي' },
+          ]}
+        />
+      </div>
+      {edit && (
+        <QuickCopyEditor
+          title="My quick copy buttons (shared with Ticket Assistance)"
+          items={quickItemsFor(prefs, 'ta')}
+          defaults={QUICK_DEFAULTS.ta}
+          scenarios={p.scenarios}
+          topicLabel={p.topicLabel}
+          synced={sync.synced}
+          missingTable={sync.missingTable}
+          onSave={async (list: QuickItem[]) => {
+            const r0 = await loadQuickPrefs(p.email); // keep the "After sending" list as it is
+            const next = { ...prefs, ...r0.prefs, ai: r0.prefs.ai, ta: list };
+            setPrefs(next);
+            const r = await saveQuickPrefs(p.email, next);
+            setSync({ synced: r.synced, missingTable: r.missingTable });
+            setEdit(false);
+            p.flash(r.synced ? 'Your quick copy buttons are saved' : 'Saved in this browser (see the note to keep them everywhere)', !r.synced);
+          }}
+          onClose={() => setEdit(false)}
+          onCopySql={(sql) => p.copy(sql, 'SQL')}
+        />
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 export function AiHelper(p: Props) {
   const [section, setSection] = useState<Section>('reply');
   const [ai, setAi] = useState<{ configured: boolean; model?: string; provider?: string | null } | null>(null);
@@ -189,6 +290,8 @@ export function AiHelper(p: Props) {
           </button>
         )}
       </div>
+
+      <QuickBar {...p} />
 
       {showName && (
         <div className={`${panel} p-3 grid grid-cols-1 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto] gap-2 items-end`}>
