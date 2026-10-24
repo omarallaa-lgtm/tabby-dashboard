@@ -691,4 +691,95 @@ export const GENERAL: Scenario[] = [
       body: ['ويمكنك التواصل معنا مرة أخرى في أي وقت إذا احتجت إلى مساعدة في طلب جديد.'],
     },
   },
+
+  // ---------------- Complaints (Customer Care Unit) ----------------
+  {
+    id: 'gen-ccu-offer',
+    topic: 'gen-complaint',
+    title: 'Keyword after the resolution – offer a formal complaint',
+    when: 'After the resolution the customer uses a CCU keyword (regulator, central bank / Sanadak, lawyer, court, legal action, “I’ll complain about Tabby” outside Tabby, reputation).',
+    keys: 'complaint ccu keyword central bank sanadak cbuae lawyer court legal action report you social media شكوى البنك المركزي سندك محامي محكمة هشتكي عليكم',
+    tip: 'Customer agrees → escalate to CCU (CIA note with the escalation title, e.g. “Keyword”, and the keyword used; on calls note the minute). Declines → standard process. Kuwait customers: don’t escalate to CCU. “I will complain” about the store (not Tabby) is not a keyword.',
+    channels: ['chat'],
+    en: {
+      ack: 'I understand you’re not satisfied with this outcome, and I want to make sure your concern is heard.',
+      body: ['Do you wish to raise a complaint through our Customer Care Unit?'],
+    },
+    ar: {
+      ack: 'أتفهم أنك غير راضٍ عن هذه النتيجة، وأود التأكد من أن ملاحظتك تصل إلى الجهة المختصة.',
+      body: ['هل ترغب في رفع شكوى من خلال وحدة رعاية العملاء لدينا؟'],
+    },
+  },
+  {
+    id: 'gen-ccu-dissatisfied',
+    topic: 'gen-complaint',
+    title: 'Still dissatisfied after the resolution (actionable topic)',
+    when: 'No keyword, but the customer is still unhappy (“not acceptable”, “you didn’t help me”) about an actionable topic.',
+    keys: 'not satisfied not acceptable you did not help dissatisfied formal complaint غير راضي غير مقبول ما ساعدتني',
+    tip: 'Actionable: account changes, order management, refunds, Tabby Card issues (post-split fees, cashback), BNPL cashback, Simah. Non-actionable (rejections, limits, unsettled card transactions, Pay in Full, blacklisted merchants, auto-charge, global issues): don’t offer – escalate only if they ask to complain. No reply / declines → close.',
+    en: {
+      ack: 'I’m sorry that I wasn’t able to resolve your concern to your satisfaction.',
+      body: ['If you’d like, I can open a formal complaint with our Customer Care Unit, so your case is reviewed further.'],
+    },
+    ar: {
+      ack: 'أعتذر لأنني لم أتمكن من حل استفسارك بالشكل الذي يرضيك.',
+      body: ['وإذا رغبت، يمكنني فتح شكوى رسمية لدى وحدة رعاية العملاء لدينا حتى تتم مراجعة حالتك بشكل أعمق.'],
+    },
+    subject: { en: 'About your request', ar: 'بخصوص طلبك' },
+  },
+  {
+    id: 'gen-ccu-raised',
+    topic: 'gen-complaint',
+    title: 'Complaint raised with the Customer Care Unit (24–48 hours)',
+    when: 'You escalated the complaint to CCU (customer agreed, or asked to complain about an actionable topic).',
+    keys: 'complaint raised ccu escalated customer care unit 24 48 hours تم رفع الشكوى وحدة رعاية العملاء',
+    tip: 'Before escalating: CIA note with an escalation title (Keyword / Complaint against representative / Complaint request / Customer dissatisfied). Priority-line topics go to that team instead.',
+    en: {
+      ack: 'Thank you for your patience, and I understand how important this is to you.',
+      body: ['I’ve escalated your case to our Customer Care Unit for further review.'],
+      next: 'They’ll contact you within 24–48 hours.',
+    },
+    ar: {
+      ack: 'شكرًا لصبرك، وأتفهم مدى أهمية هذا الأمر بالنسبة لك.',
+      body: ['قمت بتصعيد حالتك إلى وحدة رعاية العملاء لدينا لمراجعتها بشكل أعمق.'],
+      next: 'وسيتواصلون معك خلال 24 إلى 48 ساعة.',
+    },
+    subject: { en: 'Your complaint has been raised', ar: 'تم رفع شكواك' },
+  },
+  {
+    id: 'gen-ccu-number',
+    topic: 'gen-complaint',
+    title: 'Customer asks for the complaint number',
+    when: 'The customer asks for a complaint / reference number after the CCU escalation.',
+    keys: 'complaint number reference id ticket number رقم الشكوى رقم مرجعي',
+    tip: 'The complaint number is the ticket ID (the last part of the ticket link). Share it only when asked.',
+    en: {
+      ack: 'Sure, here it is.',
+      body: ['Your complaint reference number is {{ticket_id}}.'],
+    },
+    ar: {
+      ack: 'بالتأكيد، تفضل.',
+      body: ['الرقم المرجعي لشكواك هو {{ticket_id}}.'],
+    },
+    subject: { en: 'Your complaint reference number', ar: 'الرقم المرجعي لشكواك' },
+  },
+  {
+    id: 'gen-ccu-rep',
+    topic: 'gen-complaint',
+    title: 'Complaint about a Tabby representative',
+    when: 'The customer wants to complain about an agent, TL, collection / DCA agent or the chatbot.',
+    keys: 'complain about agent representative employee rude collection agent chatbot شكوى على موظف المندوب',
+    tip: 'Don’t defend the representative, argue or justify. Detailed internal note, then escalate to CCU.',
+    en: {
+      ack: 'I’m sorry to hear about your experience. I understand your concern, and I’ll make sure this is reviewed properly.',
+      body: ['Could you please share the name of the representative, or the team or channel you spoke with, and when it happened?'],
+      next: 'I’ll then raise it with our Customer Care Unit for review.',
+    },
+    ar: {
+      ack: 'يؤسفني سماع ذلك عن تجربتك، وأتفهم قلقك، وسأحرص على مراجعة الأمر بالشكل الصحيح.',
+      body: ['هل يمكنك مشاركة اسم الموظف، أو الفريق أو القناة التي تواصلت معها، ومتى حدث ذلك؟'],
+      next: 'وبعدها سأرفع الأمر إلى وحدة رعاية العملاء لمراجعته.',
+    },
+    subject: { en: 'About your experience', ar: 'بخصوص تجربتك' },
+  },
 ];

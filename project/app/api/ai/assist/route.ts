@@ -73,8 +73,8 @@ async function callOpenAI(task: AiTask, user: string, withEffort: boolean, effor
           { role: 'user', content: user },
         ],
         // Groq's free plan allows ~8,000 tokens a minute, so keep the answer budget small there
-        // prompt (~4k tokens) + answer must stay under Groq's free 8,000 tokens a minute
-        max_completion_tokens: GROQ ? (task === 'update' ? 3500 : effort === 'medium' ? 3000 : 2600) : task === 'update' ? 6000 : 3000,
+        // prompt (~4.8k tokens with the refund rules) + answer must stay under Groq's free 8,000 tokens a minute
+        max_completion_tokens: GROQ ? (task === 'update' ? 3300 : effort === 'medium' ? 2800 : 2400) : task === 'update' ? 6000 : 3000,
         ...(withEffort && isReasoningModel(MODEL) ? { reasoning_effort: effort } : {}),
       }),
     });

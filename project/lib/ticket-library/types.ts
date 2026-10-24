@@ -149,6 +149,9 @@ export const placeholdersOf = (texts: string[]): string[] => {
 
 export const PLACEHOLDER_LABELS: Record<string, string> = {
   reference: 'Reference / RRN',
+  amount: 'Amount (with currency)',
+  date: 'Date',
+  last4: 'Last 4 digits of the card',
   ticket_id: 'Ticket ID',
   reason: 'Reason',
   link: 'Link',

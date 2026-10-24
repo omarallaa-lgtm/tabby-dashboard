@@ -732,11 +732,120 @@ export const CARD: Scenario[] = [
   },
 
   // ---------------- Refunds on the Tabby Card ----------------
+  // Tabby Card works like any Visa card: the store refunds the card, and it can take up to
+  // 15 days from the store's refund date to reflect (or the store's SLA if longer).
+  // After that: refund receipt + proof of communication → chargeback (dispute form).
+  // (Pay Later orders are different: the refund shows on the order instantly – orders.ts.)
+  {
+    id: 'crf-not-initiated',
+    topic: 'card-refund',
+    title: 'Card refund – the store hasn’t refunded yet',
+    when: 'Tabby Card purchase: the customer cancelled or returned it, but the store hasn’t issued the refund.',
+    keys: 'tabby card refund store not refunded yet returned cancelled card purchase استرداد بطاقة تابي المتجر لم يسترد',
+    tip: 'The store must issue the refund to the card. Give the store 15 days to respond before the dispute route (defective / not as described: 15 days to resolve with the store first).',
+    en: {
+      ack: 'I understand you’re waiting for the refund on your Tabby Card purchase.',
+      body: ['Refunds on Tabby Card purchases are issued by the store, just like with any Visa card, so the refund starts once the store processes it to your card.'],
+      next: 'Please ask the store to process the refund to your Tabby Card. Once they do, it can take up to 15 days from the refund date to reflect on your card.',
+    },
+    ar: {
+      ack: 'أتفهم أنك بانتظار استرداد مبلغ عملية الشراء ببطاقة تابي.',
+      body: ['يتم إصدار استرداد مشتريات بطاقة تابي من قبل المتجر، مثل أي بطاقة Visa، لذلك يبدأ الاسترداد بمجرد معالجة المتجر له إلى بطاقتك.'],
+      next: 'يُرجى طلب معالجة الاسترداد من المتجر إلى بطاقة تابي، وبعد ذلك قد يستغرق ظهوره على بطاقتك مدة تصل إلى 15 يومًا من تاريخ الاسترداد.',
+    },
+    subject: { en: 'About your card refund', ar: 'بخصوص استرداد البطاقة' },
+  },
+  {
+    id: 'crf-15days',
+    topic: 'card-refund',
+    title: 'Store refunded – wait up to 15 days from the refund date',
+    when: 'Tabby Card purchase: the store issued the refund less than 15 days ago and it isn’t on the card yet.',
+    keys: 'card refund not showing merchant refunded 15 days tabby card refund pending استرداد البطاقة لم يظهر 15 يوم',
+    tip: '15 days from the store’s refund date, or the store’s SLA if longer. Pay Later orders don’t wait – this is for the Tabby Card only.',
+    en: {
+      ack: 'Thank you for checking with the store, and I understand you’d like to see the refund on your card.',
+      body: ['When a store refunds a Tabby Card purchase, it can take up to 15 days from the refund date to reflect on your card. Once it does, it’s applied to your card balance.'],
+      next: 'If it still isn’t showing after 15 days, please contact us with the store’s refund receipt and we’ll take it from there.',
+    },
+    ar: {
+      ack: 'شكرًا لتواصلك مع المتجر، وأتفهم رغبتك في رؤية الاسترداد على بطاقتك.',
+      body: ['عندما يسترد المتجر مبلغ عملية شراء ببطاقة تابي، قد يستغرق ظهوره على بطاقتك مدة تصل إلى 15 يومًا من تاريخ الاسترداد، وبمجرد ظهوره يُطبق على رصيد بطاقتك.'],
+      next: 'وإذا لم يظهر بعد مرور 15 يومًا، يُرجى التواصل معنا مع إيصال الاسترداد من المتجر وسنتابع الأمر من هناك.',
+    },
+    subject: { en: 'About your card refund', ar: 'بخصوص استرداد البطاقة' },
+  },
+  {
+    id: 'crf-proof',
+    topic: 'card-refund',
+    title: 'Not on the card after 15 days – ask for the refund receipt and proof',
+    when: 'Tabby Card purchase: more than 15 days since the store’s refund date and it still isn’t on the card.',
+    keys: 'card refund not received after 15 days refund receipt proof communication merchant chargeback إيصال الاسترداد إثبات التواصل مع المتجر',
+    tip: 'Accepted proof: refund receipt, the store’s email, app screenshot showing “Refunded” with full order details, official WhatsApp / support chat. Different currency → ask the customer to confirm the AED amount with the store. Deadline: 120 days from the refund date (Visa rule – don’t present it as Tabby’s). Tabby Card → Escalations team; Tabby Cash → CCU.',
+    en: {
+      ack: 'I understand you’ve been waiting for this refund, and I’d like to raise it for you.',
+      body: [
+        'To proceed, please share the refund receipt or confirmation from the store, showing the refund amount, the refund date, the last four digits of your Tabby Card and the reference number, if available.',
+        'Please also share your communication with the store about the refund, such as their email or chat screenshots.',
+      ],
+      next: 'Once we receive them, we’ll raise your case with the relevant team right away.',
+    },
+    ar: {
+      ack: 'أتفهم أنك تنتظر هذا الاسترداد منذ فترة، وأود رفعه من أجلك.',
+      body: [
+        'ولمتابعة الإجراء، يُرجى مشاركة إيصال أو تأكيد الاسترداد من المتجر، يظهر فيه مبلغ الاسترداد وتاريخه وآخر أربعة أرقام من بطاقة تابي والرقم المرجعي إن وُجد.',
+        'ويُرجى أيضًا مشاركة تواصلك مع المتجر بخصوص الاسترداد، مثل رسالة البريد الإلكتروني منهم أو لقطات شاشة من المحادثة.',
+      ],
+      next: 'وفور استلامها، سنرفع حالتك إلى الفريق المختص مباشرة.',
+    },
+    subject: { en: 'Information needed for your card refund', ar: 'معلومات مطلوبة بخصوص استرداد البطاقة' },
+    related: ['crd-form-email'],
+  },
+  {
+    id: 'crf-currency',
+    topic: 'card-refund',
+    title: 'Refund in another currency – confirm the AED amount',
+    when: 'The store’s refund receipt is in a foreign currency.',
+    keys: 'refund foreign currency usd eur aed amount exchange عملة أخرى المبلغ بالدرهم',
+    en: {
+      ack: 'Thank you for sharing the refund receipt.',
+      body: ['As the refund is shown in a different currency, could you please confirm the exact refund amount in AED with the store?'],
+      next: 'Once we have it, we’ll continue with your case.',
+    },
+    ar: {
+      ack: 'شكرًا لمشاركة إيصال الاسترداد.',
+      body: ['بما أن الاسترداد يظهر بعملة مختلفة، هل يمكنك تأكيد مبلغ الاسترداد بالدرهم الإماراتي بدقة مع المتجر؟'],
+      next: 'وفور الحصول عليه، سنكمل الإجراءات على حالتك.',
+    },
+    subject: { en: 'Information needed for your card refund', ar: 'معلومات مطلوبة بخصوص استرداد البطاقة' },
+  },
+  {
+    id: 'crf-pending',
+    topic: 'card-refund',
+    title: 'Card purchase still pending (store hasn’t completed it)',
+    when: 'The Tabby Card transaction shows Pending (CRM: Unsettled).',
+    keys: 'pending transaction unsettled card cancelled order still pending 32 days معاملة قيد المعالجة معلقة',
+    tip: 'Pending can’t be disputed (except fraud). Still pending after 32 days → report it as a technical issue in the procedures.',
+    en: {
+      ack: 'I’ve checked your Tabby Card transaction for you.',
+      body: [
+        'It’s still pending, which means the store hasn’t completed the payment yet. The store can complete it within about 32 days of the transaction date.',
+        'If they don’t, the amount is released automatically, the transaction shows as cancelled, and any amount you paid toward it is returned.',
+      ],
+    },
+    ar: {
+      ack: 'راجعت معاملة بطاقة تابي من أجلك.',
+      body: [
+        'ولا تزال قيد المعالجة، مما يعني أن المتجر لم يُتم عملية الدفع حتى الآن، ويمكن للمتجر إتمامها خلال 32 يومًا تقريبًا من تاريخ المعاملة.',
+        'وإذا لم يتم ذلك، يُحرر المبلغ تلقائيًا وتظهر المعاملة كملغاة، ويُرد أي مبلغ دفعته عنها.',
+      ],
+    },
+    subject: { en: 'About your pending transaction', ar: 'بخصوص المعاملة قيد المعالجة' },
+  },
   {
     id: 'crf-applied',
     topic: 'card-refund',
     title: 'Card refund used for the statement balance first',
-    when: 'The refund reduced the statement instead of going to the bank card.',
+    when: 'The Tabby Card refund reduced the statement instead of going to the bank card.',
     keys: 'card refund statement balance not to bank استرداد البطاقة على كشف الحساب',
     en: {
       ack: 'I’ve checked your Tabby Card refund, and I’m happy to explain how it was applied.',
@@ -765,22 +874,6 @@ export const CARD: Scenario[] = [
       body: ['وبما أنه لم تتبقَّ عليه مشتريات أخرى، تمت معالجة الاسترداد إلى بطاقتك البنكية، وقد يستغرق ظهوره من 5 إلى 7 أيام عمل حسب البنك.'],
     },
     subject: { en: 'Your card refund has been processed', ar: 'تمت معالجة استرداد البطاقة' },
-  },
-  {
-    id: 'crf-15days',
-    topic: 'card-refund',
-    title: 'Card refund from store not reflected yet (up to 15 days)',
-    when: 'The store refunded a card purchase but Tabby does not show it yet.',
-    keys: 'card refund not showing merchant refunded 15 days استرداد البطاقة لم يظهر',
-    en: {
-      ack: 'Thank you for checking with the store, and I understand you’d like to see the refund.',
-      body: ['When a store refunds a Tabby Card purchase, it can take up to 15 calendar days to be reflected in Tabby. Once it appears, it’s applied according to your statement and repayment status.'],
-    },
-    ar: {
-      ack: 'شكرًا لتواصلك مع المتجر، وأتفهم رغبتك في رؤية الاسترداد.',
-      body: ['عندما يسترد المتجر عملية شراء ببطاقة تابي، قد يستغرق ظهورها في تابي مدة تصل إلى 15 يومًا تقويميًا، وبمجرد ظهورها يتم تطبيقها حسب كشف الحساب وحالة السداد.'],
-    },
-    subject: { en: 'About your card refund', ar: 'بخصوص استرداد البطاقة' },
   },
   {
     id: 'crf-instore',
@@ -1075,9 +1168,9 @@ export const CARD: Scenario[] = [
     id: 'crd-form-email',
     topic: 'card-refund-dispute',
     title: 'Send the dispute form (returned / cancelled, no refund)',
-    when: 'Step 1 (email): the customer cancelled or returned a card purchase but the store never refunded it.',
+    when: 'Step 1 (email): after the refund receipt / proof – the store refunded more than 15 days ago (or won’t refund a return / cancellation) and nothing reached the card.',
     keys: 'returned cancelled no refund card dispute form merchant did not refund أرجعت ولم يتم الاسترداد',
-    tip: 'Attach the dispute form and ask for the store’s return / cancellation proof.',
+    tip: 'Attach the dispute form. Raise within 120 days of the refund date (Visa rule). Tabby Card → Escalations team; Tabby Cash → CCU.',
     en: {
       ack: 'I understand you’ve already cancelled or returned your purchase and are still waiting for the refund, and I’m sorry for the wait.',
       body: [
