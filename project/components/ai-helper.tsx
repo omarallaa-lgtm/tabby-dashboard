@@ -16,12 +16,12 @@ import {
 } from 'lucide-react';
 import type { Scenario } from '@/lib/ticket-library';
 import {
-  maskPII, buildReplyPrompt, buildUpdatePrompt, chatGptPrompt, parseReply, parseUpdate, applyPatch, pickExamples, pickAnswers,
-  newQuestions, isTaughtCase,
+  maskPII, buildReplyPrompt, buildUpdatePrompt, buildCasePrompt, chatGptPrompt, parseReply, parseUpdate, parseCase, applyPatch, pickExamples,
+  pickAnswers, newQuestions, isTaughtCase,
 } from '@/lib/ai/prompt';
 import { PLACEHOLDER_LABELS } from '@/lib/ticket-library';
 import type { SavedTemplate } from '@/lib/ticket-store';
-import type { AiExample, AiQuestion, AiTask, ReplyAnswer, UpdateAnswer } from '@/lib/ai/prompt';
+import type { AiExample, AiQuestion, AiTask, ReplyAnswer, UpdateAnswer, CaseAnswer } from '@/lib/ai/prompt';
 import {
   AI_SQL, loadAiData, saveExample, deleteExample, saveUpdate, setUpdateActive, deleteUpdate, recentAnnouncements, saveQuestions,
   answerQuestion, deleteQuestion,
@@ -386,6 +386,48 @@ function AnswerBox({ p, q, compact, onSaved }: { p: Shared; q: AiQuestion; compa
   );
 }
 
+/** the AI's questions for the team, with answer boxes for Admin / TL */
+function QuestionsBlock({ p, questions, onAnswered, after }: { p: Shared; questions: string[]; onAnswered: () => void; after: string }) {
+  if (!questions.length) return null;
+  return (
+    <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/[0.07] p-3 space-y-2">
+      <p className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+        <HelpCircle className="h-4 w-4" /> The AI has {questions.length === 1 ? 'a question' : 'questions'} for the team
+      </p>
+      {questions.map((qt) => {
+        const q = p.store.questions.find((x) => x.question.trim().toLowerCase() === qt.trim().toLowerCase());
+        return (
+          <div key={qt} className="space-y-1">
+            <p className="text-[11px] text-slate-700 dark:text-slate-200">• {qt}</p>
+            {q?.status === 'answered' ? (
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-300 pl-3">Answered: {q.answer}</p>
+            ) : q && p.canEdit ? (
+              <div className="pl-3">
+                <AnswerBox p={p} q={q} compact onSaved={onAnswered} />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      <p className="text-[10px] text-slate-500">
+        {p.store.questionsReady
+          ? p.canEdit
+            ? `Answer here and the AI ${after} with your answer straight away. Every answer is kept, so it understands this process next time.`
+            : 'Saved to the Questions tab for your Admin / TL to answer.'
+          : 'Run the SQL in Setup once to save questions and answers.'}
+      </p>
+    </div>
+  );
+}
+
+const ASK_EXAMPLES = [
+  'What should I do next in this case?',
+  'Can I handle this from the agent side?',
+  'Should I escalate this case to CCU?',
+  'Can I promise this refund timeline?',
+  'Please write an escalation message to my senior.',
+];
+
 function ReplyHelper(p: Shared) {
   const [chat, setChat] = useState('');
   const [context, setContext] = useState('');
@@ -393,6 +435,13 @@ function ReplyHelper(p: Shared) {
   const [feedback, setFeedback] = useState('');
   const [rewrite, setRewrite] = useState<{ previous: string; feedback: string } | null>(null);
   const [stage, setStage] = useState<'new' | 'followup'>('new');
+  // 'reply' = answer a pasted chat, 'compose' = write a new message / email from instructions only,
+  // 'ask' = internal help: next step, escalate or not, internal messages
+  const [mode, setMode] = useState<'reply' | 'compose' | 'ask'>('reply');
+  const compose = mode === 'compose';
+  const ask = mode === 'ask';
+  const [question, setQuestion] = useState('');
+  const [caseAns, setCaseAns] = useState<CaseAnswer | null>(null);
   const [channel, setChannel] = useState<'chat' | 'email'>('chat');
   const [lang, setLang] = useState<'auto' | 'en' | 'ar'>('auto');
   const [busy, setBusy] = useState(false);
@@ -405,8 +454,8 @@ function ReplyHelper(p: Shared) {
   const [saved, setSaved] = useState(false);
   const [tplState, setTplState] = useState<'' | 'saving' | 'saved'>('');
 
-  const caseText = `${chat} ${context} ${suggestion}`;
-  const hasInput = !!(chat.trim() || suggestion.trim());
+  const caseText = compose ? suggestion : ask ? `${chat} ${context} ${question}` : `${chat} ${context} ${suggestion}`;
+  const hasInput = compose ? !!suggestion.trim() : ask ? !!question.trim() : !!(chat.trim() || suggestion.trim());
   // with a suggestion the templates are background only, so send fewer of them
   const matched = useMemo(() => (caseText.trim() ? p.rank(caseText, suggestion.trim() ? 4 : 6) : []), [caseText, suggestion, p.rank]);
   const examples = useMemo(() => pickExamples(caseText, p.store.examples, 3), [caseText, p.store.examples]);
@@ -415,8 +464,9 @@ function ReplyHelper(p: Shared) {
   const prompt = useMemo(
     () =>
       buildReplyPrompt({
-        chat,
-        context,
+        chat: compose ? '' : chat,
+        context: compose ? '' : context,
+        compose,
         suggestion,
         stage,
         previous: rewrite?.previous,
@@ -430,8 +480,35 @@ function ReplyHelper(p: Shared) {
         tree,
         placeholders: PLACEHOLDERS,
       }),
-    [chat, context, suggestion, stage, rewrite, channel, lang, matched, p.store.updates, examples, answers, p.topicLabel, tree]
+    [chat, context, suggestion, stage, compose, rewrite, channel, lang, matched, p.store.updates, examples, answers, p.topicLabel, tree]
   );
+
+  const casePrompt = useMemo(
+    () =>
+      ask
+        ? buildCasePrompt({
+            question,
+            chat,
+            context,
+            templates: matched.map((s) => ({ s, topic: p.topicLabel(s.topic) })),
+            updates: p.store.updates,
+            examples,
+            answers,
+          })
+        : '',
+    [ask, question, chat, context, matched, p.store.updates, examples, answers, p.topicLabel]
+  );
+
+  const showCase = (raw: string) => {
+    const c = parseCase(raw);
+    if (!c.answer && !c.steps.length && !c.internal) {
+      setError('Could not read the answer. Make sure you pasted ChatGPT’s full reply.');
+      return;
+    }
+    setCaseAns(c);
+    setError('');
+    keepQuestions(p, c.questions, { context: `${question}\n${chat.slice(0, 500)}` });
+  };
 
   const replyIsAr = lang === 'ar' || (lang === 'auto' && /[؀-ۿ]/.test(chat));
   const team = replyIsAr ? p.teamAr : p.teamEn;
@@ -456,6 +533,12 @@ function ReplyHelper(p: Shared) {
     if (!hasInput) return;
     setBusy(true);
     setError('');
+    if (ask) {
+      const r = await askAI('case', casePrompt, p.email, 'medium');
+      setBusy(false);
+      if (r.error) return setError(r.error);
+      return showCase(r.text || '');
+    }
     const r = await askAI('reply', prompt, p.email, suggestion.trim() || rewrite ? 'medium' : 'low');
     setBusy(false);
     setRewrite(null);
@@ -496,7 +579,7 @@ function ReplyHelper(p: Shared) {
 
   const copyPrompt = () => {
     if (!hasInput) return;
-    p.copy(chatGptPrompt('reply', prompt), 'Prompt for ChatGPT');
+    p.copy(ask ? chatGptPrompt('case', casePrompt) : chatGptPrompt('reply', prompt), 'Prompt for ChatGPT');
     setPasteOpen(true);
   };
 
@@ -521,7 +604,7 @@ function ReplyHelper(p: Shared) {
     const k = e.key.toLowerCase();
     if (k === '/') {
       e.preventDefault();
-      document.getElementById('ai-chat-input')?.focus();
+      document.getElementById(compose ? 'ai-suggestion-input' : 'ai-chat-input')?.focus();
       return;
     }
     if (k === 'n') return reset();
@@ -550,6 +633,8 @@ function ReplyHelper(p: Shared) {
     setChat('');
     setContext('');
     setSuggestion('');
+    setQuestion('');
+    setCaseAns(null);
     setFeedback('');
     setRewrite(null);
     setStage('new');
@@ -561,7 +646,7 @@ function ReplyHelper(p: Shared) {
     setSaved(false);
     setTplState('');
     setError('');
-    setTimeout(() => document.getElementById('ai-chat-input')?.focus(), 30);
+    setTimeout(() => document.getElementById(compose ? 'ai-suggestion-input' : ask ? 'ai-question-input' : 'ai-chat-input')?.focus(), 30);
   };
 
   const saveGood = async () => {
@@ -573,7 +658,7 @@ function ReplyHelper(p: Shared) {
         issue: answer.issue || null,
         product: answer.product || null,
         // learned replies are shared with the whole team: keep the style, drop personal details
-        chat: maskPII(`${stage === 'followup' ? '[Reopened after hold] ' : ''}${chat}${suggestion.trim() ? `\n\nAgent's direction: ${suggestion.trim()}` : ''}`).text.slice(0, 4000),
+        chat: maskPII(`${compose ? '[New message, no chat] ' : stage === 'followup' ? '[Reopened after hold] ' : ''}${compose ? '' : chat}${suggestion.trim() ? `\n\nAgent's direction: ${suggestion.trim()}` : ''}`).text.slice(0, 4000),
         reply: maskPII(reply).text.slice(0, 4000),
         template_ids: answer.templateIds.filter((id) => p.byId[id]),
       },
@@ -622,77 +707,132 @@ function ReplyHelper(p: Shared) {
       {/* ---------- input ---------- */}
       <div className={`${panel} p-4 space-y-3`}>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">1 · Paste the conversation</p>
-          {(chat || context || suggestion || answer) && (
+          <Seg
+            value={mode}
+            onChange={(m) => {
+              setMode(m);
+              setError('');
+              if (m === 'compose') setChannel('email');
+              setTimeout(() => document.getElementById(m === 'compose' ? 'ai-suggestion-input' : m === 'ask' ? 'ai-question-input' : 'ai-chat-input')?.focus(), 30);
+            }}
+            options={[
+              { value: 'reply', label: <><MessageSquare className="h-3.5 w-3.5" /> Reply to a chat</> },
+              { value: 'compose', label: <><Pencil className="h-3.5 w-3.5" /> Write a new message</> },
+              { value: 'ask', label: <><HelpCircle className="h-3.5 w-3.5" /> Ask about a case</> },
+            ]}
+          />
+          {(chat || context || suggestion || question || answer || caseAns) && (
             <button type="button" onClick={reset} className={`${btnGhost} h-7`} title="Remove the old chat and start a new case">
               <Plus className="h-3.5 w-3.5" /> New case
             </button>
           )}
           <span className="flex-1" />
-          <Seg
-            value={channel}
-            onChange={setChannel}
-            options={[
-              { value: 'chat', label: <><MessageSquare className="h-3.5 w-3.5" /> Chat</> },
-              { value: 'email', label: <><Mail className="h-3.5 w-3.5" /> Email</> },
-            ]}
-          />
-          <Seg
-            value={lang}
-            onChange={setLang}
-            options={[
-              { value: 'auto', label: 'Auto' },
-              { value: 'en', label: 'EN' },
-              { value: 'ar', label: 'عربي' },
-            ]}
-          />
+          {!ask && (
+            <>
+              <Seg
+                value={channel}
+                onChange={setChannel}
+                options={[
+                  { value: 'chat', label: <><MessageSquare className="h-3.5 w-3.5" /> Chat</> },
+                  { value: 'email', label: <><Mail className="h-3.5 w-3.5" /> Email</> },
+                ]}
+              />
+              <Seg
+                value={lang}
+                onChange={setLang}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'en', label: 'EN' },
+                  { value: 'ar', label: 'عربي' },
+                ]}
+              />
+            </>
+          )}
         </div>
-        <textarea
-          id="ai-chat-input"
-          value={chat}
-          onChange={(e) => setChat(e.target.value)}
-          rows={9}
-          placeholder="Paste the customer’s messages (and your replies so far) here…"
-          className={`${input} p-3 resize-y min-h-[160px]`}
-        />
-        <textarea
-          value={context}
-          onChange={(e) => setContext(e.target.value)}
-          rows={2}
-          placeholder="Optional – what you found on the account (e.g. order refunded by the store, 2 failed payment attempts)…"
-          className={`${input} p-3 resize-y`}
-        />
+        {ask && (
+          <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.05] p-2.5 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">Your question to the AI</span>
+              <span className="text-[10px] text-slate-500">internal – the answer is for you, not the customer</span>
+            </div>
+            <textarea
+              id="ai-question-input"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              rows={3}
+              dir={/[\u0600-\u06FF]/.test(question) ? 'rtl' : 'ltr'}
+              placeholder="e.g. Should I escalate this case to CCU? Can I promise a refund in 5–7 days?"
+              className={`${input} p-2.5 text-xs resize-y bg-white/70 dark:bg-slate-950`}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {ASK_EXAMPLES.map((q) => (
+                <button key={q} type="button" onClick={() => setQuestion(q)} className={`${chip} h-6 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-sky-500`}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {!compose && (
+          <>
+            <textarea
+              id="ai-chat-input"
+              value={chat}
+              onChange={(e) => setChat(e.target.value)}
+              rows={9}
+              placeholder={ask ? 'Optional – paste the conversation so the AI understands the case…' : 'Paste the customer’s messages (and your replies so far) here…'}
+              className={`${input} p-3 resize-y min-h-[160px]`}
+            />
+            <textarea
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              rows={2}
+              placeholder="Optional – what you found on the account (e.g. order refunded by the store, 2 failed payment attempts)…"
+              className={`${input} p-3 resize-y`}
+            />
+          </>
+        )}
+        {!ask && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-2.5 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Lightbulb className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">Your suggestion</span>
-            <span className="text-[10px] text-slate-500">optional – the AI rephrases it into the reply</span>
+            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">{compose ? 'What should the message say?' : 'Your suggestion'}</span>
+            <span className="text-[10px] text-slate-500">
+              {compose ? 'no chat needed – write it in your own words, the AI writes the message' : 'optional – the AI rephrases it into the reply'}
+            </span>
             <span className="flex-1" />
-            <Seg
-              value={stage}
-              onChange={setStage}
-              options={[
-                { value: 'new', label: 'New chat' },
-                { value: 'followup', label: 'Reopened after hold' },
-              ]}
-            />
+            {!compose && (
+              <Seg
+                value={stage}
+                onChange={setStage}
+                options={[
+                  { value: 'new', label: 'New chat' },
+                  { value: 'followup', label: 'Reopened after hold' },
+                ]}
+              />
+            )}
           </div>
           <textarea
+            id="ai-suggestion-input"
             value={suggestion}
             onChange={(e) => setSuggestion(e.target.value)}
-            rows={3}
+            rows={compose ? 7 : 3}
             dir={/[\u0600-\u06FF]/.test(suggestion) ? 'rtl' : 'ltr'}
             placeholder={
-              stage === 'followup'
-                ? 'What happened while it was on hold and what’s next, e.g. “Team checked with the store, refund done today, 5–7 working days to the card, RRN 7788…”'
-                : 'Your answer or next step in your own words, e.g. “He needs to report it from the app, then we check with the store within 48h”'
+              compose
+                ? 'e.g. Ask the customer to update the expired Emirates ID in the app (Profile → Personal Information → ID) so the card can be used again, then reply to this email once done.'
+                : stage === 'followup'
+                  ? 'What happened while it was on hold and what’s next, e.g. “Team checked with the store, refund done today, 5–7 working days to the card, RRN 7788…”'
+                  : 'Your answer or next step in your own words, e.g. “He needs to report it from the app, then we check with the store within 48h”'
             }
-            className={`${input} p-2.5 text-xs resize-y bg-white/70 dark:bg-slate-950`}
+            className={`${input} p-2.5 text-xs resize-y bg-white/70 dark:bg-slate-950 ${compose ? 'min-h-[150px]' : ''}`}
           />
         </div>
+        )}
         {matched.length > 0 && (
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Policy the AI will check (it writes its own wording)</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{ask ? 'Knowledge the AI will check' : 'Policy the AI will check (it writes its own wording)'}</p>
             <div className="flex flex-wrap gap-1.5">
               {matched.map((s) => (
                 <button key={s.id} type="button" onClick={() => p.onOpen(s.id)} className={`${chip} border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-500`}>
@@ -706,7 +846,7 @@ function ReplyHelper(p: Shared) {
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button type="button" onClick={run} disabled={!hasInput || busy || !p.ai?.configured} className={btnPrimary} title={p.ai?.configured ? '' : 'Built-in AI is not set up yet – use Copy prompt'}>
-            {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {busy ? 'Thinking…' : 'Suggest reply'}
+            {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {busy ? 'Thinking…' : compose ? 'Write message' : ask ? 'Ask the AI' : 'Suggest reply'}
           </button>
           <button type="button" onClick={copyPrompt} disabled={!hasInput} className={btnGhost}>
             <Copy className="h-3.5 w-3.5" /> Copy prompt for ChatGPT
@@ -722,7 +862,7 @@ function ReplyHelper(p: Shared) {
               Open ChatGPT, paste the prompt (Ctrl+V) and send. Then copy ChatGPT’s whole answer and paste it here.
             </p>
             <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5} placeholder="Paste ChatGPT’s answer…" className={`${input} p-3`} />
-            <button type="button" onClick={() => show(pasted)} disabled={!pasted.trim()} className={btnPrimary}>
+            <button type="button" onClick={() => (ask ? showCase(pasted) : show(pasted))} disabled={!pasted.trim()} className={btnPrimary}>
               <Send className="h-3.5 w-3.5" /> Use this answer
             </button>
           </div>
@@ -737,15 +877,83 @@ function ReplyHelper(p: Shared) {
       {/* ---------- answer ---------- */}
       <div className={`${panel} p-4 space-y-3`}>
         <div className="flex items-center gap-2">
-          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">2 · Suggested reply</p>
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{ask ? '2 · The AI’s advice (internal)' : '2 · Suggested reply'}</p>
           <span className="flex-1" />
-          {answer && (
+          {(answer || caseAns) && (
             <button type="button" onClick={reset} className={`${btnGhost} h-7`} title="Done with this case – clear everything and start a new one">
               <Plus className="h-3.5 w-3.5" /> New case
             </button>
           )}
         </div>
-        {!answer ? (
+        {ask ? (
+          !caseAns ? (
+            <div className="text-[11px] text-slate-500 space-y-2">
+              <p>Ask anything about the case: the next step, whether you can handle it from your side, whether to escalate (and to whom), whether a timeline can be promised, or ask for an escalation message to your senior.</p>
+              <p className="flex items-start gap-1.5">
+                <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
+                The AI only uses the team’s knowledge. When it isn’t sure, it says so and asks the team – answer it so it knows next time.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {caseAns.answer && <p className="text-sm text-slate-800 dark:text-slate-100 whitespace-pre-wrap leading-relaxed">{caseAns.answer}</p>}
+              {caseAns.confirmed.length > 0 && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1">Confirmed by our knowledge</p>
+                  {caseAns.confirmed.map((x) => (
+                    <p key={x} className="text-[11px] text-slate-700 dark:text-slate-200">• {x}</p>
+                  ))}
+                </div>
+              )}
+              {caseAns.unsure.length > 0 && (
+                <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/[0.07] p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-1">Not sure – check with your TL</p>
+                  {caseAns.unsure.map((x) => (
+                    <p key={x} className="text-[11px] text-slate-700 dark:text-slate-200">• {x}</p>
+                  ))}
+                </div>
+              )}
+              {caseAns.steps.length > 0 && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Next steps</p>
+                  <ol className="space-y-1">
+                    {caseAns.steps.map((x, i) => (
+                      <li key={x} className="text-[11px] text-slate-700 dark:text-slate-200 flex gap-1.5">
+                        <span className="font-bold text-sky-600">{i + 1}.</span>
+                        <span>{x}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              {(
+                [
+                  ['Internal message', caseAns.internal],
+                  ['Customer reply', caseAns.customer],
+                ] as const
+              ).map(([label, text]) =>
+                text ? (
+                  <div key={label} className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+                      <span className="flex-1" />
+                      <button type="button" onClick={() => p.copy(text, label)} className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1">
+                        <Copy className="h-3 w-3" /> Copy
+                      </button>
+                    </div>
+                    <p className="text-[12px] text-slate-700 dark:text-slate-200 whitespace-pre-wrap" dir={/[\u0600-\u06FF]/.test(text) ? 'rtl' : 'ltr'}>{text}</p>
+                  </div>
+                ) : null
+              )}
+              <QuestionsBlock p={p} questions={caseAns.questions} onAnswered={() => setRerun(true)} after="answers again" />
+              {p.ai?.configured && (
+                <button type="button" onClick={run} disabled={busy} className={btnGhost}>
+                  <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} /> Ask again
+                </button>
+              )}
+            </div>
+          )
+        ) : !answer ? (
           <div className="text-[11px] text-slate-500 space-y-2">
             <p>The AI reads the conversation, finds the matching templates and the latest team updates, and writes the reply in our structure: update first → short messages → next step → clarity check.</p>
             <p className="flex items-start gap-1.5">
@@ -862,35 +1070,7 @@ function ReplyHelper(p: Shared) {
               </p>
             )}
 
-            {answer.questions.length > 0 && (
-              <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/[0.07] p-3 space-y-2">
-                <p className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
-                  <HelpCircle className="h-4 w-4" /> The AI has {answer.questions.length === 1 ? 'a question' : 'questions'} for the team
-                </p>
-                {answer.questions.map((qt) => {
-                  const q = p.store.questions.find((x) => x.question.trim().toLowerCase() === qt.trim().toLowerCase());
-                  return (
-                    <div key={qt} className="space-y-1">
-                      <p className="text-[11px] text-slate-700 dark:text-slate-200">• {qt}</p>
-                      {q?.status === 'answered' ? (
-                        <p className="text-[11px] text-emerald-700 dark:text-emerald-300 pl-3">Answered: {q.answer}</p>
-                      ) : q && p.canEdit ? (
-                        <div className="pl-3">
-                          <AnswerBox p={p} q={q} compact onSaved={() => setRerun(true)} />
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-                <p className="text-[10px] text-slate-500">
-                  {p.store.questionsReady
-                    ? p.canEdit
-                      ? 'Answer here and the AI rewrites the reply with your answer straight away. Every answer is kept, so it understands this process next time.'
-                      : 'Saved to the Questions tab for your Admin / TL to answer.'
-                    : 'Run the SQL in Setup once to save questions and answers.'}
-                </p>
-              </div>
-            )}
+            <QuestionsBlock p={p} questions={answer.questions} onAnswered={() => setRerun(true)} after="rewrites the reply" />
 
             {answer.templateIds.some((id) => p.byId[id]) && (
               <div className="flex flex-wrap items-center gap-1.5">

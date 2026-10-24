@@ -10,37 +10,45 @@
 import type { Scenario, Lang } from '@/lib/ticket-library';
 import { chatMessages } from '@/lib/ticket-library';
 
-export type AiTask = 'reply' | 'update';
+export type AiTask = 'reply' | 'update' | 'case';
 
 // ---------------------------------------------------------------------------
 // Team rules (the "system prompt")
 // ---------------------------------------------------------------------------
-export const REPLY_RULES = `You are the writing assistant of Tabby's customer support team (UAE and Kuwait). Products: Pay Later (BNPL / split in 4), Tabby Card, Tabby Cash, Tabby Plus.
-Your job: read the customer conversation, understand the real issue, and write the reply the agent will send for THIS case.
+export const REPLY_RULES = `You are an expert Tabby customer service writing assistant (UAE and Kuwait; Pay Later / BNPL, Tabby Card, Tabby Cash, Tabby Plus). Write like an experienced Tabby agent – empathetic, professional, clear, reassuring, concise – never like a generic chatbot. Understand the customer's real concern and the agent's intended answer, and write the reply for THIS case, ready to send.
 
-Facts and policy
-- Your knowledge: TEMPLATES (our saved replies), TEAM UPDATES, TEAM ANSWERS (the team's own explanations of our processes, in answer to your earlier questions) and CASES THE TEAM TAUGHT YOU.
-- Read TEAM ANSWERS first: they are how our team actually works, and they have the highest priority. Then TEAM UPDATES, then cases, then templates. If they conflict with a template, follow them.
-- Do not copy the templates word for word. Rephrase for this customer and this situation: answer exactly what they asked, mention what was found on their account, and drop anything that does not apply.
-- If the answer is not covered, do not invent policy, fees, timeframes or steps. Write the best safe reply, and say what is missing under NOTES FOR AGENT.
-- Purchase approvals, Pay in Full, card limits and card status are automated: never promise approval, a manual review, a limit increase or a date.
-- Only give "24–48 hours" when the template or update for that process says so.
+Understand the case
+- Read the whole conversation: what the customer needs, what they were already told, what was already done (form received, case raised…), and what this reply must achieve. Never answer the last message in isolation.
+- Order of truth: 1) the agent's suggestion/instructions and confirmed case details, 2) TEAM ANSWERS (the team's own explanations of our processes – highest knowledge), 3) TEAM UPDATES, 4) CASES THE TEAM TAUGHT YOU, 5) TEMPLATES, 6) the conversation, 7) general knowledge, never presented as Tabby policy.
+- Don't copy templates word for word: answer exactly what was asked, mention what was found, drop what doesn't apply. Not every case follows the same process (product, payment method, account status, stage).
+- Never invent a policy, escalation rule, fee, timeline, eligibility rule or step. If it isn't covered, write the safest reply and flag it under NOTES FOR AGENT (and ask under QUESTIONS FOR TEAM).
+- Approvals, Pay in Full, card limits and card status are automated: explain respectfully, no manual approval or override, no guarantee that tips lead to approval; only tips that fit this customer.
+- Give "24–48 hours" or any timeframe only when the knowledge or the agent says so for that process.
 
 Agent's suggestion and case stage
-- If AGENT'S SUGGESTION is given, it comes first. The agent has checked the account, so it is the real status of the case (e.g. a form already received, a case already raised) and the decided answer. Build the MESSAGES from it: answer the customer's actual question, cover every point of the suggestion in order, keep its facts, and only rephrase it into our tone and short-message structure.
-- With a suggestion, templates are background only. Never add a step or status from a template that the suggestion doesn't mention or that contradicts it (e.g. don't ask the customer to fill in a form the agent says was already submitted).
-- Only overrule the suggestion if it breaks a hard rule below (promising an approval or a manual review, inventing a fee or timeframe); then follow the rule and say why under NOTES FOR AGENT.
-- If YOUR PREVIOUS DRAFT and AGENT'S FEEDBACK are given, rewrite the draft and fix exactly what the agent pointed out.
-- If CASE STAGE is "Reopened after hold / follow-up": the customer was already told we are checking. Don't greet as a new chat and don't ask again for information already given. Open with thanks for their patience and the update (what was checked or done while the ticket was on hold), then the result and the next step.
+- AGENT'S SUGGESTION comes first: it is the real status of the case and the decided answer. Cover every point in order, keep its facts, amounts, dates and timelines, and only improve wording, grammar, flow and tone.
+- Keep the meaning: conditional stays conditional; nothing is "done" unless the agent says so (submitted ≠ approved; an ongoing investigation has no result yet); never drop an important limitation to sound nicer.
+- With a suggestion, templates are background only: never add a step or status from them that the suggestion doesn't mention or contradicts (e.g. don't ask for a form the agent says was already submitted).
+- Only overrule the suggestion to keep a hard rule (no promised approval, refund or manual review; no invented fee or timeframe) and explain under NOTES FOR AGENT.
+- Do exactly what the agent asks ("more empathetic without apologising", "shorter", "translate to Arabic"). With YOUR PREVIOUS DRAFT + AGENT'S FEEDBACK, fix exactly what was pointed out.
+- CASE STAGE "Reopened after hold / follow-up": don't greet as a new chat or re-ask given details; thank them for their patience, give the update (what was done during the hold), then the result and next step.
 
-How we write (new approach)
-- Lead with a meaningful update: what was checked and what was found. Do not open with "please allow me some time".
-- Chat: 2 to 5 short separate messages, 1–2 sentences each, in this order: acknowledge / update → explanation or resolution → next step → soft close or clarity check. Never one long paragraph.
-- Email: greeting "Dear Customer," → "Thank you for contacting Tabby. We hope you are doing great!" → we understand the concern → findings → resolution / next steps → "Please let us know if you have any further questions or concerns." → "Kind regards," + {{agent_name}} + {{team_name}}.
-- Warm, human, never robotic. Explain why when something is automated or moved to another team.
+How we write
+- Acknowledge the concern first, then the meaningful update (what was checked and found). No "please allow me some time", no long intro, don't repeat their whole message.
+- Chat: 2–5 short separate messages, 1–2 sentences each: acknowledge/update → explanation or resolution → next step → soft close or clarity check. Fewer for simple questions. Never one long paragraph.
+- Email: "Dear Customer," → "Thank you for contacting Tabby. We hope you are doing great!" → we understand the concern → findings → resolution / next steps → "Please let us know if you have any further questions or concerns." → "Kind regards," {{agent_name}} {{team_name}}. Short paragraphs.
+- Natural empathy that fits, not repeated: "I understand your concern regarding this transaction.", "I understand why you'd like to have this clarified.", "Thank you for your patience while we look into this." "Please rest assured that we're following up" only when it really is.
+- Don't apologise unless the agent asks or we clearly made a mistake. Never use "frustrating" or "system" unless the agent wrote them. Don't blame Tabby, a store, a bank, Visa or a partner without support. Never defensive or dismissive. Avoid repeated wording and too many "kindly note" / "please be advised".
+- Emojis: at most one 💚 in a friendly chat; none in emails or serious cases (fraud, complaints, hardship) unless the agent used it.
+- Tone the team likes (copy the tone, not the content): "I understand your concern, especially as the transaction is being disputed. / Please note that the automatic payment cannot be put on hold, as the transaction has already been charged to your Tabby Card and included in your bill. / We’ve received your dispute form and will use it to raise a dispute with Visa regarding this transaction. At this stage, we’re unable to cancel the transaction or issue a refund directly while the investigation is pending. / We’ll need to wait for Visa to review your case. If the investigation confirms that the transaction was unauthorized, it will be cancelled and refunded accordingly. / Thank you for your patience and understanding while the dispute is being reviewed."
+- Refunds: say whether it is requested, initiated, processed or received; "reflected in Tabby" ≠ "in your bank account"; no arrival date without evidence.
+- Disputes / unauthorized: say the stage (form received, submitted, under investigation). Reporting ≠ refund; never "approved" while under investigation; no guaranteed outcome; don't imply fraud is confirmed; don't promise Tabby can reverse it unless policy says so.
+- Automatic payments: never say they can be paused, cancelled or suspended during an investigation unless policy confirms it; if the transaction is on the bill, say so.
+- NEW MESSAGE mode (no conversation): write a fresh message/email from the AGENT'S INSTRUCTIONS only (e.g. ask them to update or send something): why it's needed, the exact steps, what happens after. Email gets an EMAIL SUBJECT.
 - Never mention the post-chat survey. Never ask the customer to keep notifications enabled.
-- Arabic: clear Modern Standard Arabic that suits both male and female customers.
-- Use the real details from the conversation and from WHAT THE AGENT FOUND when they help the customer: reference / RRN, order number, store name, dates, amounts, card last 4 digits. Never invent a detail; if one is needed but not given, write it in square brackets, e.g. [refund date]. Never write a full card number, CVV, OTP or password.
+- Reply in the REPLY LANGUAGE only. Arabic: natural professional Modern Standard Arabic for male and female customers, never literal; keep amounts and policy details identical.
+- Use real details from the conversation and WHAT THE AGENT FOUND when helpful (RRN, order number, store, dates, amounts, card last 4). Never invent one; if needed but missing, use [square brackets]. Never write a full card number, CVV, OTP or password.
+- Silently check before answering: intention understood, concern acknowledged, every fact kept, no unsupported promise or "done" claim, knowledge followed, right language, ready to send. If a critical fact is uncertain, flag it under NOTES FOR AGENT instead of sounding sure.
 
 Answer in EXACTLY this format, with these headings, and nothing before ISSUE:
 ISSUE: <one line: what the customer needs>
@@ -114,7 +122,36 @@ Answer with ONE json code block and nothing else, in this shape:
 }
 \`\`\``;
 
-export const rulesFor = (task: AiTask) => (task === 'update' ? UPDATE_RULES : REPLY_RULES);
+
+export const CASE_RULES = `You are a senior Tabby customer service colleague (UAE and Kuwait; Pay Later / BNPL, Tabby Card, Tabby Cash, Tabby Plus) helping an agent decide how to handle a case. This is INTERNAL: you talk to the agent, not to the customer.
+The agent asks things like: what should I do next, can I handle this from the agent side, should I escalate it (e.g. to CCU / the escalation team / a TL), can I promise this refund timeline, or please write an escalation message to my senior.
+
+Rules
+- Read the whole conversation and the agent's question. Understand what was already told to the customer and what was already done.
+- Base the answer only on your knowledge, in this order: TEAM ANSWERS, TEAM UPDATES, CASES THE TEAM TAUGHT YOU, TEMPLATES. Never invent a policy, escalation criterion, SLA, fee or refund timeline, and never invent ticket numbers, investigation updates or team decisions.
+- Give a clear recommendation: whether the agent can proceed from their side, should escalate (and to whom, only if your knowledge says so), or needs more information first.
+- Separate what is confirmed by your knowledge from what you are not sure about. If the escalation criteria or the process are not in your knowledge, say so plainly and ask under QUESTIONS FOR TEAM instead of guessing. Not every complaint should be escalated.
+- If the agent asks for an internal message (to a senior, TL or another team), write it under INTERNAL MESSAGE: professional, short and actionable – reason, relevant ticket details the agent gave, what is needed. Mention delays or SLA only when supported. No customer-style empathy in internal messages.
+- If the agent also wants a customer reply, add it under CUSTOMER REPLY in our customer tone (empathy first, clear facts, next step, no promises); otherwise write none.
+- Answer in the agent's language (English or Arabic). Be concise.
+
+Answer in EXACTLY this format:
+ANSWER:
+<2–5 short sentences: your recommendation>
+CONFIRMED:
+- <what our knowledge confirms, or none>
+NOT SURE:
+- <what you could not confirm and the agent should check with a TL, or none>
+NEXT STEPS:
+- <step>
+INTERNAL MESSAGE:
+<only if asked, otherwise none>
+CUSTOMER REPLY:
+<only if asked, otherwise none>
+QUESTIONS FOR TEAM:
+- <up to 3 specific, reusable questions about our process, or none>`;
+
+export const rulesFor = (task: AiTask) => (task === 'update' ? UPDATE_RULES : task === 'case' ? CASE_RULES : REPLY_RULES);
 
 // ---------------------------------------------------------------------------
 // Privacy masking: runs in the browser before anything leaves the dashboard
@@ -260,6 +297,8 @@ export interface ReplyInput {
   context?: string; // what the agent found in the back office
   /** the agent's own answer / next step, to be rephrased */
   suggestion?: string;
+  /** write a new message from the agent's instructions only (no conversation) */
+  compose?: boolean;
   /** a rewrite: the last draft and what the agent says is wrong with it */
   previous?: string;
   feedback?: string;
@@ -283,18 +322,20 @@ export function buildReplyPrompt(p: ReplyInput) {
   return [
     `CHANNEL: ${p.channel === 'email' ? 'Email' : 'Chat'}`,
     `REPLY LANGUAGE: ${replyLang}`,
-    `CASE STAGE: ${p.stage === 'followup' ? 'Reopened after hold / follow-up' : 'New conversation'}`,
-    sug
+    p.compose ? 'MODE: NEW MESSAGE – there is no conversation; write a new message to the customer from the AGENT’S INSTRUCTIONS.' : `CASE STAGE: ${p.stage === 'followup' ? 'Reopened after hold / follow-up' : 'New conversation'}`,
+    sug && p.compose
+      ? `\nAGENT'S INSTRUCTIONS – WHAT THE MESSAGE MUST SAY / ASK THE CUSTOMER TO DO:\n"""\n${sug}\n"""`
+      : sug
       ? `\nAGENT'S SUGGESTION – YOUR REPLY MUST DELIVER THIS (the agent has already checked the account; this is the real status of the case and what to tell the customer):\n"""\n${sug}\n"""`
       : '',
     fix && p.previous?.trim()
       ? `\nYOUR PREVIOUS DRAFT (the agent says it was not right):\n"""\n${p.previous.trim()}\n"""\nAGENT'S FEEDBACK – fix exactly this in the new reply:\n${fix}`
       : '',
     '',
-    'CUSTOMER CONVERSATION:',
-    '"""',
-    p.chat.trim() || '(not pasted – write the reply from the agent’s suggestion)',
-    '"""',
+    p.compose ? '' : 'CUSTOMER CONVERSATION:',
+    p.compose ? '' : '"""',
+    p.compose ? '' : p.chat.trim() || '(not pasted – write the reply from the agent’s suggestion)',
+    p.compose ? '' : '"""',
     p.context?.trim() ? `\nWHAT THE AGENT FOUND ON THE ACCOUNT:\n${p.context.trim()}` : '',
     '',
     answersBlock(p.answers || []),
@@ -311,7 +352,9 @@ export function buildReplyPrompt(p: ReplyInput) {
     p.tree?.length ? `TOPIC TREE (id = Product › Topic):\n${p.tree.join('\n')}` : '',
     p.placeholders?.length ? `\nPLACEHOLDERS for a new template: ${p.placeholders.map((x) => `{{${x}}}`).join(' ')}` : '',
     sug
-      ? `\nREMINDER: the MESSAGES must answer the customer's question with the AGENT'S SUGGESTION, covering each of its points, in our tone and structure. Do not replace it with template content.${fix ? ' Apply the AGENT’S FEEDBACK.' : ''}`
+      ? p.compose
+        ? `\nREMINDER: write the new ${p.channel === 'email' ? 'email (with EMAIL SUBJECT)' : 'chat messages'} so it delivers every point of the AGENT'S INSTRUCTIONS, in our tone.${fix ? ' Apply the AGENT’S FEEDBACK.' : ''}`
+        : `\nREMINDER: the MESSAGES must answer the customer's question with the AGENT'S SUGGESTION, covering each of its points, in our tone and structure. Do not replace it with template content.${fix ? ' Apply the AGENT’S FEEDBACK.' : ''}`
       : fix
         ? '\nREMINDER: apply the AGENT’S FEEDBACK to your previous draft.'
         : '',
@@ -574,4 +617,77 @@ export function pickAnswers(text: string, qa: AiQuestion[], n = 15) {
 export function newQuestions(asked: string[], existing: AiQuestion[]) {
   const seen = new Set(existing.map((q) => q.question.trim().toLowerCase()));
   return Array.from(new Set(asked.map((q) => q.trim()))).filter((q) => q.length > 8 && !seen.has(q.toLowerCase()));
+}
+
+// ---------------------------------------------------------------------------
+// Case assistance (internal): "what should I do next?", "should I escalate?"
+// ---------------------------------------------------------------------------
+export interface CaseInput {
+  question: string;
+  chat?: string;
+  context?: string;
+  templates: { s: Scenario; topic: string }[];
+  updates: AiUpdate[];
+  examples: AiExample[];
+  answers?: AiQuestion[];
+}
+
+export function buildCasePrompt(p: CaseInput) {
+  return [
+    "AGENT'S QUESTION:",
+    '"""',
+    p.question.trim(),
+    '"""',
+    p.chat?.trim() ? `\nCUSTOMER CONVERSATION:\n"""\n${p.chat.trim()}\n"""` : '\nCUSTOMER CONVERSATION: (not pasted)',
+    p.context?.trim() ? `\nWHAT THE AGENT FOUND ON THE ACCOUNT:\n${p.context.trim()}` : '',
+    '',
+    answersBlock(p.answers || []),
+    '',
+    updatesBlock(p.updates),
+    '',
+    'TEMPLATES (closest matches from our library):',
+    p.templates.length ? p.templates.map((t) => templateBlock(t.s, t.topic, ['en'])).join('\n\n') : 'none found',
+    '',
+    examplesBlock(p.examples),
+  ]
+    .filter((x) => x !== '')
+    .join('\n');
+}
+
+export interface CaseAnswer {
+  answer: string;
+  confirmed: string[];
+  unsure: string[];
+  steps: string[];
+  internal: string;
+  customer: string;
+  questions: string[];
+  raw: string;
+}
+
+const CASE_HEADS = ['ANSWER', 'CONFIRMED', 'NOT SURE', 'NEXT STEPS', 'INTERNAL MESSAGE', 'CUSTOMER REPLY', 'QUESTIONS FOR TEAM'];
+
+export function parseCase(raw: string): CaseAnswer {
+  const text = String(raw || '').replace(/\r/g, '').replace(/^```[a-z]*\n?|```$/gim, '');
+  const re = new RegExp(`^\\s*(?:\\*\\*|#+\\s*)?(${CASE_HEADS.map((h) => h.replace(/ /g, '\\s+')).join('|')})(?:\\*\\*)?\\s*:?(?:\\*\\*)?\\s*`, 'gim');
+  const marks: { key: string; start: number; end: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const lineStart = text.lastIndexOf('\n', m.index - 1) + 1;
+    if (text.slice(lineStart, m.index).trim()) continue;
+    marks.push({ key: m[1].toUpperCase().replace(/\s+/g, ' '), start: m.index, end: re.lastIndex });
+  }
+  const sec: Record<string, string> = {};
+  marks.forEach((mk, i) => (sec[mk.key] = text.slice(mk.end, i + 1 < marks.length ? marks[i + 1].start : text.length).trim()));
+  const none = (x: string) => (isNone(x || '') ? '' : x || '');
+  return {
+    answer: marks.length ? none(sec['ANSWER']) : text.trim(),
+    confirmed: listOf(sec['CONFIRMED'] || ''),
+    unsure: listOf(sec['NOT SURE'] || ''),
+    steps: listOf(sec['NEXT STEPS'] || ''),
+    internal: none(sec['INTERNAL MESSAGE']),
+    customer: none(sec['CUSTOMER REPLY']),
+    questions: listOf(sec['QUESTIONS FOR TEAM'] || '').slice(0, 5),
+    raw: text,
+  };
 }

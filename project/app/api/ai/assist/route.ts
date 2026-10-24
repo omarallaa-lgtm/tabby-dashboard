@@ -73,7 +73,8 @@ async function callOpenAI(task: AiTask, user: string, withEffort: boolean, effor
           { role: 'user', content: user },
         ],
         // Groq's free plan allows ~8,000 tokens a minute, so keep the answer budget small there
-        max_completion_tokens: GROQ ? (task === 'update' || effort === 'medium' ? 3500 : 2800) : task === 'update' ? 6000 : 3000,
+        // prompt (~4k tokens) + answer must stay under Groq's free 8,000 tokens a minute
+        max_completion_tokens: GROQ ? (task === 'update' ? 3500 : effort === 'medium' ? 3000 : 2600) : task === 'update' ? 6000 : 3000,
         ...(withEffort && isReasoningModel(MODEL) ? { reasoning_effort: effort } : {}),
       }),
     });
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
   } catch {
     return json({ error: 'Bad request' }, 400);
   }
-  const task: AiTask = body?.task === 'update' ? 'update' : 'reply';
+  const task: AiTask = body?.task === 'update' ? 'update' : body?.task === 'case' ? 'case' : 'reply';
   // replies built on the agent's suggestion / feedback follow instructions better with a little more thinking
   const effort: 'low' | 'medium' = body?.effort === 'medium' ? 'medium' : 'low';
   const user = String(body?.prompt || '').trim();
