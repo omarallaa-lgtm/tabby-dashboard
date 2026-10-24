@@ -15,6 +15,10 @@ import {
   AlertTriangle, Pencil, Plus, X, ChevronDown, Send, Lightbulb, MessageSquare, Mail, HelpCircle, User,
 } from 'lucide-react';
 import type { Scenario } from '@/lib/ticket-library';
+import { chatMessages } from '@/lib/ticket-library';
+import { QuickCopyEditor } from '@/components/quick-copy-editor';
+import { loadQuickPrefs, saveQuickPrefs, quickItemsFor, QUICK_DEFAULTS, isOwn } from '@/lib/quick-copy';
+import type { QuickPrefs, QuickItem } from '@/lib/quick-copy';
 import {
   maskPII, buildReplyPrompt, buildUpdatePrompt, buildCasePrompt, chatGptPrompt, parseReply, parseUpdate, parseCase, applyPatch, pickExamples,
   pickAnswers, newQuestions, isTaughtCase,
@@ -84,6 +88,8 @@ const Kbd = ({ children }: { children: React.ReactNode }) => (
     {children}
   </kbd>
 );
+
+// closings to send right after the AI's resolution: each user's own list (lib/quick-copy.ts, set 'ai')
 
 const fillNames = (t: string, agent: string, team: string) =>
   t.replace(/\{\{agent_name\}\}/g, agent || '[your name]').replace(/\{\{team_name\}\}/g, team || 'Tabby Customer Support');
@@ -441,6 +447,16 @@ function ReplyHelper(p: Shared) {
   const compose = mode === 'compose';
   const ask = mode === 'ask';
   const [question, setQuestion] = useState('');
+  // personal "After sending" buttons
+  const [quickPrefs, setQuickPrefs] = useState<QuickPrefs>({});
+  const [quickSync, setQuickSync] = useState({ synced: false, missingTable: false });
+  const [editQuick, setEditQuick] = useState(false);
+  useEffect(() => {
+    loadQuickPrefs(p.email).then((r) => {
+      setQuickPrefs(r.prefs);
+      setQuickSync({ synced: r.synced, missingTable: r.missingTable });
+    });
+  }, [p.email]);
   const [caseAns, setCaseAns] = useState<CaseAnswer | null>(null);
   const [channel, setChannel] = useState<'chat' | 'email'>('chat');
   const [lang, setLang] = useState<'auto' | 'en' | 'ar'>('auto');
@@ -1015,6 +1031,59 @@ function ReplyHelper(p: Shared) {
                     </button>
                   </div>
                 ))}
+                <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-2 py-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">After sending · close</span>
+                  {quickItemsFor(quickPrefs, 'ai')
+                    .filter((c) => isOwn(c) || p.byId[c.id])
+                    .map((c) => {
+                      const text = isOwn(c)
+                        ? replyIsAr && c.textAr?.trim()
+                          ? c.textAr
+                          : c.text || c.textAr || ''
+                        : chatMessages(p.byId[c.id], replyIsAr && p.byId[c.id].ar ? 'ar' : 'en').join('\n\n');
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => p.copy(fillNames(text, p.agentName, team), c.label)}
+                          title={text}
+                          className="h-7 px-2.5 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300"
+                        >
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  <button
+                    type="button"
+                    onClick={() => setEditQuick((v) => !v)}
+                    title="Choose your own buttons"
+                    className="h-7 w-7 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-slate-400 hover:text-emerald-600 hover:border-emerald-500 flex items-center justify-center"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {editQuick && (
+                  <QuickCopyEditor
+                    title="My “After sending” buttons"
+                    items={quickItemsFor(quickPrefs, 'ai')}
+                    defaults={QUICK_DEFAULTS.ai}
+                    scenarios={p.scenarios}
+                    topicLabel={p.topicLabel}
+                    synced={quickSync.synced}
+                    missingTable={quickSync.missingTable}
+                    onSave={async (items: QuickItem[]) => {
+                      const r0 = await loadQuickPrefs(p.email); // keep the Ticket Assistance list as it is
+                      const next = { ...r0.prefs, ...quickPrefs, ta: r0.prefs.ta, ai: items };
+                      setQuickPrefs(next);
+                      const r = await saveQuickPrefs(p.email, next);
+                      setQuickSync({ synced: r.synced, missingTable: r.missingTable });
+                      setEditQuick(false);
+                      p.flash(r.synced ? 'Your buttons are saved' : 'Saved in this browser (see the note to keep them everywhere)', !r.synced);
+                    }}
+                    onClose={() => setEditQuick(false)}
+                    onCopySql={(sql) => p.copy(sql, 'SQL')}
+                  />
+                )}
                 <p className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span><Kbd>1</Kbd>–<Kbd>9</Kbd> copy a message</span>
                   <span><Kbd>Space</Kbd> copy the next one</span>

@@ -662,17 +662,17 @@ export const GENERAL: Scenario[] = [
   {
     id: 'gen-close-unresponsive',
     topic: 'gen-close',
-    title: 'Close – customer unresponsive',
-    when: 'The customer stopped replying after you shared the resolution.',
-    keys: 'unresponsive no response close inactive عدم الرد إغلاق',
+    title: 'Close – no reply after the resolution (general)',
+    when: 'General closing for any case: the customer stopped replying after you shared the resolution.',
+    keys: 'unresponsive no response no reply close inactive general closure عدم الرد إغلاق لم يرد',
     channels: ['chat'],
     en: {
-      ack: 'I hope I’ve addressed all of your concerns today. As we haven’t heard back from you, we’ll go ahead and close this chat for now.',
-      body: ['If you need any further assistance, feel free to reply to this conversation or start a new chat anytime. Thank you for contacting Tabby!'],
+      ack: 'I hope I’ve addressed all of your concerns today. As we haven’t heard back from you, we’ll go ahead and close this chat for now. If you need any further assistance, feel free to reply to this conversation or start a new chat anytime. Thank you for contacting Tabby!',
+      body: [],
     },
     ar: {
-      ack: 'أتمنى أن أكون قد أجبت على جميع استفساراتك اليوم. ونظرًا لعدم وصول رد منك، سنقوم بإغلاق المحادثة الآن.',
-      body: ['وإذا احتجت إلى أي مساعدة أخرى، يمكنك الرد على هذه المحادثة أو بدء محادثة جديدة في أي وقت. شكرًا لتواصلك مع تابي!'],
+      ack: 'أتمنى أن أكون قد أجبت على جميع استفساراتك اليوم. ونظرًا لعدم وصول رد منك، سنقوم بإغلاق المحادثة الآن. وإذا احتجت إلى أي مساعدة أخرى، يمكنك الرد على هذه المحادثة أو بدء محادثة جديدة في أي وقت. شكرًا لتواصلك مع تابي!',
+      body: [],
     },
   },
   {

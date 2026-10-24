@@ -10,6 +10,9 @@ import { supabase, useMetrics } from '@/lib/metrics-context';
 import { TicketLinks } from '@/components/ticket-links';
 import { TicketTemplateEditor } from '@/components/ticket-template-editor';
 import { norm, tokensOf } from '@/lib/text-match';
+import { QuickCopyEditor } from '@/components/quick-copy-editor';
+import { loadQuickPrefs, saveQuickPrefs, quickItemsFor, QUICK_DEFAULTS, isOwn } from '@/lib/quick-copy';
+import type { QuickPrefs, QuickItem } from '@/lib/quick-copy';
 import type { Origin } from '@/components/ticket-template-editor';
 import { SETUP_SQL, loadTemplateRows, saveTemplateRow, deleteTemplateRow } from '@/lib/ticket-store';
 import type { TemplateRow, SavedTemplate } from '@/lib/ticket-store';
@@ -198,15 +201,7 @@ const Seg = <T extends string>({
   </div>
 );
 
-const QUICK: { id: string; label: string }[] = [
-  { id: 'gen-greet', label: 'Greeting' },
-  { id: 'gen-esc-received', label: 'Escalation received' },
-  { id: 'gen-hold', label: 'Hold' },
-  { id: 'gen-back', label: 'Back from hold' },
-  { id: 'gen-still-there', label: 'Still there?' },
-  { id: 'gen-close-anything', label: 'Clarity check' },
-  { id: 'gen-close-final', label: 'Final closing' },
-];
+// Quick copy buttons: each user's own list (lib/quick-copy.ts), defaults in QUICK_DEFAULTS.ta
 
 // ---------------------------------------------------------------------------
 // Chat playbook (from the team's Gs_Chat sheet): how we reply now
@@ -348,6 +343,9 @@ export function TicketAssistanceTab() {
   const [toast, setToast] = useState<{ text: string; warn?: boolean } | null>(null);
   const [ready, setReady] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+  const [quickPrefs, setQuickPrefs] = useState<QuickPrefs>({});
+  const [quickSync, setQuickSync] = useState({ synced: false, missingTable: false });
+  const [editQuick, setEditQuick] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -365,6 +363,10 @@ export function TicketAssistanceTab() {
     if (prefs.female) setFemale(true);
     if (prefs.last) setSelectedId(prefs.last);
     setShowGuide(readLS<boolean>(P + 'guide', true));
+    loadQuickPrefs(email).then((r) => {
+      setQuickPrefs(r.prefs);
+      setQuickSync({ synced: r.synced, missingTable: r.missingTable });
+    });
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
@@ -615,6 +617,21 @@ export function TicketAssistanceTab() {
     if (!s) return;
     const l: Lang = hasLang(s, langPref) ? langPref : 'en';
     doCopy(chatMessages(s, l).map(fill).join('\n\n'), s.title.split(' – ')[0]);
+  };
+  const quickItems = quickItemsFor(quickPrefs, 'ta').filter((q) => isOwn(q) || byId[q.id]);
+  const copyQuickItem = (q: QuickItem) => {
+    if (!isOwn(q)) return quickCopy(q.id);
+    const text = langPref === 'ar' && q.textAr?.trim() ? q.textAr : q.text || q.textAr || '';
+    doCopy(fill(text), q.label);
+  };
+  const saveQuick = async (items: QuickItem[]) => {
+    const r0 = await loadQuickPrefs(email); // keep the AI Lab list as it is
+    const next = { ...quickPrefs, ...r0.prefs, ai: r0.prefs.ai, ta: items };
+    setQuickPrefs(next);
+    const r = await saveQuickPrefs(email, next);
+    setQuickSync({ synced: r.synced, missingTable: r.missingTable });
+    setEditQuick(false);
+    flash(r.synced ? 'Your quick copy buttons are saved' : 'Saved in this browser (see the note to keep them everywhere)', !r.synced);
   };
 
   // ---- add / edit templates ----
@@ -1080,17 +1097,25 @@ export function TicketAssistanceTab() {
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
                 <Zap className="h-3 w-3" /> Quick copy
               </span>
-              {QUICK.filter((q) => byId[q.id]).map((q) => (
+              {quickItems.map((q) => (
                 <button
                   key={q.id}
                   type="button"
-                  onClick={(e) => (e.shiftKey ? select(q.id) : quickCopy(q.id))}
-                  title="Click to copy · Shift+click to open"
+                  onClick={(e) => (e.shiftKey && !isOwn(q) ? select(q.id) : copyQuickItem(q))}
+                  title={isOwn(q) ? 'Click to copy your text' : 'Click to copy · Shift+click to open'}
                   className="h-7 px-2.5 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300"
                 >
                   {q.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setEditQuick((v) => !v)}
+                title="Choose your own quick copy buttons"
+                className="h-7 w-7 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-slate-400 hover:text-emerald-600 hover:border-emerald-500 flex items-center justify-center"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
               <span className="flex-1" />
               <button
                 type="button"
@@ -1109,6 +1134,21 @@ export function TicketAssistanceTab() {
                 <Keyboard className="h-3.5 w-3.5" />
               </button>
             </div>
+
+            {editQuick && (
+              <QuickCopyEditor
+                title="My quick copy buttons"
+                items={quickItemsFor(quickPrefs, 'ta')}
+                defaults={QUICK_DEFAULTS.ta}
+                scenarios={scenarios}
+                topicLabel={(t) => `${topicToProduct[t]?.name || ''} › ${topicName[t] || t}`}
+                synced={quickSync.synced}
+                missingTable={quickSync.missingTable}
+                onSave={saveQuick}
+                onClose={() => setEditQuick(false)}
+                onCopySql={(sql) => doCopy(sql, 'SQL')}
+              />
+            )}
 
             {showSig && (
               <div className={`${panel} p-3 grid grid-cols-1 sm:grid-cols-3 gap-2`}>
