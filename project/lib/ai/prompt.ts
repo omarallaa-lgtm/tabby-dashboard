@@ -2,7 +2,7 @@
 // AI helper: rules, privacy masking, prompt builders and answer parsers.
 //
 // Used in two ways:
-//   1) Built-in AI  -> the dashboard sends the prompt to /api/ai/assist (OpenAI key in Vercel)
+//   1) Built-in AI  -> the dashboard sends the prompt to /api/ai/assist (Groq or OpenAI key in Vercel)
 //   2) Copy prompt  -> the agent pastes the same prompt into ChatGPT, then pastes the answer back
 // Both produce the same answer format, so one parser handles both.
 // This file has no browser or server-only imports: the API route uses the rules from here too.

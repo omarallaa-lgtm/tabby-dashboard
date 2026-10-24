@@ -1,14 +1,15 @@
 // ---------------------------------------------------------------------------
-// AI helper → OpenAI
+// AI helper → Groq (free) or OpenAI (paid)
 //
 // The browser sends the task ("reply" or "update") and the already-masked text.
-// The team rules are added here on the server, and the OpenAI key never reaches the browser.
+// The team rules are added here on the server, and the key never reaches the browser.
 //
-// Vercel → Project → Settings → Environment Variables:
-//   OPENAI_API_KEY   (required)  platform.openai.com → API keys (billed separately from ChatGPT Plus)
-//   OPENAI_MODEL     (optional)  default gpt-5-mini
+// Vercel → Project → Settings → Environment Variables (set ONE of the keys):
+//   GROQ_API_KEY     free, no card: console.groq.com → API Keys. Default model openai/gpt-oss-120b
+//   OPENAI_API_KEY   paid: platform.openai.com → API keys. Default model gpt-5-mini
+//   AI_MODEL         (optional)  another model name for the chosen provider
 //   AI_RATE_LIMIT    (optional)  requests per minute per user/IP, default 20
-// Tip: set a monthly budget in platform.openai.com → Settings → Limits.
+// If both keys are set, Groq is used.
 // ---------------------------------------------------------------------------
 import { rulesFor } from '@/lib/ai/prompt';
 import type { AiTask } from '@/lib/ai/prompt';
@@ -17,8 +18,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = process.env.OPENAI_MODEL || 'gpt-5-mini';
+const GROQ = process.env.GROQ_API_KEY || '';
+const PROVIDER = GROQ ? 'Groq' : 'OpenAI';
+const KEY = GROQ || process.env.OPENAI_API_KEY || '';
+const BASE = GROQ ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
+const MODEL = process.env.AI_MODEL || process.env.OPENAI_MODEL || (GROQ ? 'openai/gpt-oss-120b' : 'gpt-5-mini');
 const PER_MIN = Number(process.env.AI_RATE_LIMIT || 20) || 20;
 const MAX_INPUT = 60_000; // characters
 
@@ -48,13 +52,13 @@ function sameOrigin(req: Request) {
   }
 }
 
-const isReasoningModel = (m: string) => /^(gpt-5|o\d)/i.test(m);
+const isReasoningModel = (m: string) => /^(gpt-5|o\d)|gpt-oss/i.test(m);
 
 async function callOpenAI(task: AiTask, user: string, withEffort: boolean) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55_000);
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(`${BASE}/chat/completions`, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { authorization: `Bearer ${KEY}`, 'content-type': 'application/json' },
@@ -64,7 +68,8 @@ async function callOpenAI(task: AiTask, user: string, withEffort: boolean) {
           { role: 'system', content: rulesFor(task) },
           { role: 'user', content: user },
         ],
-        max_completion_tokens: task === 'update' ? 6000 : 3000,
+        // Groq's free plan allows ~8,000 tokens a minute, so keep the answer budget small there
+        max_completion_tokens: GROQ ? (task === 'update' ? 3500 : 1800) : task === 'update' ? 6000 : 3000,
         ...(withEffort && isReasoningModel(MODEL) ? { reasoning_effort: 'low' } : {}),
       }),
     });
@@ -76,11 +81,11 @@ async function callOpenAI(task: AiTask, user: string, withEffort: boolean) {
 }
 
 export async function GET() {
-  return json({ ok: true, configured: !!KEY, model: MODEL });
+  return json({ ok: true, configured: !!KEY, provider: KEY ? PROVIDER : null, model: MODEL });
 }
 
 export async function POST(req: Request) {
-  if (!KEY) return json({ error: 'The built-in AI is not set up yet (OPENAI_API_KEY is missing in Vercel). Use “Copy prompt for ChatGPT” for now.' }, 503);
+  if (!KEY) return json({ error: 'The built-in AI is not set up yet (add GROQ_API_KEY in Vercel). Use “Copy prompt for ChatGPT” for now.' }, 503);
   if (!sameOrigin(req)) return json({ error: 'Not allowed' }, 403);
 
   let body: any;
@@ -101,12 +106,15 @@ export async function POST(req: Request) {
     // some models don't accept reasoning_effort: retry once without it
     if (!r.ok && /reasoning_effort/i.test(String(r.data?.error?.message || ''))) r = await callOpenAI(task, user, false);
     if (!r.ok) {
-      const msg = String(r.data?.error?.message || `OpenAI error ${r.status}`);
-      console.error('AI helper error:', r.status, msg);
+      const msg = String(r.data?.error?.message || `${PROVIDER} error ${r.status}`);
+      console.error('AI helper error:', PROVIDER, r.status, msg);
       const hint =
-        r.status === 401 ? 'The OpenAI key is not valid. Check OPENAI_API_KEY in Vercel.'
-        : r.status === 429 ? 'OpenAI limit or budget reached. Check billing / limits on platform.openai.com, or try again shortly.'
-        : r.status === 404 ? `Model “${MODEL}” is not available on this key. Set OPENAI_MODEL in Vercel.`
+        r.status === 401 ? `The ${PROVIDER} key is not valid. Check the key in Vercel.`
+        : r.status === 429
+          ? GROQ
+            ? 'The free Groq limit was reached for now (per minute or per day). Wait a minute and try again, or use “Copy prompt for ChatGPT”.'
+            : 'OpenAI limit or budget reached. Check billing / limits on platform.openai.com, or try again shortly.'
+        : r.status === 404 ? `Model “${MODEL}” is not available on this key. Set AI_MODEL in Vercel.`
         : msg;
       return json({ error: hint }, 502);
     }
@@ -115,6 +123,6 @@ export async function POST(req: Request) {
     return json({ text, model: r.data?.model || MODEL, usage: r.data?.usage || null });
   } catch (e: any) {
     const aborted = e?.name === 'AbortError';
-    return json({ error: aborted ? 'The AI took too long to answer. Please try again.' : 'Could not reach OpenAI. Please try again.' }, 504);
+    return json({ error: aborted ? 'The AI took too long to answer. Please try again.' : `Could not reach ${PROVIDER}. Please try again.` }, 504);
   }
 }

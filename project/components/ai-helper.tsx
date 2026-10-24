@@ -88,7 +88,7 @@ async function askAI(task: AiTask, prompt: string, user: string): Promise<{ text
 // ---------------------------------------------------------------------------
 export function AiHelper(p: Props) {
   const [section, setSection] = useState<Section>('reply');
-  const [ai, setAi] = useState<{ configured: boolean; model?: string } | null>(null);
+  const [ai, setAi] = useState<{ configured: boolean; model?: string; provider?: string | null } | null>(null);
   const [store, setStore] = useState<{ examples: AiExample[]; updates: AiUpdate[]; status: StoreStatus; message?: string }>({
     examples: [],
     updates: [],
@@ -101,7 +101,7 @@ export function AiHelper(p: Props) {
   useEffect(() => {
     fetch('/api/ai/assist')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setAi(d ? { configured: !!d.configured, model: d.model } : { configured: false }))
+      .then((d) => setAi(d ? { configured: !!d.configured, model: d.model, provider: d.provider } : { configured: false }))
       .catch(() => setAi({ configured: false }));
     reload();
   }, []);
@@ -120,7 +120,7 @@ export function AiHelper(p: Props) {
               ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
               : 'border-amber-400/50 text-amber-700 dark:text-amber-300'
           }`}
-          title={ai?.configured ? `Model: ${ai.model}` : 'Add OPENAI_API_KEY in Vercel to switch it on'}
+          title={ai?.configured ? `Model: ${ai.model}` : 'Add GROQ_API_KEY (free) in Vercel to switch it on'}
         >
           {ai === null ? 'Checking…' : ai.configured ? 'Built-in AI on' : 'Built-in AI off · Copy prompt works'}
         </span>
@@ -168,7 +168,7 @@ function SetupPanel({
   copy,
   onClose,
 }: {
-  ai: { configured: boolean; model?: string } | null;
+  ai: { configured: boolean; model?: string; provider?: string | null } | null;
   status: StoreStatus;
   message?: string;
   copy: Props['copy'];
@@ -216,16 +216,16 @@ function SetupPanel({
       </Row>
       <Row ok={!!ai?.configured} title={ai?.configured ? `Built-in AI: on (${ai.model})` : '2 · Built-in AI (optional)'}>
         {ai?.configured ? (
-          <p>Agents get answers inside the dashboard. Change the model any time with OPENAI_MODEL in Vercel.</p>
+          <p>Agents get answers inside the dashboard{ai.provider ? ` (via ${ai.provider})` : ''}. Change the model any time with AI_MODEL in Vercel.</p>
         ) : (
           <>
-            <p>“Copy prompt for ChatGPT” already works with your ChatGPT subscription. To get answers inside the dashboard too:</p>
+            <p>“Copy prompt for ChatGPT” already works with your ChatGPT subscription. To get answers inside the dashboard too (free):</p>
             <ol className="list-decimal pl-4 space-y-0.5">
-              <li>Create an API key at platform.openai.com → API keys (API usage is billed separately from ChatGPT Plus).</li>
-              <li>Set a monthly budget at platform.openai.com → Settings → Limits.</li>
-              <li>Vercel → Project → Settings → Environment Variables → add <b>OPENAI_API_KEY</b> (optional: <b>OPENAI_MODEL</b>, default gpt-5-mini).</li>
+              <li>Sign up free at console.groq.com (no card needed) → API Keys → Create API Key.</li>
+              <li>Vercel → Project → Settings → Environment Variables → add <b>GROQ_API_KEY</b> with that key (Production).</li>
               <li>Redeploy, then refresh this page.</li>
             </ol>
+            <p>The free plan has daily limits (roughly 50–60 replies a day for the whole team). Paid OpenAI also works: use <b>OPENAI_API_KEY</b> instead.</p>
             <p className="text-amber-700 dark:text-amber-300">Paste the key only in Vercel, never in a chat or in the code.</p>
           </>
         )}
@@ -238,7 +238,7 @@ function SetupPanel({
 // Reply helper
 // ---------------------------------------------------------------------------
 type Shared = Props & {
-  ai: { configured: boolean; model?: string } | null;
+  ai: { configured: boolean; model?: string; provider?: string | null } | null;
   store: { examples: AiExample[]; updates: AiUpdate[]; status: StoreStatus };
   reload: () => Promise<void>;
 };
