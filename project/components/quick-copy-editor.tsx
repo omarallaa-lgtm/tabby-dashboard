@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------------
 // Edit your own quick-copy buttons: pick templates, rename, reorder, remove,
-// or add your own text. Used by Ticket Assistance and AI Lab.
+// or add your own text. Used by Ticket Assistance and AI Helper.
 // ---------------------------------------------------------------------------
 import { useMemo, useState } from 'react';
 import { ChevronUp, ChevronDown, X, Plus, Search, RotateCcw, Check, Pencil, Copy, Database } from 'lucide-react';

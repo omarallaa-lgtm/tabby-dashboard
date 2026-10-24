@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  Copy, Check, Search, Star, Clock, ChevronRight, ChevronDown, MessageSquare, Mail, Lightbulb, Info, GitBranch,
-  ArrowLeft, ArrowRight, X, Keyboard, BookOpen, Pencil, Zap, Settings2, ListTree, LifeBuoy, AlertTriangle, Link2, Plus, EyeOff, Database, Home,
+  Copy, Check, Search, Star, FlaskConical, CornerDownLeft, Clock, ChevronRight, ChevronDown, MessageSquare, Mail, Lightbulb, Info, GitBranch,
+  ArrowLeft, ArrowRight, X, Keyboard, BookOpen, Pencil, Zap, Settings2, ListTree, LifeBuoy, AlertTriangle, Link2, Plus, EyeOff, Database, Home, Sparkles,
 } from 'lucide-react';
 import { supabase, useMetrics } from '@/lib/metrics-context';
 import { TicketLinks } from '@/components/ticket-links';
+import { AiHelper } from '@/components/ai-helper';
+import type { AiInbox } from '@/components/ai-helper';
 import { TicketTemplateEditor } from '@/components/ticket-template-editor';
 import { norm, tokensOf } from '@/lib/text-match';
 import { QuickCopyEditor } from '@/components/quick-copy-editor';
@@ -301,13 +303,43 @@ const ChatPlaybook = ({
 // ---------------------------------------------------------------------------
 // Main tab
 // ---------------------------------------------------------------------------
-export function TicketAssistanceTab() {
+// One component behind two sidebar tabs:
+//   Ticket Assistance (mode 'templates') and AI Helper (mode 'ai').
+// The page keeps the same instance for both, so switching never loses the open template,
+// the search, the pasted chat or the AI's answer.
+export function TicketAssistanceTab({
+  mode = 'templates',
+  onGoTab,
+  canOpenTab,
+}: {
+  mode?: 'templates' | 'ai';
+  onGoTab?: (tab: string) => void;
+  canOpenTab?: (tab: string) => boolean;
+} = {}) {
   const { currentUser } = useMetrics();
   const email: string = String(currentUser?.user_email || 'guest').toLowerCase();
   const P = `tabby-ta:${email}:`;
 
   const [view, setView] = useState<'assist' | 'links'>('assist');
   const canEdit = currentUser?.role === 'Admin' || currentUser?.role === 'Team Leader';
+  // the AI helper is still in beta: Admins, plus anyone given "AI helper (Beta)" in Admin Settings → tab permissions
+  const canUseAi = canOpenTab
+    ? canOpenTab('ai-lab')
+    : currentUser?.role === 'Admin' || (Array.isArray(currentUser?.allowed_tabs) && currentUser.allowed_tabs.includes('ai-lab'));
+  const canOpenTemplates = canOpenTab ? canOpenTab('ticket-assist') : true;
+  const aiOn = mode === 'ai' && canUseAi;
+  // the AI part loads the first time the AI Helper tab is opened, then stays in the background
+  const [aiMounted, setAiMounted] = useState(false);
+  useEffect(() => {
+    if (aiOn) setAiMounted(true);
+  }, [aiOn]);
+  // a case / template handed to the AI Helper
+  const [inbox, setInbox] = useState<AiInbox | null>(null);
+  // template search inside the AI Helper
+  const [finderOpen, setFinderOpen] = useState('');
+  const [finderHi, setFinderHi] = useState(0);
+  const [finderLang, setFinderLang] = useState<Lang>('en');
+  const [finderCh, setFinderCh] = useState<Channel>('chat');
 
   // templates added / edited in the dashboard (Supabase ticket_templates)
   const [rows, setRows] = useState<TemplateRow[]>([]);
@@ -346,7 +378,15 @@ export function TicketAssistanceTab() {
   const [quickPrefs, setQuickPrefs] = useState<QuickPrefs>({});
   const [quickSync, setQuickSync] = useState({ synced: false, missingTable: false });
   const [editQuick, setEditQuick] = useState(false);
+  useEffect(() => {
+    if (mode !== 'templates' || view !== 'assist') return;
+    loadQuickPrefs(email).then((r) => {
+      setQuickPrefs(r.prefs);
+      setQuickSync({ synced: r.synced, missingTable: r.missingTable });
+    });
+  }, [mode, view, email]);
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -485,7 +525,8 @@ export function TicketAssistanceTab() {
     [scenarios, topicName, topicToProduct]
   );
 
-  const results = useMemo(() => {
+  const searchTemplates = useCallback(
+    (query: string, productFilter: string): Scenario[] => {
     const q = norm(query);
     if (!q) return [] as Scenario[];
     const toks = tokensOf(query);
@@ -507,9 +548,43 @@ export function TicketAssistanceTab() {
       .sort((a, b) => b.sc - a.sc)
       .slice(0, 40)
       .map((r) => r.s);
-  }, [query, index, productFilter, topicToProduct, favs]);
+    },
+    [index, topicToProduct, favs]
+  );
+  const results = useMemo(() => searchTemplates(query, productFilter), [searchTemplates, query, productFilter]);
+  // AI Helper search: all products, customer replies only
+  const finderResults = useMemo(
+    () => (mode === 'ai' ? searchTemplates(query, 'all').filter((s) => !s.topic.startsWith('int-')).slice(0, 6) : []),
+    [mode, searchTemplates, query]
+  );
+  useEffect(() => setFinderHi(0), [query]);
 
   useEffect(() => setHi(0), [query, productFilter]);
+
+  // closest templates for any text (used by the AI helper)
+  const rank = useCallback(
+    (text: string, n: number): Scenario[] => {
+      const toks = Array.from(new Set(tokensOf(text))).slice(0, 80);
+      if (!toks.length) return [];
+      return index
+        .map((ix) => {
+          let sc = 0;
+          let hit = 0;
+          for (const t of toks) {
+            const v = ix.title.includes(t) ? 8 : ix.keys.includes(t) ? 6 : ix.when.includes(t) ? 3 : ix.text.includes(t) ? 1 : 0;
+            if (v) hit++;
+            sc += v;
+          }
+          return { s: ix.s, sc: hit >= 2 ? sc * Math.sqrt(hit) : 0 };
+        })
+        // internal / partner emails are not customer replies
+        .filter((r) => r.sc > 0 && !r.s.topic.startsWith('int-'))
+        .sort((a, b) => b.sc - a.sc)
+        .slice(0, n)
+        .map((r) => r.s);
+    },
+    [index]
+  );
 
 
   const sel: Scenario | undefined = selectedId ? byId[selectedId] : undefined;
@@ -625,7 +700,7 @@ export function TicketAssistanceTab() {
     doCopy(fill(text), q.label);
   };
   const saveQuick = async (items: QuickItem[]) => {
-    const r0 = await loadQuickPrefs(email); // keep the AI Lab list as it is
+    const r0 = await loadQuickPrefs(email); // keep the AI Helper "After sending" list as it is
     const next = { ...quickPrefs, ...r0.prefs, ai: r0.prefs.ai, ta: items };
     setQuickPrefs(next);
     const r = await saveQuickPrefs(email, next);
@@ -736,6 +811,34 @@ export function TicketAssistanceTab() {
     </div>
   );
 
+  // ---- moving between Ticket Assistance and AI Helper ----
+  const sendToAi = (x: Omit<AiInbox, 'n'>) => {
+    setInbox((prev) => ({ ...x, n: (prev?.n || 0) + 1 }));
+    if (mode !== 'ai') onGoTab?.('ai-lab');
+  };
+  const askAiAbout = (text: string) => {
+    if (!text.trim()) return;
+    sendToAi({ chat: text.trim(), run: true, lang: /[\u0600-\u06FF]/.test(text) ? 'ar' : undefined });
+  };
+  /** the template's text as the agent's suggestion: the AI adapts it to the pasted chat */
+  const adaptWithAi = (s: Scenario, l: Lang, ch: Channel, text: string) =>
+    sendToAi({
+      suggestion: `Base the reply on our template “${s.title}” and adapt it to this customer’s case:\n${text}`,
+      channel: ch,
+      lang: l,
+      run: 'if-chat',
+    });
+  const openInTemplates = (id: string) => {
+    setEditing(null);
+    setView('assist');
+    select(id);
+    onGoTab?.('ticket-assist');
+  };
+  // each tab starts at the top
+  useEffect(() => {
+    rootRef.current?.closest('main')?.scrollTo({ top: 0 });
+  }, [mode]);
+
   // ---- Home: close any open template / editor and go back to the start screen ----
   const goHome = () => {
     if (editing && !window.confirm('Leave the editor? Changes you haven’t saved will be lost.')) return;
@@ -752,7 +855,7 @@ export function TicketAssistanceTab() {
   // ---- keyboard ----
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
-    if (view !== 'assist' || editing || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (mode !== 'templates' || view !== 'assist' || editing || e.ctrlKey || e.metaKey || e.altKey) return;
     const el = e.target as HTMLElement | null;
     const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
     if (typing) return;
@@ -797,6 +900,31 @@ export function TicketAssistanceTab() {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
+
+  const openFinder = (id: string) => {
+    setFinderOpen(id);
+    const s = byId[id];
+    if (s) setFinderLang(hasLang(s, langPref) ? langPref : 'en');
+  };
+  const onFinderKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFinderHi((h) => Math.min(h + 1, Math.max(finderResults.length - 1, 0)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFinderHi((h) => Math.max(h - 1, 0));
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      askAiAbout(query);
+    } else if (e.key === 'Enter' && finderResults[finderHi]) {
+      e.preventDefault();
+      openFinder(finderResults[finderHi].id);
+    } else if (e.key === 'Escape') {
+      if (finderOpen) setFinderOpen('');
+      else if (query) setQuery('');
+      else (e.target as HTMLInputElement).blur();
+    }
+  };
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
@@ -854,10 +982,295 @@ export function TicketAssistanceTab() {
     );
   };
 
+  // ---- AI Helper: "Find a template" panel (shown above the reply helper) ----
+  const fs: Scenario | undefined = finderOpen ? byId[finderOpen] : undefined;
+  const fsLang: Lang = fs && hasLang(fs, finderLang) ? finderLang : 'en';
+  const fsChannel: Channel = fs ? (hasChannel(fs, finderCh) ? finderCh : hasChannel(fs, 'chat') ? 'chat' : 'email') : 'chat';
+  const nameFill = (t: string, l: Lang) =>
+    t
+      .replace(/\{\{agent_name\}\}/gi, (m) => sig.agent.trim() || m)
+      .replace(/\{\{team_name\}\}/gi, (m) => (l === 'ar' ? sig.teamAr : sig.teamEn).trim() || m);
+  const fsMsgs = fs && fsChannel === 'chat' ? chatMessages(fs, fsLang).map((m) => nameFill(m, fsLang)) : [];
+  const fsSubject = fs && fsChannel === 'email' ? nameFill(emailSubject(fs, fsLang), fsLang) : '';
+  const fsEmail = fs && fsChannel === 'email' ? nameFill(emailBody(fs, fsLang), fsLang) : '';
+  const fsText = fsChannel === 'chat' ? fsMsgs.join('\n\n') : fsEmail;
+  const ghostBtn =
+    'h-8 px-3 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1.5';
+
+  const finder = aiMounted ? (
+    <div id="ai-finder" className={`${panel} p-3 space-y-2.5 scroll-mt-4`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <BookOpen className="h-4 w-4 text-emerald-500" />
+        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Find a template</span>
+        <span className="text-[10px] text-slate-500">instant – when nothing fits, ask the AI</span>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            id="ai-find-input"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setFinderOpen('');
+            }}
+            onKeyDown={onFinderKey}
+            placeholder="Search templates or paste the customer’s message…"
+            className="w-full h-10 pl-9 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+            {query ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setFinderOpen('');
+                }}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                title="Clear (Esc)"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : (
+              <Kbd>/</Kbd>
+            )}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => askAiAbout(query)}
+          disabled={!query.trim()}
+          title="Send this text to the AI as the customer’s chat (Ctrl+Enter)"
+          className="h-10 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> Ask AI about this
+        </button>
+      </div>
+
+      {query.trim() ? (
+        finderResults.length ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+            {finderResults.map((s, i) => {
+              const p = topicToProduct[s.topic];
+              const on = s.id === finderOpen;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => (on ? setFinderOpen('') : openFinder(s.id))}
+                  className={`text-left flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs ${
+                    on
+                      ? 'border-emerald-500 bg-emerald-500/10'
+                      : i === finderHi
+                        ? 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-emerald-500'
+                  }`}
+                >
+                  <span className="mt-1 h-2 w-2 rounded-full shrink-0" style={{ background: p?.color || '#94a3b8' }} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-slate-800 dark:text-slate-100 leading-snug">{s.title}</span>
+                    <span className="block text-[10px] text-slate-400 truncate">
+                      {p?.name} › {topicName[s.topic]}
+                    </span>
+                  </span>
+                  {on ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  ) : i === finderHi ? (
+                    <CornerDownLeft className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/5 px-3 py-2.5 flex flex-wrap items-center gap-2 text-[11px] text-amber-800 dark:text-amber-200">
+            <Lightbulb className="h-4 w-4 shrink-0" />
+            <span className="flex-1 min-w-[200px]">
+              No template for this case yet. Let the AI write the reply – if it’s a new case, it can add it to the templates for next time.
+            </span>
+            <button
+              type="button"
+              onClick={() => askAiAbout(query)}
+              className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Ask AI
+            </button>
+          </div>
+        )
+      ) : (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {recent.filter((id) => byId[id]).length > 0 && (
+            <>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 mr-1">
+                <Clock className="h-3 w-3" /> Recent
+              </span>
+              {recent
+                .filter((id) => byId[id])
+                .slice(0, 6)
+                .map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => openFinder(id)}
+                    className={`max-w-[230px] truncate h-6 px-2 rounded-md text-[11px] border ${
+                      id === finderOpen
+                        ? 'border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {byId[id].title}
+                  </button>
+                ))}
+            </>
+          )}
+          <span className="text-[11px] text-slate-500 basis-full">
+            Type a few words or paste the customer’s message. <Kbd>↑</Kbd> <Kbd>↓</Kbd> <Kbd>Enter</Kbd> opens a template, <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd> asks the AI.
+          </span>
+        </div>
+      )}
+
+      {fs && (
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/[0.03] p-3 space-y-2">
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: topicToProduct[fs.topic]?.color }}>
+                {topicToProduct[fs.topic]?.name} <ChevronRight className="h-3 w-3" /> {topicName[fs.topic]}
+              </p>
+              <p className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight mt-0.5">{fs.title}</p>
+              {fs.when && <p className="text-[11px] text-slate-500 mt-0.5">{fs.when}</p>}
+            </div>
+            {hasChannel(fs, 'chat') && hasChannel(fs, 'email') && (
+              <Seg
+                value={fsChannel}
+                onChange={setFinderCh}
+                options={[
+                  { value: 'chat', label: <><MessageSquare className="h-3.5 w-3.5" /> Chat</> },
+                  { value: 'email', label: <><Mail className="h-3.5 w-3.5" /> Email</> },
+                ]}
+              />
+            )}
+            <Seg
+              value={fsLang}
+              onChange={setFinderLang}
+              options={[
+                { value: 'en', label: 'EN' },
+                { value: 'ar', label: 'عربي', disabled: !hasLang(fs, 'ar'), title: hasLang(fs, 'ar') ? '' : 'English only' },
+              ]}
+            />
+            <button
+              type="button"
+              onClick={() => setFinderOpen('')}
+              className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white flex items-center justify-center"
+              title="Close (Esc)"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {fs.tip && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+              <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-px" />
+              <span>
+                <b>Internal tip:</b> {fs.tip}
+              </span>
+            </p>
+          )}
+          {fsChannel === 'chat' ? (
+            <div className="space-y-1.5">
+              {fsMsgs.map((m, i) => (
+                <div key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-2">
+                  <span className="mt-0.5 h-5 w-5 shrink-0 rounded-md bg-slate-200 dark:bg-slate-700 text-[10px] font-extrabold text-slate-600 dark:text-slate-200 flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  <p dir={fsLang === 'ar' ? 'rtl' : 'ltr'} className={`flex-1 min-w-0 text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-100 ${fsLang === 'ar' ? 'text-right' : ''}`}>
+                    <Rich text={m} />
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => doCopy(m, `Message ${i + 1}`)}
+                    className="shrink-0 h-7 w-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center justify-center"
+                    title="Copy"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {fsSubject && (
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-2">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 shrink-0">Subject</span>
+                  <p dir={fsLang === 'ar' ? 'rtl' : 'ltr'} className="flex-1 min-w-0 text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+                    <Rich text={fsSubject} />
+                  </p>
+                  <button type="button" onClick={() => doCopy(fsSubject, 'Subject')} className="shrink-0 h-7 w-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:border-emerald-500 flex items-center justify-center" title="Copy">
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+              <p dir={fsLang === 'ar' ? 'rtl' : 'ltr'} className={`rounded-lg border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-2.5 text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 dark:text-slate-100 max-h-72 overflow-y-auto ${fsLang === 'ar' ? 'text-right' : ''}`}>
+                <Rich text={fsEmail} />
+              </p>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={() => doCopy(fsText, fsChannel === 'chat' ? 'All messages' : 'Email body')}
+              className="h-8 px-3 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5"
+            >
+              <Copy className="h-3.5 w-3.5" /> {fsChannel === 'chat' ? 'Copy all' : 'Copy email'}
+            </button>
+            <button type="button" onClick={() => adaptWithAi(fs, fsLang, fsChannel, fsText)} className={ghostBtn} title="Use this template as your suggestion: the AI adapts it to the customer’s chat">
+              <Sparkles className="h-3.5 w-3.5" /> Adapt to the chat with AI
+            </button>
+            {canOpenTemplates && (
+              <button type="button" onClick={() => openInTemplates(fs.id)} className={ghostBtn} title="Open in Ticket Assistance to fill the blanks, switch language or follow the steps">
+                <LifeBuoy className="h-3.5 w-3.5" /> Open in Ticket Assistance <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={rootRef}>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+      {mode === 'ai' ? (
+        <div key="head-ai" className="tab-fade-in space-y-3">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <Sparkles className="h-6 w-6 text-emerald-500" /> AI Helper
+                <span className="ml-1 h-6 px-2 rounded-full text-[11px] font-bold bg-amber-400/20 text-amber-700 dark:text-amber-300 border border-amber-400/40 flex items-center gap-1">
+                  <FlaskConical className="h-3.5 w-3.5" /> Beta
+                </span>
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Check the templates first – when there’s no template for the case, the AI writes the reply. Press <Kbd>/</Kbd> to search.
+              </p>
+            </div>
+            {canOpenTemplates && (
+              <button
+                type="button"
+                onClick={() => onGoTab?.('ticket-assist')}
+                title="Back to Ticket Assistance – your open template is kept"
+                className="h-8 px-3 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1.5 max-w-full"
+              >
+                <LifeBuoy className="h-3.5 w-3.5 shrink-0" /> Ticket Assistance
+                {sel && <span className="font-semibold text-slate-400 truncate max-w-[180px]">· {sel.title}</span>}
+              </button>
+            )}
+          </div>
+          <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>The AI can be wrong. Read the reply and check it against the account before sending, and tell your TL when an answer was wrong.</span>
+          </div>
+        </div>
+      ) : (
+      <div key="head-ta" className="tab-fade-in flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <LifeBuoy className="h-6 w-6 text-emerald-500" /> Ticket Assistance
@@ -879,10 +1292,20 @@ export function TicketAssistanceTab() {
             value={view}
             onChange={setView}
             options={[
-              { value: 'assist', label: <><Zap className="h-3.5 w-3.5" /> Assistant</> },
+              { value: 'assist', label: <><Zap className="h-3.5 w-3.5" /> Templates</> },
               { value: 'links', label: <><Link2 className="h-3.5 w-3.5" /> Links & emails</> },
             ]}
           />
+          {canUseAi && (
+            <button
+              type="button"
+              onClick={() => onGoTab?.('ai-lab')}
+              title="Open AI Helper – your pasted chat and the AI’s answer are kept"
+              className="h-8 px-3 rounded-lg text-xs font-bold border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-1.5"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> AI Helper
+            </button>
+          )}
           {canEdit && view === 'assist' && (
             <button
               type="button"
@@ -894,11 +1317,11 @@ export function TicketAssistanceTab() {
           )}
         </div>
       </div>
+      )}
 
-      {view === 'links' ? (
-        <TicketLinks onCopied={flash} />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
+      {mode === 'ai' ? null : view === 'links' ? (
+        <TicketLinks onCopied={flash} />      ) : (
+        <div className="tab-fade-in grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
           {/* ================= LEFT: finder ================= */}
           <aside className={`${panel} p-3 space-y-3 lg:sticky lg:top-0 lg:max-h-[calc(100vh-150px)] lg:overflow-y-auto`}>
             <div className="relative">
@@ -949,6 +1372,22 @@ export function TicketAssistanceTab() {
                 {results.map((s, i) => (
                   <ScenarioRow key={s.id} s={s} active={i === hi} id={`ta-res-${i}`} />
                 ))}
+                {canUseAi && query.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => askAiAbout(query)}
+                    title="Opens AI Helper with this text as the customer’s chat"
+                    className={`mt-1.5 w-full rounded-lg border px-2.5 py-2 text-[11px] font-bold flex items-center gap-1.5 ${
+                      results.length
+                        ? 'border-dashed border-slate-300 dark:border-slate-600 text-slate-500 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300'
+                        : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15'
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                    <span className="flex-1 text-left">{results.length ? 'Not the right one? Ask the AI helper' : 'No template – let the AI write the reply'}</span>
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -1218,6 +1657,15 @@ export function TicketAssistanceTab() {
                       Paste the customer’s message into the search box, or open a topic on the left. Each reply is split into short messages:
                       acknowledge → explain → next step → soft close, so you never send one big paragraph.
                     </p>
+                    {canUseAi && (
+                      <button
+                        type="button"
+                        onClick={() => onGoTab?.('ai-lab')}
+                        className="mt-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> New case with no template? AI Helper writes the reply <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <ChatPlaybook
@@ -1337,6 +1785,16 @@ export function TicketAssistanceTab() {
                       </h3>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      {canUseAi && selProduct?.id !== 'internal' && (
+                        <button
+                          type="button"
+                          onClick={() => adaptWithAi(sel, lang, channel, channel === 'chat' ? messages.join('\n\n') : emailText)}
+                          title="Opens AI Helper with this template as your suggestion – the AI adapts it to the customer’s chat"
+                          className="h-8 px-2.5 rounded-lg text-[11px] font-bold border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-1"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" /> Adapt with AI
+                        </button>
+                      )}
                       <Seg
                         value={channel}
                         onChange={setChannelPref}
@@ -1519,6 +1977,51 @@ export function TicketAssistanceTab() {
               </>
             )}
           </section>
+        </div>
+      )}
+
+      {/* AI Helper: stays loaded in the background once opened, so the chat and answer survive tab switches */}
+      {aiMounted && canUseAi && (
+        <div className={aiOn ? 'tab-fade-in' : 'hidden'}>
+          <AiHelper
+            scenarios={scenarios}
+            byId={byId}
+            rank={rank}
+            topicLabel={(t) => `${topicToProduct[t]?.name || ''} › ${topicName[t] || t}`}
+            topicIds={Object.keys(topicName)}
+            canEdit={canEdit}
+            email={email}
+            agentName={sig.agent}
+            teamEn={sig.teamEn}
+            teamAr={sig.teamAr}
+            onNameChange={(next) => {
+              setSig(next);
+              writeLS(P + 'sig', next);
+            }}
+            onOpen={(id) => {
+              openFinder(id);
+              setTimeout(() => document.getElementById('ai-finder')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 30);
+            }}
+            onSuggestEdit={(s, isNew) => {
+              setView('assist');
+              setEditing({ base: s, isNew });
+              onGoTab?.('ticket-assist');
+            }}
+            onSaveTemplate={async (t) => {
+              const blocked = needSetup();
+              if (blocked) return blocked;
+              const err = await saveTemplateRow({ id: t.id, data: t, hidden: false }, email);
+              if (err) return `Could not save: ${err}`;
+              await reloadRows();
+              return null;
+            }}
+            productOfTopic={(t) => topicToProduct[t]}
+            copy={(text, label) => doCopy(text, label)}
+            flash={flash}
+            active={aiOn}
+            inbox={inbox}
+            finder={finder}
+          />
         </div>
       )}
 

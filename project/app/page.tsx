@@ -15,7 +15,6 @@ import { TeamTab } from '@/components/tabs/team-tab';
 import { MyPerformanceTab } from '@/components/tabs/my-performance-tab';
 import { KnetCalculatorTab } from '@/components/tabs/knet-calculator-tab';
 import { TicketAssistanceTab } from '@/components/tabs/ticket-assistance-tab';
-import { AiLabTab } from '@/components/tabs/ai-lab-tab';
 import { AdminSettingsTab } from '@/components/tabs/admin-settings-tab';
 import { AgentDataTab } from '@/components/tabs/agent-data-tab';
 import { RequestsTab } from '@/components/tabs/requests-tab';
@@ -757,7 +756,7 @@ export default function Home() {
     { key: 'my-performance', label: 'My Performance', icon: UserCheck },
     { key: 'knet-calc', label: 'Shortcuts', icon: Zap },
     { key: 'ticket-assist', label: 'Ticket Assistance', icon: LifeBuoy },
-    { key: 'ai-lab', label: 'AI Lab (Beta)', icon: Sparkles },
+    { key: 'ai-lab', label: 'AI Helper', icon: Sparkles },
     { key: 'requests', label: 'Requests', icon: MessageSquarePlus, badge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined },
     { key: 'announcements', label: 'Announcements', icon: Megaphone },
     { key: 'agent-data', label: 'Data & Backups', icon: Database },
@@ -765,7 +764,7 @@ export default function Home() {
   ];
 
   // If the saved / current tab isn't permitted for this user, fall back to the first one they can open
-  const shownTab = isTabAllowed(activeTab)
+  const shownTab = isTabAllowed(activeTab) && navItems.some((item) => item.key === activeTab)
     ? activeTab
     : (navItems.find((item) => isTabAllowed(item.key))?.key ?? 'overview');
 
@@ -1051,13 +1050,14 @@ export default function Home() {
           )}
 
           {/* MAIN TAB CONTENT (key = tab, so each tab starts at the top and fades in) */}
-          <main key={shownTab} className="tab-fade-in flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden">
+          <main key={shownTab === 'ai-lab' ? 'ticket-assist' : shownTab} className="tab-fade-in flex-1 p-3 md:p-8 overflow-y-auto overflow-x-hidden">
             {shownTab === 'overview' && isTabAllowed('overview') && <OverviewTab />}
             {shownTab === 'team' && isTabAllowed('team') && <TeamTab />}
             {shownTab === 'my-performance' && isTabAllowed('my-performance') && <MyPerformanceTab />}
             {shownTab === 'knet-calc' && isTabAllowed('knet-calc') && <KnetCalculatorTab />}
-            {shownTab === 'ticket-assist' && isTabAllowed('ticket-assist') && <TicketAssistanceTab />}
-            {shownTab === 'ai-lab' && isTabAllowed('ai-lab') && <AiLabTab />}
+            {(shownTab === 'ticket-assist' || shownTab === 'ai-lab') && isTabAllowed(shownTab) && (
+              <TicketAssistanceTab mode={shownTab === 'ai-lab' ? 'ai' : 'templates'} onGoTab={handleTabChange} canOpenTab={isTabAllowed} />
+            )}
             {shownTab === 'requests' && isTabAllowed('requests') && <RequestsTab currentUser={currentUser} />}
             {shownTab === 'announcements' && isTabAllowed('announcements') && <AnnouncementsTab currentUser={currentUser} />}
             {shownTab === 'agent-data' && isTabAllowed('agent-data') && <AgentDataTab />}

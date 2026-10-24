@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Personal quick-copy buttons (per user)
 //   ta : the Quick copy bar in Ticket Assistance
-//   ai : the "After sending · close" row in AI Lab
+//   ai : the "After sending · close" row in AI Helper
 // Each button is a template (by id) or the user's own text.
 // Saved in Supabase (user_quick_copy, one row per user) so it follows the user to
 // any computer / Citrix session, with a copy in the browser as a backup.

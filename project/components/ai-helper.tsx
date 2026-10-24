@@ -1,7 +1,8 @@
 'use client';
 
 // ---------------------------------------------------------------------------
-// AI helper (AI Lab tab)
+// AI Helper tab (shares templates, names and quick copy with Ticket Assistance)
+//  • Find a template: search the templates first (instant, free); if nothing fits, ask the AI
 //  • Reply helper: paste the conversation → matched with our templates, team updates,
 //    taught cases, team answers and approved replies → AI (built-in) or ChatGPT (copy prompt)
 //  • Teach the AI: updates (policy / process changes) and cases (situation + how we handle it);
@@ -32,6 +33,17 @@ import {
 } from '@/lib/ai/store';
 import type { StoreStatus, AiData } from '@/lib/ai/store';
 
+/** a case or template sent over from Ticket Assistance / the template search (n changes on every send) */
+export interface AiInbox {
+  n: number;
+  chat?: string;
+  suggestion?: string;
+  channel?: 'chat' | 'email';
+  lang?: 'en' | 'ar';
+  /** true = ask the AI straight away; 'if-chat' = only when a chat is already pasted */
+  run?: boolean | 'if-chat';
+}
+
 interface Props {
   scenarios: Scenario[];
   byId: Record<string, Scenario>;
@@ -52,6 +64,11 @@ interface Props {
   productOfTopic: (topicId: string) => { id: string; name: string } | undefined;
   copy: (text: string, label: string) => void;
   flash: (text: string, warn?: boolean) => void;
+  /** false while the other tab is on screen: keyboard shortcuts stay off */
+  active?: boolean;
+  inbox?: AiInbox | null;
+  /** shown above the reply helper (the template search) */
+  finder?: React.ReactNode;
 }
 
 type Section = 'reply' | 'teach' | 'questions' | 'examples';
@@ -110,7 +127,7 @@ async function askAI(task: AiTask, prompt: string, user: string, effort: 'low' |
 }
 
 // ---------------------------------------------------------------------------
-// Quick copy bar: the same personal buttons as Ticket Assistance, always at hand in AI Lab
+// Quick copy bar: the same personal buttons as Ticket Assistance, always at hand in AI Helper
 // ---------------------------------------------------------------------------
 function QuickBar(p: Props) {
   const [prefs, setPrefs] = useState<QuickPrefs>({});
@@ -219,6 +236,11 @@ export function AiHelper(p: Props) {
   const [showName, setShowName] = useState(false);
 
   const reload = async () => setStore(await loadAiData());
+  // the last case taken from the inbox, so it isn't applied twice
+  const seen = useRef(0);
+  useEffect(() => {
+    if (p.inbox && p.inbox.n > seen.current) setSection('reply');
+  }, [p.inbox]);
 
   useEffect(() => {
     fetch('/api/ai/assist')
@@ -322,7 +344,8 @@ export function AiHelper(p: Props) {
         <SetupPanel ai={ai} status={store.status} questionsReady={store.questionsReady} message={store.message} copy={p.copy} onClose={() => setShowSetup(false)} />
       )}
 
-      {section === 'reply' && <ReplyHelper {...p} ai={ai} store={store} reload={reload} goTo={setSection} />}
+      {section === 'reply' && p.finder}
+      {section === 'reply' && <ReplyHelper {...p} ai={ai} store={store} reload={reload} goTo={setSection} seen={seen} />}
       {section === 'teach' && <TeachPanel {...p} ai={ai} store={store} reload={reload} goTo={setSection} />}
       {section === 'questions' && <QuestionsPanel {...p} ai={ai} store={store} reload={reload} goTo={setSection} />}
       {section === 'examples' && <ExamplesPanel {...p} ai={ai} store={store} reload={reload} goTo={setSection} />}
@@ -537,7 +560,7 @@ const ASK_EXAMPLES = [
   'Please write an escalation message to my senior.',
 ];
 
-function ReplyHelper(p: Shared) {
+function ReplyHelper(p: Shared & { seen?: { current: number } }) {
   const [chat, setChat] = useState('');
   const [context, setContext] = useState('');
   const [suggestion, setSuggestion] = useState('');
@@ -717,13 +740,17 @@ function ReplyHelper(p: Shared) {
   };
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (p.active === false || e.ctrlKey || e.metaKey || e.altKey) return;
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
     const k = e.key.toLowerCase();
     if (k === '/') {
       e.preventDefault();
-      document.getElementById(compose ? 'ai-suggestion-input' : 'ai-chat-input')?.focus();
+      const find = document.getElementById('ai-find-input') as HTMLInputElement | null;
+      if (find && !compose) {
+        find.focus();
+        find.select();
+      } else document.getElementById(compose ? 'ai-suggestion-input' : 'ai-chat-input')?.focus();
       return;
     }
     if (k === 'n') return reset();
@@ -746,6 +773,48 @@ function ReplyHelper(p: Shared) {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
+
+  // a case or template sent from Ticket Assistance or the template search
+  const [autoRun, setAutoRun] = useState(false);
+  useEffect(() => {
+    const ib = p.inbox;
+    if (!ib || !p.seen || ib.n <= p.seen.current) return;
+    p.seen.current = ib.n;
+    setMode('reply');
+    setAnswer(null);
+    setMsgs([]);
+    setEmailText('');
+    setCaseAns(null);
+    setRewrite(null);
+    setFeedback('');
+    setSaved(false);
+    setTplState('');
+    setError('');
+    if (ib.chat !== undefined) {
+      setChat(ib.chat);
+      setContext('');
+    }
+    if (ib.suggestion !== undefined) setSuggestion(ib.suggestion);
+    if (ib.channel) setChannel(ib.channel);
+    if (ib.lang) setLang(ib.lang);
+    const hasChat = !!(ib.chat !== undefined ? ib.chat : chat).trim();
+    if (ib.run === true || (ib.run === 'if-chat' && hasChat)) setAutoRun(true);
+    else {
+      if (ib.run === 'if-chat') p.flash('Template added as your suggestion – paste the customer’s chat, then press Suggest reply');
+      setTimeout(() => document.getElementById('ai-chat-input')?.focus(), 80);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.inbox]);
+  useEffect(() => {
+    if (!autoRun || p.ai === null) return; // wait until we know whether the built-in AI is on
+    setAutoRun(false);
+    if (p.ai.configured) run();
+    else {
+      p.flash('The built-in AI is off – press “Copy prompt for ChatGPT”', true);
+      document.getElementById('ai-chat-input')?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun, prompt, p.ai]);
 
   /** start a new case: forget the old conversation, suggestion and answer */
   const reset = () => {
